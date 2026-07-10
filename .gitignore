@@ -1,0 +1,19 @@
+# --- Python (stack de referencia) ---
+__pycache__/
+*.py[cod]
+.notes.json
+.notes_*.json
+.venv/
+
+# --- Node / JS / build (otros stacks) ---
+node_modules/
+dist/
+.astro/
+coverage/
+
+# --- Temporales y editores ---
+*.tmp
+*.log
+.DS_Store
+.idea/
+.vscode/

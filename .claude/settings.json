@@ -1,0 +1,37 @@
+{
+  "$schema_comment": "Hooks que automatizan la verificación. El harness los ejecuta, no el agente, así que no se pueden saltar. El comando de tests (python3 -m unittest) es la referencia del stack Python; adáptalo a tu lenguaje en docs/stack-adapter.md.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -m unittest discover -s tests -q 2>&1 | tail -3",
+            "description": "Tras editar o escribir archivos, corre los tests y muestra el resumen. Comando de tests del stack de referencia (Python); adáptalo en docs/stack-adapter.md."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./init.sh > /tmp/harness_init.log 2>&1 && echo '[harness] init.sh OK' || (echo '[harness] init.sh FALLÓ' && tail -20 /tmp/harness_init.log)",
+            "description": "Antes de cerrar la sesión, fuerza una verificación completa."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./init.sh)",
+      "Bash(python3 -m unittest*)",
+      "Bash(python3 tools/mutate.py*)",
+      "Bash(python -m unittest*)",
+      "Bash(npm test*)"
+    ]
+  }
+}

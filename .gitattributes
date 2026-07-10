@@ -1,0 +1,13 @@
+# Normaliza todo el texto a LF en el repositorio (los scripts bash e init.sh
+# deben ser LF para funcionar en Linux/CI, independientemente del SO del autor).
+* text=auto eol=lf
+
+# Los scripts siempre LF y ejecutables donde aplique.
+*.sh text eol=lf
+*.py text eol=lf
+
+# Binarios: sin conversión.
+*.png binary
+*.webp binary
+*.jpg binary
+*.ico binary

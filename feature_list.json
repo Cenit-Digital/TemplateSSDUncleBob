@@ -1,0 +1,19 @@
+{
+  "project": "<nombre-de-tu-proyecto>",
+  "description": "<describe tu proyecto aquí>",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": [
+      "pending",
+      "spec_ready",
+      "in_progress",
+      "done",
+      "blocked"
+    ],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "_howto": "Añade tu primera feature al array \"features\" como {\"id\":1,\"name\":\"...\",\"title\":\"...\",\"description\":\"...\",\"acceptance\":[\"...\"],\"sdd\":true,\"status\":\"pending\"} y pide a Claude «implementa la siguiente feature pendiente». El campo \"acceptance\" es una lista de criterios verificables; \"sdd\":true exige spec aprobada antes de implementar; \"status\" debe ser uno de rules.valid_status.",
+  "features": []
+}
