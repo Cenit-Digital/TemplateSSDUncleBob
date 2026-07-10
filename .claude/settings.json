@@ -1,0 +1,35 @@
+{
+  "$schema_comment": "Hooks que automatizan la verificación del arnés. El harness los ejecuta (no el agente), así que no se pueden saltar. Usan el motor agnóstico: los comandos concretos salen de harness.config.json.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .harness/harness.mjs test",
+            "description": "Tras editar o escribir archivos, corre la suite de tests declarada en harness.config.json."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .harness/harness.mjs init",
+            "description": "Antes de cerrar la sesión, fuerza una verificación completa del entorno y el arnés."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./init.sh)",
+      "Bash(bin/harness:*)",
+      "Bash(node .harness/harness.mjs:*)"
+    ]
+  }
+}

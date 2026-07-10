@@ -1,0 +1,60 @@
+{
+  "project": "node-notes-cli",
+  "description": "CLI de notas en Node (cero dependencias). Ejemplo de referencia del arnés SSD Uncle Bob para el stack JavaScript/Node.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "storage_layer",
+      "title": "Capa de almacenamiento JSON",
+      "description": "Lectura/escritura atómica de notas en un archivo JSON legible.",
+      "acceptance": [
+        "src/storage.mjs con load() y save()",
+        "save() es atómico (temporal + rename) y serializa 2 espacios UTF-8",
+        "load() devuelve [] si el archivo no existe"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "note_model",
+      "title": "Modelo de Nota",
+      "description": "Estructura inmutable con id incremental, title, body, createdAt.",
+      "acceptance": [
+        "src/notes.mjs con createNote()",
+        "id = max(id)+1; createdAt ISO 8601; objeto congelado"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "cli_add_list_show_delete",
+      "title": "Comandos add, list, show y delete",
+      "description": "Alta, listado, detalle y borrado de notas por la CLI.",
+      "acceptance": [
+        "add imprime id y guarda; list imprime id\\tfecha\\ttitulo",
+        "show y delete por id; error con id inexistente (código 1)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 4,
+      "name": "count",
+      "title": "Comando count",
+      "description": "Muestra cuántas notas hay almacenadas. Feature de ejemplo recorrida por el flujo Uncle Bob completo (spec → gherkin → TDD → judge → mutación).",
+      "acceptance": [
+        "`count` imprime un entero único: el total de notas",
+        "Almacén vacío imprime 0",
+        "count no modifica ni crea el archivo de notas"
+      ],
+      "sdd": true,
+      "status": "done"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+name: Harness CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: "1"
+
+jobs:
+  root-harness:
+    name: Arnés raíz (init)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node .harness/harness.mjs init
+
+  python-example:
+    name: Ejemplo Python (init + mutación 100%)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/python-notes-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: init (entorno + tests)
+        run: node ../../.harness/harness.mjs init
+      - name: mutación (los 3 módulos deben quedar en 100%)
+        run: |
+          node ../../.harness/harness.mjs mutate src/notes.py
+          node ../../.harness/harness.mjs mutate src/storage.py
+          node ../../.harness/harness.mjs mutate src/cli.py
+
+  node-example:
+    name: Ejemplo Node (init + mutación 100%)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/node-notes-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: init (entorno + tests)
+        run: node ../../.harness/harness.mjs init
+      - name: mutación (los 3 módulos deben quedar en 100%)
+        run: |
+          node ../../.harness/harness.mjs mutate src/notes.mjs
+          node ../../.harness/harness.mjs mutate src/storage.mjs
+          node ../../.harness/harness.mjs mutate src/cli.mjs

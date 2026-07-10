@@ -1,0 +1,27 @@
+{
+  "$schema": "../../harness.schema.json",
+  "project": "node-notes-cli",
+  "language": "node",
+  "standalone": false,
+  "description": "Ejemplo de referencia: CLI de notas en JavaScript (Node, cero dependencias). Demuestra el flujo Uncle Bob end-to-end con node --test y un mutador propio (tools/mutate.mjs). Para producción, un proyecto TS real usaría Vitest + StrykerJS (ver docs/mutation-testing.md).",
+  "commands": {
+    "test": "node --test",
+    "mutate": "node tools/mutate.mjs {{target}}"
+  },
+  "paths": {
+    "src": "src",
+    "tests": "test",
+    "features": "features",
+    "progress": "progress"
+  },
+  "mutation": {
+    "threshold": 1.0,
+    "targets": ["src/cli.mjs", "src/notes.mjs", "src/storage.mjs"]
+  },
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_approved_spec_to_implement": true,
+    "require_tests_to_close": true,
+    "require_mutation_to_close": true
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "project": "mi-proyecto",
+  "description": "Lista de features del proyecto. Una feature a la vez. Ver AGENTS.md y docs/workflow.md. Estados: pending → spec_ready → in_progress → done (o blocked).",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "ejemplo_feature",
+      "title": "Feature de ejemplo (renómbrala o bórrala al empezar)",
+      "description": "Sustituye esta feature por la primera real de tu proyecto. Toda feature con \"sdd\": true recorre spec → gherkin → puerta humana → TDD → judge → mutación.",
+      "acceptance": [
+        "Describe aquí los criterios de aceptación observables",
+        "Cada criterio debe poder convertirse en un escenario Gherkin medible"
+      ],
+      "sdd": true,
+      "status": "pending"
+    }
+  ]
+}

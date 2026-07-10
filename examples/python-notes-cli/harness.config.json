@@ -1,0 +1,27 @@
+{
+  "$schema": "../../harness.schema.json",
+  "project": "python-notes-cli",
+  "language": "python",
+  "standalone": false,
+  "description": "Ejemplo de referencia: CLI de notas en Python (cero dependencias), tomado del arnés de BettaTech. Demuestra el flujo Uncle Bob end-to-end con un mutador propio (tools/mutate.py).",
+  "commands": {
+    "test": "{{py}} -m unittest discover -s tests -q",
+    "mutate": "{{py}} tools/mutate.py {{target}}"
+  },
+  "paths": {
+    "src": "src",
+    "tests": "tests",
+    "features": "features",
+    "progress": "progress"
+  },
+  "mutation": {
+    "threshold": 1.0,
+    "targets": ["src/cli.py", "src/notes.py", "src/storage.py"]
+  },
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_approved_spec_to_implement": true,
+    "require_tests_to_close": true,
+    "require_mutation_to_close": true
+  }
+}

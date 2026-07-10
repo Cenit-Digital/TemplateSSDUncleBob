@@ -1,0 +1,40 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Artefactos de build
+dist/
+build/
+*.tsbuildinfo
+
+# Mutación / tests
+.stryker-tmp/
+.coverage
+htmlcov/
+coverage/
+
+# Datos de las apps de ejemplo
+.notes.json
+*.notes.json
+.notes_*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
