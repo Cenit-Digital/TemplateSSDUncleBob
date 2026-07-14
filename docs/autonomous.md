@@ -65,6 +65,13 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
       tú directamente en una urgencia, limita el *bypass* a administradores, pero
       **nunca** incluyas la GitHub App de Claude en la lista de bypass.
       Referencia oficial: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>.
+    - ℹ️ *Si eres el único mantenedor:* "Require approvals: 1" no deja auto-aprobar
+      tus propios PRs, y podrías bloquearte a ti mismo. Deja tu cuenta como
+      *bypass* de administrador para tu trabajo, o prescinde del requisito de
+      aprobación humana confiando en los *required checks*. Lo **imprescindible
+      contra el bot** es más simple: *exigir PR y bloquear el push directo a
+      `main`*, con la App de Claude fuera de cualquier *bypass*. Las aprobaciones
+      humanas y el review de Code Owners son calidad de revisión añadida.
 - [ ] Probar sin esperar al lunes: *Actions → «Evolución autónoma del arnés» →
       Run workflow* (`workflow_dispatch`). Requiere que el workflow ya esté en la
       rama por defecto.
