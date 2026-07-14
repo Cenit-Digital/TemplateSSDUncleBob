@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout (historial completo para ramas y PR)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
