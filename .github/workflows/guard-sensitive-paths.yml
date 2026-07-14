@@ -39,7 +39,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')"
+          # Incluye previous_filename: un RENAME de una ruta sensible reporta
+          # solo la ruta nueva en .filename — sin esto, mover el mandato, la CI
+          # o el motor escaparía al guardián.
+          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')"
           sensitive="$(printf '%s\n' "$files" | grep -E '^(\.github/workflows/|\.github/AUTONOMOUS\.md$|\.github/CODEOWNERS$|docs/autonomous\.md$|\.harness/.*\.(mjs|js|cjs|ts)$|\.claude/)' || true)"
           if [ -z "$sensitive" ]; then
             echo "Sin rutas sensibles tocadas en este PR."
