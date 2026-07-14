@@ -194,3 +194,5 @@ el bot lo indica en el PR para que la relances a mano.
 - Repositorio de la acción: <https://github.com/anthropics/claude-code-action>
 - Seguridad de la acción: <https://github.com/anthropics/claude-code-action/blob/main/docs/security.md>
 - Protección de ramas en GitHub: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>
+
+<!-- guard-verify: PR de prueba, se descarta -->
