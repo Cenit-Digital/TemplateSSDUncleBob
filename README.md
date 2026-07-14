@@ -113,7 +113,7 @@ muerden).
 ├── init.sh · init.ps1 · bin/harness(.ps1)    # lanzadores multiplataforma
 ├── .harness/
 │   ├── harness.mjs                           # motor agnóstico (cero deps)
-│   └── adapters/                             # python.md · node.md · generic.md
+│   └── adapters/                             # python.md · node.md · go.md · generic.md
 ├── docs/                                     # workflow · tdd · gherkin · mutation
 │   │                                         #   architecture · conventions
 │   └── verification · configuration · tooling · autonomous
