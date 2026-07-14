@@ -116,13 +116,34 @@ muerden).
 │   └── adapters/                             # python.md · node.md · generic.md
 ├── docs/                                     # workflow · tdd · gherkin · mutation
 │   │                                         #   architecture · conventions
-│   └── verification · configuration · tooling
+│   └── verification · configuration · tooling · autonomous
 ├── .claude/agents/                           # 6 del pipeline + 3 de apoyo
 ├── feature_list.json · project-spec.md       # alcance y spec
 ├── features/ · progress/ · src/ · tests/     # contrato, estado y código
 ├── examples/{python,node}-notes-cli/         # arneses completos de referencia
-└── .github/workflows/harness-ci.yml          # CI: init + mutación de los ejemplos
+└── .github/
+    ├── workflows/harness-ci.yml              # CI: init + mutación de los ejemplos
+    ├── workflows/autonomous-evolve.yml       # bot semanal de auto-mejora (solo PR)
+    ├── workflows/guard-sensitive-paths.yml   # marca PRs que tocan rutas sensibles
+    ├── AUTONOMOUS.md                          # mandato del bot (ver docs/autonomous.md)
+    └── CODEOWNERS                             # revisión obligatoria del dueño (sensibles)
 ```
+
+## Evolución autónoma (opcional)
+
+Un workflow programado puede mejorar el propio arnés de forma acotada: una vez
+por semana elige una tarea de un backlog, la completa con verificación real y
+**abre un Pull Request que un humano revisa y fusiona a mano** (nunca auto-merge).
+
+- Disparador: `.github/workflows/autonomous-evolve.yml`
+- Mandato y límites duros: `.github/AUTONOMOUS.md`
+- Guardián + propietarios: `.github/workflows/guard-sensitive-paths.yml` · `.github/CODEOWNERS`
+- Puesta en marcha, coste y **protección de rama obligatoria**: **`docs/autonomous.md`**
+
+La política "solo abre PR" se respalda mecánicamente con protección de rama sobre
+`main` (paso obligatorio de la checklist en `docs/autonomous.md`). Solo corre en el
+repositorio canónico; quien use la plantilla opta explícitamente con la variable de
+repo `ENABLE_AUTONOMOUS_EVOLVE=true`, o borra esos ficheros si no lo quiere.
 
 ## Créditos
 
