@@ -35,10 +35,11 @@
 | `docs/verification.md`     | Cómo demostrar que funciona                                               | Antes de declarar `done`          |
 | `docs/configuration.md`    | Cómo adaptar `harness.config.json` a cualquier stack                      | Al portar a un nuevo lenguaje     |
 | `docs/tooling.md`          | Agentes de apoyo y hooks                                                  | Para entender el tooling          |
+| `docs/autonomous.md`       | El bot de evolución autónoma (solo-PR) y su puesta en marcha              | Para operar el bot de auto-mejora |
 | `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
 | `.claude/agents/`          | 6 subagentes del pipeline + 3 de apoyo                                     | Si orquestas                      |
-| `examples/`                | Arneses completos y ejecutables (Python y Node/TS) de referencia          | Para ver el método en acción      |
+| `examples/`                | Arneses completos y ejecutables (Python y Node/JS) de referencia          | Para ver el método en acción      |
 | `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
 
 ## 3. Reglas duras (no negociables)
