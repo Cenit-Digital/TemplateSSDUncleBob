@@ -111,12 +111,13 @@ muerden).
 ├── CLAUDE.md · AGENTS.md · CHECKPOINTS.md   # gobernanza del arnés
 ├── harness.config.json · harness.schema.json # ⭐ el punto agnóstico
 ├── init.sh · init.ps1 · bin/harness(.ps1)    # lanzadores multiplataforma
+├── scripts/sync-memoria.(sh|ps1)             # memoria organizacional (paso 2bis)
 ├── .harness/
 │   ├── harness.mjs                           # motor agnóstico (cero deps)
 │   └── adapters/                             # python.md · node.md · go.md · generic.md
 ├── docs/                                     # workflow · tdd · gherkin · mutation
-│   │                                         #   architecture · conventions
-│   └── verification · configuration · tooling · autonomous
+│   │                                         #   architecture · conventions · verification
+│   └── configuration · tooling · autonomous · memoria-organizacional
 ├── .claude/agents/                           # 6 del pipeline + 3 de apoyo
 ├── feature_list.json · project-spec.md       # alcance y spec
 ├── features/ · progress/ · src/ · tests/     # contrato, estado y código
@@ -144,6 +145,17 @@ La política "solo abre PR" se respalda mecánicamente con protección de rama s
 `main` (paso obligatorio de la checklist en `docs/autonomous.md`). Solo corre en el
 repositorio canónico; quien use la plantilla opta explícitamente con la variable de
 repo `ENABLE_AUTONOMOUS_EVOLVE=true`, o borra esos ficheros si no lo quiere.
+
+## Memoria organizacional (opcional)
+
+Los proyectos de Cénit Digital comparten patrones ya validados a través de un
+repo privado de memoria (`SistemaDeMemoriaUncleBob`). Esta plantilla nace
+conectada: el paso 2bis del Protocolo de arranque (`CLAUDE.md`) sincroniza esos
+patrones en `.memoria-cache/` con `scripts/sync-memoria.(sh|ps1)` y los consulta
+antes de diseñar desde cero. El paso es **no bloqueante**: sin acceso a ese repo
+(p. ej. usando la plantilla desde fuera de la organización), el arranque sigue
+exactamente igual — y puedes borrar los dos scripts y el paso 2bis si no lo
+quieres. Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 

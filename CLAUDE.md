@@ -34,6 +34,12 @@ y custodiar la disciplina**, nunca implementar a lo loco.
 
 1. Lee `AGENTS.md` para orientarte.
 2. Lee `feature_list.json` y `progress/current.md`.
+2bis. Sincroniza la memoria organizacional: `scripts/sync-memoria.sh` (POSIX)
+   o `pwsh scripts/sync-memoria.ps1` (Windows). Si `.memoria-cache/patterns/`
+   tiene patrones de la categoría de tu tarea, revísalos **antes** de diseñar
+   desde cero, respetando su "Cuándo NO aplica". Paso **no bloqueante**: si
+   falla (sin red o sin acceso al repo privado), sigue sin memoria y déjalo
+   anotado en `progress/current.md`. Ver `docs/memoria-organizacional.md`.
 3. Lee `docs/workflow.md` (el pipeline completo).
 4. Ejecuta `./init.sh` (POSIX) o `pwsh ./init.ps1` (Windows), o
    `bin/harness init`. Si falla, **paras** y reportas.

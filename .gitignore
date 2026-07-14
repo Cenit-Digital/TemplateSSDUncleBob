@@ -32,6 +32,9 @@ venv/
 .env.*
 !.env.example
 
+# Memoria organizacional (caché local; se regenera con scripts/sync-memoria.*)
+.memoria-cache/
+
 # Sistema / editores
 .DS_Store
 Thumbs.db
