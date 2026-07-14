@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')"
-          sensitive="$(printf '%s\n' "$files" | grep -E '^(\.github/workflows/|\.github/AUTONOMOUS\.md$|\.github/CODEOWNERS$|docs/autonomous\.md$|\.harness/|\.claude/)' || true)"
+          sensitive="$(printf '%s\n' "$files" | grep -E '^(\.github/workflows/|\.github/AUTONOMOUS\.md$|\.github/CODEOWNERS$|docs/autonomous\.md$|\.harness/.*\.(mjs|js|cjs|ts)$|\.claude/)' || true)"
           if [ -z "$sensitive" ]; then
             echo "Sin rutas sensibles tocadas en este PR."
             echo "- Sin rutas sensibles en este PR." >> "$GITHUB_STEP_SUMMARY"
@@ -54,5 +54,12 @@ jobs:
             echo ""
             printf '%s\n' "$sensitive" | while IFS= read -r f; do echo "- $f"; done
           } >> "$GITHUB_STEP_SUMMARY"
-          gh label create permissions-change --color b60205 --description "El PR toca workflow/permisos/motor de verificación: requiere revisión reforzada" --force || true
-          gh pr edit "$PR" --add-label permissions-change
+          # Etiquetar vía la API REST: `gh api` NO necesita contexto git local.
+          # En pull_request_target no hacemos checkout, así que `gh pr edit` /
+          # `gh label create` sin --repo fallarían con "not a git repository"
+          # (lo destapó el primer run real del bot). No bloqueante por diseño.
+          gh label create permissions-change --repo "$REPO" --color b60205 \
+            --description "El PR toca workflow/permisos/motor de verificación: requiere revisión reforzada" --force || true
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=permissions-change" >/dev/null \
+            || echo "::warning::No se pudo aplicar la etiqueta permissions-change; revísalo manualmente."
+          exit 0
