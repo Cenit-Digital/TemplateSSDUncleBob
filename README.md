@@ -124,7 +124,7 @@ muerden).
 ├── examples/{python,node}-notes-cli/         # arneses completos de referencia
 └── .github/
     ├── workflows/harness-ci.yml              # CI: init + mutación de los ejemplos
-    ├── workflows/autonomous-evolve.yml       # bot semanal de auto-mejora (solo PR)
+    ├── workflows/autonomous-evolve.yml       # bot diario de auto-mejora (solo PR)
     ├── workflows/guard-sensitive-paths.yml   # marca PRs que tocan rutas sensibles
     ├── AUTONOMOUS.md                          # mandato del bot (ver docs/autonomous.md)
     └── CODEOWNERS                             # revisión obligatoria del dueño (sensibles)

@@ -9,7 +9,7 @@
 
 Vive en `Cenit-Digital/SistemaDeMemoriaUncleBob` — repo **privado** a
 propósito, porque destila conocimiento de proyectos de cliente reales. Un bot
-mensual (mismo linaje que el de `docs/autonomous.md`) descubre por la API
+diario (mismo linaje que el de `docs/autonomous.md`) descubre por la API
 todos los repos de la organización — los actuales y cualquiera futuro, sin
 listas que mantener —, lee su `progress/history.md` y `CHECKPOINTS.md`, y
 propone como Pull Request **1-2 patrones máximo** con origen verificable.
@@ -46,8 +46,7 @@ nada más depende de ellos.
 No hay que "reportar" nada a la memoria: basta con seguir escribiendo
 `progress/history.md` rico y concreto — qué problema apareció, qué se decidió,
 qué verificación lo respaldó — que es exactamente lo que el arnés ya exige al
-cerrar cada sesión. Esa bitácora ES la materia prima que el bot mensual
-destila. Un `history.md` telegráfico produce memoria pobre; uno bien escrito,
+cerrar cada sesión. Esa bitácora ES la materia prima que el bot destila. Un `history.md` telegráfico produce memoria pobre; uno bien escrito,
 patrones reutilizables.
 
 ## Esquema de un patrón (resumen)

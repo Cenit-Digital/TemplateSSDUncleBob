@@ -8,11 +8,12 @@
 
 ## Qué es
 
-Un workflow programado (`.github/workflows/autonomous-evolve.yml`) que, una vez
-por semana, lanza [Claude Code](https://github.com/anthropics/claude-code-action)
-dentro de GitHub Actions con un único encargo: **elegir una tarea del backlog,
-completarla con verificación real y abrir un Pull Request**. Nunca fusiona, nunca
-empuja a `main`.
+Un workflow programado (`.github/workflows/autonomous-evolve.yml`) que, a diario
+—siempre que no haya ya un PR suyo esperando revisión—, lanza
+[Claude Code](https://github.com/anthropics/claude-code-action) dentro de GitHub
+Actions con un único encargo: **elegir una tarea del backlog, completarla con
+verificación real y abrir un Pull Request**. Nunca fusiona, nunca empuja a
+`main`.
 
 Es la misma idea que el bot de `DocsTemplateSSDUncleBob`, pero con una diferencia
 deliberada: allí el bot reescribe prosa y hace auto-merge; aquí toca el motor de
@@ -72,9 +73,10 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
       contra el bot** es más simple: *exigir PR y bloquear el push directo a
       `main`*, con la App de Claude fuera de cualquier *bypass*. Las aprobaciones
       humanas y el review de Code Owners son calidad de revisión añadida.
-- [ ] Probar sin esperar al lunes: *Actions → «Evolución autónoma del arnés» →
-      Run workflow* (`workflow_dispatch`). Requiere que el workflow ya esté en la
-      rama por defecto.
+- [ ] Probar sin esperar a mañana: *Actions → «Evolución autónoma del arnés» →
+      Run workflow* (`workflow_dispatch`); marca **`forzar`** si quieres saltarte
+      la guarda de PR abierto. Requiere que el workflow ya esté en la rama por
+      defecto.
 - [ ] Revisar el PR que abra, leer el diff con calma (con especial atención si
       lleva la etiqueta `permissions-change`) y fusionar —o pedir cambios— a mano.
 
@@ -86,26 +88,44 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
   se copia, pero el job **no corre** salvo que se opte explícitamente creando la
   variable de repo `ENABLE_AUTONOMOUS_EVOLVE=true`
   (*Settings → Secrets and variables → Actions → Variables*). Verás un run
-  semanal marcado como *skipped* mientras no optes: es inofensivo. Así ningún
-  proyecto nuevo hereda un bot programado que no pidió.
+  diario marcado como *skipped* mientras no optes: es inofensivo (un job saltado
+  no consume minutos ni hace fallar nada). Así ningún proyecto nuevo hereda un
+  bot programado que no pidió.
 - **Desactivarlo del todo**: borra `.github/workflows/autonomous-evolve.yml` (y,
   si quieres, `.github/AUTONOMOUS.md` y `.github/workflows/guard-sensitive-paths.yml`),
   o desactiva el workflow desde la pestaña *Actions*.
 
 ## Cadencia
 
-Cron semanal, **lunes 06:00 UTC**. Semanal a propósito: con alcance total, cada
-PR puede tocar el motor o los agentes y merece lectura humana sin prisa. Subir la
-frecuencia es una línea (`schedule.cron`), pero valóralo solo cuando ya haya un
-patrón de PRs revisados en verde.
+Cron **diario**, 06:23 UTC — pero eso **no** significa un PR al día. La guarda
+del workflow no deja que haya más de un PR del bot esperando revisión: si el
+anterior sigue abierto, el ciclo se salta y sale en verde sin gastar nada.
 
-> Dos avisos sobre workflows programados en GitHub:
-> - Solo se disparan desde la **rama por defecto**. Hasta que este fichero no
->   esté en `main`, ni el cron ni `workflow_dispatch` estarán activos.
-> - GitHub **desactiva automáticamente** los crons tras **~60 días sin actividad**
->   en el repo. Si dejas de ver PRs semanales, revisa la pestaña *Actions* por si
->   el workflow quedó desactivado y reactívalo. (Los fallos de runs programadas
->   se notifican por email al último que tocó el fichero del workflow.)
+**El ritmo lo marcas tú al fusionar (o cerrar), no el calendario.** Fusionas hoy,
+mañana hay tarea nueva; no lo lees en dos semanas, el bot te espera dos semanas.
+
+Antes era semanal (lunes) con este argumento: "con alcance total, cada PR puede
+tocar el motor o los agentes y merece lectura humana sin prisa". El argumento
+sigue siendo cierto — lo que era falso es que un cron lo garantizara. Esperar
+siete días no hace que nadie lea el diff con más calma; solo retrasa la tarea
+siguiente cuando el PR anterior ya se fusionó el martes. La lectura sin prisa la
+protege ahora un **mecanismo** (la guarda: nunca dos PRs sin leer), no una espera.
+
+> Tres avisos sobre workflows programados, de la doc oficial de GitHub:
+>
+> - Solo se disparan desde la **rama por defecto** ("Scheduled workflows will
+>   only run on the default branch"). Hasta que este fichero no esté en `main`,
+>   ni el cron ni `workflow_dispatch` estarán activos.
+> - Pueden retrasarse en horas de carga alta, y con carga suficiente "some queued
+>   jobs may be dropped". Por eso el cron va a las **06:23** y no en punto: la doc
+>   recomienda literalmente programar "at a different time of the hour".
+> - En un repositorio **público** como este, GitHub **desactiva automáticamente**
+>   los workflows programados tras **60 días sin actividad** en el repo ("In a
+>   public repository, scheduled workflows are automatically disabled when no
+>   repository activity has occurred in 60 days"). Si dejas de ver PRs, revisa la
+>   pestaña *Actions* por si el workflow quedó desactivado y reactívalo. (Los
+>   fallos de runs programadas se notifican por email al último que tocó el
+>   fichero del workflow.)
 
 ## Modelo de seguridad
 
@@ -170,8 +190,8 @@ además los costes de **minutos de GitHub Actions** (runner), aparte de los del
 modelo.
 
 > Sobre el modelo: `--model claude-opus-4-8` está fijado a propósito
-> (reproducible). Cuando Anthropic retire Opus 4.8, el run empezará a fallar los
-> lunes: actualiza el ID en el workflow y aquí. La alternativa es el alias `opus`
+> (reproducible). Cuando Anthropic retire Opus 4.8, el run empezará a fallar a
+> diario: actualiza el ID en el workflow y aquí. La alternativa es el alias `opus`
 > (siempre el Opus vigente), a cambio de posible deriva de comportamiento.
 
 ## Cómo se crean los PRs (detalle técnico)

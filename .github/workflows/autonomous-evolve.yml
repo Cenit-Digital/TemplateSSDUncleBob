@@ -14,10 +14,24 @@ name: Evolución autónoma del arnés
 
 on:
   schedule:
-    # Lunes 06:00 UTC. Cadencia semanal a propósito: con alcance total, cada PR
-    # puede tocar el motor o los agentes, y eso exige lectura humana con calma.
-    - cron: "0 6 * * 1"
+    # Todos los días, 06:23 UTC. El minuto NO es 0 a propósito: la doc oficial
+    # dice que "High load times include the start of every hour" y que con carga
+    # alta "some queued jobs may be dropped" — recomienda literalmente programar
+    # "at a different time of the hour".
+    #
+    # Diario NO significa un PR al día: la guarda de abajo no deja que haya más
+    # de un PR del bot esperando revisión a la vez. Con alcance total, cada PR
+    # puede tocar el motor o los agentes y exige lectura humana con calma — eso
+    # lo garantiza la guarda, que es un mecanismo, no el cron, que era solo una
+    # espera. Ver docs/autonomous.md § Cadencia.
+    - cron: "23 6 * * *"
   workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Ignorar la guarda de PR abierto y evolucionar igualmente"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write # crear ramas y commits
@@ -58,7 +72,50 @@ jobs:
         with:
           fetch-depth: 0
 
+      # GUARDA — «no te adelantes al humano».
+      #
+      # Es lo que hace sostenible el cron diario. El cuello de botella de este
+      # bot nunca fue producir tareas (el backlog de AUTONOMOUS.md siempre tiene),
+      # sino que alguien lea el diff con calma. Mientras haya un PR suyo
+      # esperando, no abre otro: el ritmo real lo marcas tú al fusionar o cerrar,
+      # y el bot va exactamente igual de rápido que tu revisión.
+      #
+      # El mandato (límite: no duplicar) ya pide al agente comprobar PRs y ramas
+      # huérfanas, pero eso son turnos y presupuesto gastados para descubrir que
+      # no había nada que hacer. Esta guarda cuesta una llamada a la API.
+      - name: Guarda — ¿hay ya un PR del bot esperando revisión?
+        id: guarda_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORZAR: ${{ github.event.inputs.forzar }}
+        run: |
+          set -euo pipefail
+          if [ "${FORZAR:-false}" = "true" ]; then
+            echo "Ejecución manual con 'forzar': me salto la guarda."
+            echo "seguir=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Fail-open a propósito: ante un fallo transitorio de la API, preferimos
+          # un PR de más (que ves y cierras) a perder el ciclo en silencio.
+          if ! abiertos="$(gh pr list --state open --label autonomous --limit 1 --json number --jq 'length')"; then
+            echo "::warning::No pude comprobar si hay PRs del bot abiertos — sigo adelante."
+            echo "seguir=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # ${abiertos:-0}: si `gh` saliera en 0 pero sin imprimir nada, un
+          # "" != "0" dejaría al bot creyendo PARA SIEMPRE que hay un PR abierto
+          # y no volvería a trabajar jamás, en silencio. Ante la duda, trabajar.
+          if [ "${abiertos:-0}" != "0" ]; then
+            echo "::notice::Ya hay un PR autónomo esperando revisión humana — hoy no abro otro."
+            echo "- ⏸️ **Ciclo omitido**: ya hay un PR \`autonomous\` abierto. Fusiónalo o ciérralo y el bot seguirá con la siguiente tarea del backlog." >> "$GITHUB_STEP_SUMMARY"
+            echo "seguir=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Sin PRs autónomos abiertos: vía libre."
+          echo "seguir=true" >> "$GITHUB_OUTPUT"
+
       - name: Claude Code — un ciclo de evolución autónoma
+        if: ${{ steps.guarda_pr.outputs.seguir == 'true' }}
         uses: anthropics/claude-code-action@v1
         with:
           # Mismo token que en DocsTemplateSSDUncleBob (ligado a tu cuenta, no
@@ -105,7 +162,7 @@ jobs:
           #                     oficial del CLI; aplica en print mode, que es
           #                     como corre la acción). Ajusta el tope a tu gusto.
           # --model: ID fijado a propósito (reproducible). Cuando Anthropic
-          #   retire Opus 4.8, este run empezará a fallar los lunes: actualiza el
+          #   retire Opus 4.8, este run empezará a fallar a diario: actualiza el
           #   ID aquí y en docs/autonomous.md. Alternativa: alias `opus`.
           # --disallowedTools: corta las herramientas de exfiltración de red más
           #   obvias (curl/wget) como defensa en profundidad; el resto de Bash
