@@ -61,18 +61,22 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
     - ✅ *Require status checks to pass before merging* y añade los checks de la
       CI: `Arnés raíz (init)`, `Ejemplo Python (init + mutación 100%)`,
       `Ejemplo Node (init + mutación 100%)`.
-    - ✅ *Block force pushes* (y no permitir push directo a `main`).
-    - ✅ *Do not allow bypassing the above settings* — o, si quieres poder actuar
-      tú directamente en una urgencia, limita el *bypass* a administradores, pero
-      **nunca** incluyas la GitHub App de Claude en la lista de bypass.
+    - ☐ *Allow force pushes* y ☐ *Allow deletions* — **sin marcar**: así es como
+      quedan bloqueados. Estas dos aplican a todo el mundo, admins incluidos.
+    - ☐ *Do not allow bypassing the above settings* — **déjalo SIN marcar**, que
+      es como está configurado este repo. Por defecto *"the restrictions of a
+      branch protection rule don't apply to people with admin permissions to the
+      repository"*: tú sigues pudiendo actuar directo en una urgencia y fusionar
+      tus propios PRs, mientras que el bot —que no es admin— sí queda sujeto a la
+      regla, que es de quien queremos protegernos.
       Referencia oficial: <https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>.
-    - ℹ️ *Si eres el único mantenedor:* "Require approvals: 1" no deja auto-aprobar
-      tus propios PRs, y podrías bloquearte a ti mismo. Deja tu cuenta como
-      *bypass* de administrador para tu trabajo, o prescinde del requisito de
-      aprobación humana confiando en los *required checks*. Lo **imprescindible
-      contra el bot** es más simple: *exigir PR y bloquear el push directo a
-      `main`*, con la App de Claude fuera de cualquier *bypass*. Las aprobaciones
-      humanas y el review de Code Owners son calidad de revisión añadida.
+    - ⚠️ *Si eres el único mantenedor, no marques esa casilla.* La doc oficial dice
+      que *"Pull request authors cannot approve their own pull requests"*: con el
+      bypass desactivado y sin nadie más que te apruebe, no podrías fusionar nada
+      en tu propio repo. Lo **imprescindible contra el bot** es más simple: *exigir
+      PR* (le impide empujar a `main`) y *exigir 1 aprobación* (le impide fusionar
+      lo suyo). Las aprobaciones humanas y el review de Code Owners son calidad de
+      revisión añadida para ti.
 - [ ] Probar sin esperar a mañana: *Actions → «Evolución autónoma del arnés» →
       Run workflow* (`workflow_dispatch`); marca **`forzar`** si quieres saltarte
       la guarda de PR abierto. Requiere que el workflow ya esté en la rama por
@@ -96,6 +100,9 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
   o desactiva el workflow desde la pestaña *Actions*.
 
 ## Cadencia
+
+> Decisión de arquitectura: **`DE-003`** en Confluence (espacio DDS) — por qué la
+> cadencia la protege una guarda y no un cron largo, y qué se descartó.
 
 Cron **diario**, 06:23 UTC — pero eso **no** significa un PR al día. La guarda
 del workflow no deja que haya más de un PR del bot esperando revisión: si el
