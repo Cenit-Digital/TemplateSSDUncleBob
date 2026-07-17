@@ -86,13 +86,33 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 }
 ```
 
-### Go
+### Go — ver `.harness/adapters/go.md`
 
 ```json
 "commands": {
   "lint":   "go vet ./...",
   "test":   "go test ./...",
-  "mutate": "go test -run=xxx ./... # integra go-mutesting o gremlins"
+  "mutate": "gremlins unleash {{target}} --dry-run=false"
+}
+```
+
+### Rust — ver `.harness/adapters/rust.md`
+
+```json
+"commands": {
+  "lint":   "cargo clippy -- -D warnings",
+  "test":   "cargo test",
+  "mutate": "cargo mutants --file {{target}}"
+}
+```
+
+### Java — ver `.harness/adapters/java.md`
+
+```json
+"commands": {
+  "lint":   "mvn -q checkstyle:check",
+  "test":   "mvn -q test",
+  "mutate": "mvn -q org.pitest:pitest-maven:mutationCoverage -DtargetClasses={{target}}"
 }
 ```
 
@@ -104,4 +124,5 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 4. Ajusta `paths` si tu layout no usa `src/`/`tests/`.
 5. `bin/harness init` en verde → listo.
 
-Los adaptadores documentados están en `.harness/adapters/`.
+Los adaptadores documentados están en `.harness/adapters/`: `python.md`,
+`node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`.

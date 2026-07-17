@@ -114,7 +114,7 @@ muerden).
 ├── scripts/sync-memoria.(sh|ps1)             # memoria organizacional (paso 2bis)
 ├── .harness/
 │   ├── harness.mjs                           # motor agnóstico (cero deps)
-│   └── adapters/                             # python.md · node.md · go.md · rust.md · generic.md
+│   └── adapters/                             # python.md · node.md · go.md · rust.md · java.md · generic.md
 ├── docs/                                     # workflow · tdd · gherkin · mutation
 │   │                                         #   architecture · conventions · verification
 │   └── configuration · tooling · autonomous · memoria-organizacional
