@@ -86,7 +86,7 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 }
 ```
 
-### Go — ver `.harness/adapters/go.md`
+### Go — ver `.harness/adapters/go.md` y `examples/go-notes-cli`
 
 ```json
 "commands": {
@@ -95,6 +95,11 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
   "mutate": "gremlins unleash {{target}} --dry-run=false"
 }
 ```
+
+`gremlins` es la herramienta de mutación de referencia para producción. El
+ejemplo `examples/go-notes-cli` usa en su lugar un mutador propio sin
+dependencias (`tools/mutate.go`, sobre `go/scanner`, `"mutate": "go run ./tools
+{{target}}"`), coherente con los mutadores caseros de los ejemplos Python/Node.
 
 ### Rust — ver `.harness/adapters/rust.md`
 

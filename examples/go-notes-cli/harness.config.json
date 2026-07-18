@@ -1,0 +1,27 @@
+{
+  "$schema": "../../harness.schema.json",
+  "project": "go-notes-cli",
+  "language": "go",
+  "standalone": false,
+  "description": "Ejemplo de referencia: CLI de notas en Go (cero dependencias). Demuestra el flujo Uncle Bob end-to-end con `go test` y un mutador propio (tools/mutate.go, sobre go/scanner). Para producción, un proyecto Go real usaría gremlins (ver .harness/adapters/go.md).",
+  "commands": {
+    "test": "go test ./...",
+    "mutate": "go run ./tools {{target}}"
+  },
+  "paths": {
+    "src": "src",
+    "tests": "src",
+    "features": "features",
+    "progress": "progress"
+  },
+  "mutation": {
+    "threshold": 1.0,
+    "targets": ["src/cli.go", "src/notes.go", "src/storage.go"]
+  },
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_approved_spec_to_implement": true,
+    "require_tests_to_close": true,
+    "require_mutation_to_close": true
+  }
+}
