@@ -75,8 +75,12 @@ antes de adoptarlo).
 
 ## Si no quieres depender de gremlins
 
-Puedes portar el mutador de los ejemplos (`examples/python-notes-cli/tools/mutate.py`
-o `examples/node-notes-cli/tools/mutate.mjs`): ~200 líneas sin dependencias que
-mutan operadores, palabras clave, números y `return`, validan que el mutante
-compile (`go build`) y restauran el original. Es un buen punto de partida
-mientras no exista un `examples/go-notes-cli` nativo.
+El ejemplo `examples/go-notes-cli` trae exactamente eso: `tools/mutate.go`, un
+mutador nativo sin dependencias (~230 líneas sobre `go/scanner`) que muta
+operadores, enteros y las constantes `true`/`false`, descarta los mutantes que
+no compilan (`go build ./...`), respeta el pragma `// mutate: skip` para
+equivalentes y restaura el original. Se declara como
+`"mutate": "go run ./tools {{target}}"` y alcanza el 100% en los tres módulos.
+Es el mismo enfoque que `examples/python-notes-cli/tools/mutate.py` y
+`examples/node-notes-cli/tools/mutate.mjs`; cópialo como punto de partida si
+prefieres no depender de gremlins.
