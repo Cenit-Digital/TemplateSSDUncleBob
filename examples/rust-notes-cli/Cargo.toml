@@ -1,0 +1,24 @@
+[package]
+name = "notes-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Cero dependencias a propósito (igual que los ejemplos Python/Node/Go): el
+# arnés queda reproducible y el mutador casero no necesita red. Un proyecto Rust
+# real usaría `serde`/`serde_json` para el JSON y `time`/`chrono` para las
+# fechas; aquí prima el paralelismo didáctico entre stacks.
+
+[lib]
+name = "notes"
+path = "src/lib.rs"
+
+[[bin]]
+name = "notes"
+path = "src/main.rs"
+
+# El mutador vive dentro del crate como un binario aparte (análogo a
+# `go run ./tools`). No importa la librería, así que mutar `src/` nunca lo rompe.
+[[bin]]
+name = "mutate"
+path = "tools/mutate.rs"

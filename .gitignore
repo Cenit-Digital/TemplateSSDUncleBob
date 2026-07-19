@@ -27,6 +27,9 @@ venv/
 .ruff_cache/
 .pytest_cache/
 
+# Rust
+target/
+
 # Entorno
 .env
 .env.*

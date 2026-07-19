@@ -101,7 +101,7 @@ ejemplo `examples/go-notes-cli` usa en su lugar un mutador propio sin
 dependencias (`tools/mutate.go`, sobre `go/scanner`, `"mutate": "go run ./tools
 {{target}}"`), coherente con los mutadores caseros de los ejemplos Python/Node.
 
-### Rust — ver `.harness/adapters/rust.md`
+### Rust — ver `.harness/adapters/rust.md` y `examples/rust-notes-cli`
 
 ```json
 "commands": {
@@ -110,6 +110,11 @@ dependencias (`tools/mutate.go`, sobre `go/scanner`, `"mutate": "go run ./tools
   "mutate": "cargo mutants --file {{target}}"
 }
 ```
+
+`cargo mutants` es la herramienta de referencia para producción. Como en los
+demás ejemplos, `examples/rust-notes-cli` usa en su lugar un mutador propio sin
+dependencias (`tools/mutate.rs`, `"mutate": "cargo build --quiet --bin mutate &&
+./target/debug/mutate {{target}}"`) para ser autocontenido y determinista en CI.
 
 ### Java — ver `.harness/adapters/java.md`
 

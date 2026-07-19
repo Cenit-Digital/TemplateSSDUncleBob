@@ -46,6 +46,6 @@ usuario  ─→  <capa de interfaz>
   memoria, guarda al final.
 - No añadir sistemas de configuración prematuros.
 
-> **Referencia:** `examples/python-notes-cli`, `examples/node-notes-cli` y
-> `examples/go-notes-cli` muestran una instancia concreta y completa de estos
-> principios.
+> **Referencia:** `examples/python-notes-cli`, `examples/node-notes-cli`,
+> `examples/go-notes-cli` y `examples/rust-notes-cli` muestran una instancia
+> concreta y completa de estos principios.
