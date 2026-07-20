@@ -1,0 +1,27 @@
+{
+  "$schema": "../../harness.schema.json",
+  "project": "rust-notes-cli",
+  "language": "rust",
+  "standalone": false,
+  "description": "Ejemplo de referencia: CLI de notas en Rust (cero dependencias). Demuestra el flujo Uncle Bob end-to-end con `cargo test` y un mutador propio (tools/mutate.rs). Para producción, un proyecto Rust real usaría cargo-mutants (ver .harness/adapters/rust.md).",
+  "commands": {
+    "test": "cargo test --quiet",
+    "mutate": "cargo build --quiet --bin mutate && ./target/debug/mutate {{target}}"
+  },
+  "paths": {
+    "src": "src",
+    "tests": "src",
+    "features": "features",
+    "progress": "progress"
+  },
+  "mutation": {
+    "threshold": 1.0,
+    "targets": ["src/cli.rs", "src/notes.rs", "src/json.rs", "src/storage.rs"]
+  },
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_approved_spec_to_implement": true,
+    "require_tests_to_close": true,
+    "require_mutation_to_close": true
+  }
+}

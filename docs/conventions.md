@@ -27,6 +27,7 @@
 | Python    | PEP 8, líneas ≤ 100  | `unittest`       | `examples/python-notes-cli`      |
 | Node/TS   | ESLint + Prettier    | `node --test`    | `examples/node-notes-cli`        |
 | Go        | `gofmt` + `go vet`   | `go test ./...`  | `examples/go-notes-cli`          |
+| Rust      | `cargo fmt` + clippy | `cargo test`     | `examples/rust-notes-cli`        |
 | Node/TS (web) | ESLint 9 flat + Prettier | Vitest + TL | El repo WebEmpresa que inspiró la plantilla |
 
 ## Rellena: convenciones de tu proyecto

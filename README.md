@@ -84,17 +84,18 @@ Una sola feature a la vez. Estado en disco (no en el chat): `project-spec.md`,
 
 ## Ejemplos ejecutables (verificados al 100%)
 
-Tres arneses completos, listos para inspeccionar o copiar como punto de partida:
+Cuatro arneses completos, listos para inspeccionar o copiar como punto de partida:
 
 | Ejemplo                     | Stack                    | Tests | Mutación |
 | --------------------------- | ------------------------ | ----- | -------- |
 | `examples/python-notes-cli` | Python (stdlib)          | 47    | 100%     |
 | `examples/node-notes-cli`   | Node/JS (cero deps)      | 29    | 100%     |
 | `examples/go-notes-cli`     | Go (stdlib)              | 35    | 100%     |
+| `examples/rust-notes-cli`   | Rust (cero deps)         | 58    | 100%     |
 
-Los tres demuestran el flujo Uncle Bob de punta a punta con un mutador propio
+Los cuatro demuestran el flujo Uncle Bob de punta a punta con un mutador propio
 sin dependencias. Para producción en TS, el adaptador Node usa Vitest +
-StrykerJS; para Go, el adaptador usa gremlins.
+StrykerJS; para Go, el adaptador usa gremlins; para Rust, cargo-mutants.
 
 ## Los agentes (`.claude/agents/`)
 

@@ -1,0 +1,102 @@
+{
+  "project": "rust-notes-cli",
+  "description": "CLI de notas en Rust (cero dependencias). Ejemplo de referencia del arnés SSD Uncle Bob para el stack Rust. Mismo alcance funcional que examples/python-notes-cli (contar / recientes / desde una fecha).",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "require_approved_spec_to_implement": true,
+    "valid_status": ["pending", "spec_ready", "in_progress", "done", "blocked"],
+    "sdd_required_when": "feature has \"sdd\": true"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "json_layer",
+      "title": "JSON mínimo sin dependencias",
+      "description": "Serialización y parsing de un array de notas sin usar ninguna crate (Rust no trae JSON en la stdlib).",
+      "acceptance": [
+        "src/json.rs con to_json() y from_json()",
+        "Round-trip exacto: from_json(to_json(x)) == x, con escapado de comillas/backslash/salto de línea y soporte UTF-8",
+        "from_json devuelve Err ante cualquier desviación del esquema (JSON corrupto, clave equivocada, número inválido, contenido sobrante)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "storage_layer",
+      "title": "Capa de almacenamiento JSON atómica",
+      "description": "Lectura/escritura atómica de notas en un archivo JSON.",
+      "acceptance": [
+        "src/storage.rs con load() y save()",
+        "save() es atómico (temporal contiguo + rename) y limpia el temporal si el rename falla",
+        "load() devuelve lista vacía si el archivo no existe; Err si está corrupto"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "note_model",
+      "title": "Modelo de Nota",
+      "description": "Estructura con id incremental, title, body y created_at en ISO 8601 (UTC).",
+      "acceptance": [
+        "src/notes.rs con el tipo Note y new_note()",
+        "next_id() = id de la última nota + 1; almacén vacío arranca en 1",
+        "created_at lo inyecta el llamante ya formateado (la conversión reloj->ISO 8601 vive en main.rs)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 4,
+      "name": "cli_add_list",
+      "title": "Comandos add y list",
+      "description": "Alta de una nota y listado de todas por la CLI.",
+      "acceptance": [
+        "`notes add <título>` imprime `id=<n>` y persiste la nota",
+        "`notes list` imprime una línea por nota: `<id>\\t<created_at>\\t<title>`",
+        "Los tests cubren ambos comandos con un almacén temporal"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "cli_count",
+      "title": "Comando count",
+      "description": "Muestra cuántas notas hay almacenadas.",
+      "acceptance": [
+        "`notes count` imprime un entero único: el total de notas",
+        "Almacén vacío o inexistente imprime `0`",
+        "count no modifica el archivo de notas"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "cli_recent",
+      "title": "Comando recent",
+      "description": "Lista las N notas más recientes, orden created_at descendente.",
+      "acceptance": [
+        "`notes recent` lista hasta 5 notas por defecto (más reciente primero)",
+        "`notes recent --limit K` cambia el número; `--limit <= 0` o sin valor válido falla con código 1",
+        "Almacén vacío: código 0 y sin salida"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "cli_since",
+      "title": "Comando since (filtrar por fecha)",
+      "description": "Lista las notas creadas en una fecha dada o después. Feature recorrida por el flujo Uncle Bob completo (spec → gherkin → TDD → judge → mutación) como ejemplo de punta a punta en Rust.",
+      "acceptance": [
+        "`notes since 2026-05-01` lista las notas con created_at >= esa fecha, formato `<id>\\t<created_at>\\t<title>`",
+        "Comparación por fecha de calendario con límite inclusivo (una nota del día exacto, aun a las 23:00, entra)",
+        "Orden created_at descendente (más reciente primero)",
+        "Fecha con formato inválido o rango imposible (2026/05/01, 2026-13-40): código 1 y mensaje en stderr",
+        "Sin coincidencias o almacén vacío: código 0 y sin salida",
+        "El comando no modifica el archivo de notas",
+        "Los tests cubren: límite inclusivo, orden desc, sin coincidencias, formato inválido, rango imposible y almacén vacío"
+      ],
+      "sdd": true,
+      "status": "done"
+    }
+  ]
+}
