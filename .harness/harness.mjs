@@ -10,7 +10,8 @@
 // Comandos:
 //   init     Verifica entorno, ficheros base, feature_list.json y corre los tests.
 //   test     Ejecuta el comando de tests declarado en config.commands.test.
-//   mutate   Ejecuta la prueba de mutación (config.commands.mutate).
+//   mutate   Ejecuta la prueba de mutación (config.commands.mutate). Sin target
+//            explícito itera config.mutation.targets; con target, solo ese módulo.
 //   verify   init + lint + mutate: la verificación completa (puerta de cierre).
 //   status   Resume el estado de feature_list.json.
 //   help     Muestra esta ayuda.
@@ -241,6 +242,35 @@ function cmdTest() {
   process.exit(run(cfg.commands.test).status);
 }
 
+/**
+ * Ejecuta la prueba de mutación sobre uno o varios objetivos.
+ *   - `explicitTarget` no vacío → solo ese módulo (`bin/harness mutate <target>`).
+ *   - sin objetivo explícito → itera `cfg.mutation.targets`. Si la lista está
+ *     vacía, corre el comando tal cual (mutadores que cubren todo el proyecto,
+ *     p. ej. Stryker, que no usan el token {{target}}).
+ * Verde (return true) solo si TODOS los objetivos superan el umbral.
+ */
+function runMutation(cfg, explicitTarget = '') {
+  const list = explicitTarget
+    ? [explicitTarget]
+    : (Array.isArray(cfg.mutation.targets) && cfg.mutation.targets.length
+        ? cfg.mutation.targets
+        : ['']);
+  const failures = [];
+  for (const t of list) {
+    if (list.length > 1) rule(`Mutación · ${t}`);
+    console.log(`$ ${resolveCmd(cfg.commands.mutate, { target: t })}\n`);
+    const r = run(cfg.commands.mutate, { tokens: { target: t } });
+    if (r.status !== 0) failures.push(t || '(proyecto)');
+  }
+  if (failures.length) {
+    fail(`Mutación por debajo del umbral en: ${failures.join(', ')}`);
+    return false;
+  }
+  ok(`Prueba de mutación superada (${list.length} objetivo${list.length > 1 ? 's' : ''}).`);
+  return true;
+}
+
 function cmdMutate() {
   const cfg = loadConfig();
   if (!cfg.commands.mutate) {
@@ -248,8 +278,7 @@ function cmdMutate() {
     process.exit(2);
   }
   const target = process.argv[3] || '';
-  console.log(`$ ${resolveCmd(cfg.commands.mutate, { target })}\n`);
-  process.exit(run(cfg.commands.mutate, { tokens: { target } }).status);
+  process.exit(runMutation(cfg, target) ? 0 : 1);
 }
 
 function cmdVerify() {
@@ -261,13 +290,10 @@ function cmdVerify() {
   const cfg = loadConfig();
   if (cfg.rules.require_mutation_to_close && cfg.commands.mutate) {
     rule('Prueba de mutación');
-    console.log(`$ ${resolveCmd(cfg.commands.mutate)}\n`);
-    const r = run(cfg.commands.mutate);
-    if (r.status !== 0) {
-      fail('La prueba de mutación no supera el umbral.');
+    if (!runMutation(cfg)) {
+      fail('verify abortado: la prueba de mutación no supera el umbral.');
       process.exit(1);
     }
-    ok('Prueba de mutación superada.');
   }
   console.log(`\n${green(bold('[verify] Todo verde. Puedes cerrar la sesión.'))}`);
   process.exit(0);

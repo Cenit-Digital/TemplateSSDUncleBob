@@ -51,8 +51,11 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 
 - `{{py}}` → se resuelve al intérprete de Python disponible (`python3` o
   `python`). Útil para portabilidad Windows/Unix.
-- `{{target}}` → en `commands.mutate`, recibe el argumento que pases a
-  `bin/harness mutate <target>`.
+- `{{target}}` → en `commands.mutate`, recibe el módulo a mutar. Si pasas
+  `bin/harness mutate <target>`, ese único módulo; si lo omites (`bin/harness
+  mutate` o `bin/harness verify`), el motor **itera `mutation.targets`** y solo
+  da verde si todos superan el umbral. Con `mutation.targets` vacía se ejecuta
+  el comando tal cual (mutadores que cubren todo el proyecto, p. ej. Stryker).
 
 ## Recetas por stack (adaptadores)
 
