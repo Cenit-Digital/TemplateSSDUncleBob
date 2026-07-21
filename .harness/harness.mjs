@@ -42,6 +42,17 @@ const rule = (s) => console.log(`\n── ${s} ${'─'.repeat(Math.max(0, 52 - s
 const CWD = process.cwd();
 const CONFIG_NAME = 'harness.config.json';
 
+/**
+ * Elimina un BOM UTF-8 inicial antes de parsear JSON. Editores de Windows
+ * (Notepad, algunos flujos de PowerShell `>`/`Out-File`) guardan con BOM por
+ * defecto; `JSON.parse` no lo tolera y falla con un "Unexpected token" críptico.
+ * Robustez multiplataforma para los ficheros que el usuario edita a mano.
+ */
+const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
+
+/** Lee un fichero de texto UTF-8 y le quita el BOM inicial si lo tuviera. */
+const readText = (p) => stripBom(fs.readFileSync(p, 'utf8'));
+
 const VALID_STATUS = ['pending', 'spec_ready', 'in_progress', 'done', 'blocked'];
 const REQUIRES_SPEC = new Set(['spec_ready', 'in_progress', 'done']);
 
@@ -77,7 +88,7 @@ function loadConfig() {
   }
   let cfg;
   try {
-    cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+    cfg = JSON.parse(readText(p));
   } catch (e) {
     fail(`${CONFIG_NAME} no es JSON válido: ${e.message}`);
     process.exit(2);
@@ -137,7 +148,7 @@ function validateFeatureList(cfg) {
   }
   let data;
   try {
-    data = JSON.parse(fs.readFileSync(p, 'utf8'));
+    data = JSON.parse(readText(p));
   } catch (e) {
     fail(`${cfg.paths.feature_list} inválido: ${e.message}`);
     return { ok: false, features: [] };
