@@ -53,6 +53,18 @@ const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
 /** Lee un fichero de texto UTF-8 y le quita el BOM inicial si lo tuviera. */
 const readText = (p) => stripBom(fs.readFileSync(p, 'utf8'));
 
+/**
+ * true si `v` es un objeto JSON "normal": ni null, ni array. `harness.config.json`
+ * y `feature_list.json` deben ser objetos; un `null`, número, string o array son
+ * ediciones a mano equivocadas que, sin este guardián, revientan más adelante con
+ * un `TypeError` y un stack trace en vez de un `[FAIL]` legible. Misma familia que
+ * la tolerancia a BOM: robustez para los ficheros que el usuario edita a mano.
+ */
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** Nombre legible del tipo JSON de `v`, para mensajes de error. */
+const jsonKind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
+
 const VALID_STATUS = ['pending', 'spec_ready', 'in_progress', 'done', 'blocked'];
 const REQUIRES_SPEC = new Set(['spec_ready', 'in_progress', 'done']);
 
@@ -91,6 +103,14 @@ function loadConfig() {
     cfg = JSON.parse(readText(p));
   } catch (e) {
     fail(`${CONFIG_NAME} no es JSON válido: ${e.message}`);
+    process.exit(2);
+  }
+  if (!isPlainObject(cfg)) {
+    fail(`${CONFIG_NAME} debe ser un objeto JSON (encontrado: ${jsonKind(cfg)}).`);
+    console.log(
+      `\nLa raíz del fichero tiene que ser un objeto { ... } con "project" y "commands".\n` +
+      `Copia la plantilla de la raíz del template y declara los comandos de tu stack.`,
+    );
     process.exit(2);
   }
   cfg.paths = Object.assign(
@@ -151,6 +171,14 @@ function validateFeatureList(cfg) {
     data = JSON.parse(readText(p));
   } catch (e) {
     fail(`${cfg.paths.feature_list} inválido: ${e.message}`);
+    return { ok: false, features: [] };
+  }
+  if (!isPlainObject(data)) {
+    fail(`${cfg.paths.feature_list} debe ser un objeto JSON con una clave "features" (array). Encontrado: ${jsonKind(data)}.`);
+    return { ok: false, features: [] };
+  }
+  if (data.features !== undefined && !Array.isArray(data.features)) {
+    fail(`${cfg.paths.feature_list}: "features" debe ser un array (encontrado: ${jsonKind(data.features)}).`);
     return { ok: false, features: [] };
   }
 
