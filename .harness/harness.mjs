@@ -185,12 +185,25 @@ function validateFeatureList(cfg) {
   const features = data.features || [];
   let good = true;
 
-  const inProgress = features.filter((f) => f.status === 'in_progress');
+  // Cada entrada de "features" debe ser un objeto. Un null, string, número o
+  // array sueltos (edición a mano equivocada) reventarían más abajo al leer
+  // `f.status` con un TypeError y un stack trace en vez de un [FAIL] legible.
+  // Misma familia que la tolerancia a BOM y el guardián de objeto de la raíz.
+  const wellFormed = [];
+  features.forEach((f, i) => {
+    if (isPlainObject(f)) wellFormed.push(f);
+    else {
+      fail(`${cfg.paths.feature_list}: features[${i}] debe ser un objeto (encontrado: ${jsonKind(f)}).`);
+      good = false;
+    }
+  });
+
+  const inProgress = wellFormed.filter((f) => f.status === 'in_progress');
   if (cfg.rules.one_feature_at_a_time && inProgress.length > 1) {
     fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
     good = false;
   }
-  for (const f of features) {
+  for (const f of wellFormed) {
     if (!VALID_STATUS.includes(f.status)) {
       fail(`Estado inválido en feature ${f.id}: ${f.status}`);
       good = false;
@@ -347,8 +360,13 @@ function cmdStatus() {
     process.exit(0);
   }
   for (const f of v.features) {
-    const tag = { done: green, in_progress: yellow, blocked: red }[f.status] || ((s) => s);
-    console.log(`  #${String(f.id).padStart(2)} ${tag(f.status.padEnd(12))} ${f.name}${f.sdd ? ' (sdd)' : ''}`);
+    if (!isPlainObject(f)) {
+      console.log(`  ${red(`(entrada inválida en features: ${jsonKind(f)})`)}`);
+      continue;
+    }
+    const status = typeof f.status === 'string' ? f.status : '(sin estado)';
+    const tag = { done: green, in_progress: yellow, blocked: red }[status] || ((s) => s);
+    console.log(`  #${String(f.id ?? '?').padStart(2)} ${tag(status.padEnd(12))} ${f.name ?? '(sin nombre)'}${f.sdd ? ' (sdd)' : ''}`);
   }
   process.exit(0);
 }
