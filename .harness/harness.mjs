@@ -295,19 +295,54 @@ function cmdTest() {
 }
 
 /**
- * Ejecuta la prueba de mutación sobre uno o varios objetivos.
+ * Resuelve la lista de objetivos de mutación a partir de la config.
  *   - `explicitTarget` no vacío → solo ese módulo (`bin/harness mutate <target>`).
- *   - sin objetivo explícito → itera `cfg.mutation.targets`. Si la lista está
- *     vacía, corre el comando tal cual (mutadores que cubren todo el proyecto,
- *     p. ej. Stryker, que no usan el token {{target}}).
+ *   - lista vacía [] → `['']`: corre el comando tal cual (mutadores que cubren
+ *     todo el proyecto, p. ej. Stryker, que no usan el token {{target}}).
+ * Devuelve `{ list }` en caso válido o `{ error }` con un mensaje legible.
+ *
+ * `mutation.targets` debe ser un array de rutas no vacías. Un string (olvidar los
+ * corchetes: `"targets": "src/x.py"` en vez de `["src/x.py"]`), un objeto, o una
+ * entrada no-string, son ediciones a mano equivocadas. Sin este guardián se
+ * degradaban en silencio a una corrida de "todo el proyecto" con `{{target}}`
+ * vacío que puede reportar VERDE sin medir nada: un falso verde que traiciona la
+ * puerta de mutación. Misma familia que la tolerancia a BOM y los guardianes de
+ * objeto de la raíz y de las entradas de features: convertir una edición a mano
+ * equivocada en un [FAIL] legible, no en un verde engañoso ni en un stack trace.
+ */
+function resolveMutationTargets(cfg, explicitTarget = '') {
+  if (explicitTarget) return { list: [explicitTarget] };
+  const t = cfg.mutation.targets;
+  if (!Array.isArray(t)) {
+    return {
+      error:
+        `${CONFIG_NAME}: "mutation.targets" debe ser un array de rutas ` +
+        `(encontrado: ${jsonKind(t)}).\n` +
+        `  Declara los módulos como una lista, p. ej.  "targets": ["src/notes.py"].\n` +
+        `  Una lista vacía [] es válida: corre el mutador sobre todo el proyecto una vez.`,
+    };
+  }
+  const bad = t.findIndex((x) => typeof x !== 'string' || !x.trim());
+  if (bad !== -1) {
+    return {
+      error:
+        `${CONFIG_NAME}: "mutation.targets"[${bad}] debe ser una ruta no vacía ` +
+        `(encontrado: ${jsonKind(t[bad])}).`,
+    };
+  }
+  return { list: t.length ? t : [''] };
+}
+
+/**
+ * Ejecuta la prueba de mutación sobre uno o varios objetivos.
  * Verde (return true) solo si TODOS los objetivos superan el umbral.
  */
 function runMutation(cfg, explicitTarget = '') {
-  const list = explicitTarget
-    ? [explicitTarget]
-    : (Array.isArray(cfg.mutation.targets) && cfg.mutation.targets.length
-        ? cfg.mutation.targets
-        : ['']);
+  const { list, error } = resolveMutationTargets(cfg, explicitTarget);
+  if (error) {
+    fail(error);
+    return false;
+  }
   const failures = [];
   for (const t of list) {
     if (list.length > 1) rule(`Mutación · ${t}`);
