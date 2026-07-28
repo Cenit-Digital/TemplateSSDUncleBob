@@ -124,6 +124,21 @@ function loadConfig() {
     { install: '', test: '', mutate: '', lint: '', build: '' },
     cfg.commands || {},
   );
+  // Los valores de `paths` y `commands` deben ser strings: los primeros se pasan
+  // a path.join(...) y los segundos a resolveCmd(...).replace(...). Un número,
+  // booleano, array u objeto (override a mano equivocado, p. ej. "test": 5 o
+  // "feature_list": ["x.json"]) reventaría más abajo con un TypeError y un stack
+  // trace en vez de un [FAIL] legible. Misma familia que la tolerancia a BOM y
+  // los guardianes de objeto de la raíz, de las features y de mutation.targets:
+  // convertir una edición a mano equivocada en un [FAIL] legible.
+  for (const [group, obj] of [['paths', cfg.paths], ['commands', cfg.commands]]) {
+    for (const [key, val] of Object.entries(obj)) {
+      if (typeof val !== 'string') {
+        fail(`${CONFIG_NAME}: "${group}.${key}" debe ser un string (encontrado: ${jsonKind(val)}).`);
+        process.exit(2);
+      }
+    }
+  }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
   if (typeof cfg.standalone !== 'boolean') cfg.standalone = true;
   cfg.rules = Object.assign(
