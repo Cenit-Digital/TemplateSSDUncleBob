@@ -139,6 +139,24 @@ function loadConfig() {
       }
     }
   }
+  // `mutation` debe ser un objeto { threshold, targets } o estar ausente. Un
+  // string, número o array (edición a mano equivocada, p. ej. "mutation":
+  // "src/x.py" en vez de "mutation": { "targets": ["src/x.py"] }) NO revienta:
+  // Object.assign ignora los primitivos y esparce los índices de un array, así
+  // que `targets` se queda en [] y la puerta de mutación corre sobre "todo el
+  // proyecto" con {{target}} vacío reportando VERDE sin medir el objetivo que el
+  // usuario creía haber declarado. Un falso verde que traiciona la puerta de
+  // mutación —peor que un fallo—, la misma familia que el guardián de
+  // mutation.targets, que solo mira una capa más adentro: convertir la edición
+  // equivocada en un [FAIL] legible, no en un verde engañoso ni en un stack trace.
+  if (cfg.mutation !== undefined && !isPlainObject(cfg.mutation)) {
+    fail(`${CONFIG_NAME}: "mutation" debe ser un objeto { threshold, targets } (encontrado: ${jsonKind(cfg.mutation)}).`);
+    console.log(
+      `\n  Declara los módulos dentro de "targets", p. ej.  "mutation": { "targets": ["src/notes.py"] }.\n` +
+      `  Omitir "mutation" también es válido: el motor usa los valores por defecto.`,
+    );
+    process.exit(2);
+  }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
   if (typeof cfg.standalone !== 'boolean') cfg.standalone = true;
   cfg.rules = Object.assign(
