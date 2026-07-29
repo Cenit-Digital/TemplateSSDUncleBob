@@ -79,12 +79,27 @@ function resolvePython() {
   return (_py = 'python3'); // por defecto; fallará con mensaje claro si no existe
 }
 
-/** Sustituye tokens en un comando ({{py}} → intérprete, {{target}} → objetivo). */
+/**
+ * Sustituye tokens en un comando ({{py}} → intérprete, {{target}} → objetivo).
+ *
+ * Los reemplazos se pasan como FUNCIÓN, no como string, a propósito: cuando el
+ * segundo argumento de String.prototype.replace es un string, las secuencias con
+ * `$` tienen significado especial (`$$` → `$`, `$&` → el propio match, `` $` ``,
+ * `$'`, `$n`). Un objetivo de mutación con `$` en la ruta —legal en POSIX y
+ * Windows, y habitual en artefactos generados de la JVM/Scala tipo
+ * `Outer$Inner`— se corrompía en silencio: `src/a$&b.py` acababa como
+ * `src/a{{target}}b.py` y el mutador corría sobre una ruta equivocada, pudiendo
+ * reportar VERDE sin medir el módulo que el usuario declaró. Un reemplazo por
+ * función inserta el valor TAL CUAL, sin interpretar el `$`. Misma familia que
+ * los guardianes de config: que el token signifique literalmente el valor, no un
+ * falso verde ni una ruta mutada por accidente. resolvePython() memoiza, así que
+ * llamarla una vez por match no repite el sondeo del intérprete.
+ */
 function resolveCmd(cmd, tokens = {}) {
   if (!cmd) return cmd;
   return cmd
-    .replace(/\{\{\s*py\s*\}\}/g, resolvePython())
-    .replace(/\{\{\s*target\s*\}\}/g, tokens.target || '');
+    .replace(/\{\{\s*py\s*\}\}/g, () => resolvePython())
+    .replace(/\{\{\s*target\s*\}\}/g, () => tokens.target || '');
 }
 
 /** Carga y valida harness.config.json con valores por defecto sensatos. */
