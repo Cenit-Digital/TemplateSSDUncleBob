@@ -128,6 +128,32 @@ function loadConfig() {
     );
     process.exit(2);
   }
+  // `paths` y `commands` deben ser objetos { clave: string } o estar ausentes. Un
+  // string o un array (edición a mano equivocada, p. ej. "commands": "go test" o
+  // "commands": ["go test"] en vez de "commands": { "test": "go test" }) NO
+  // revienta: Object.assign ignora los primitivos y esparce los índices de un
+  // array/los caracteres de un string como claves numéricas, así que los defaults
+  // (todos vacíos) SOBREVIVEN y el comando que el usuario creía haber declarado se
+  // descarta en silencio. En `init` eso reporta VERDE con "no hay comando de tests"
+  // pese a que el usuario declaró uno: un falso verde que traiciona la puerta —peor
+  // que un fallo (límite 2)—. La misma familia que el guardián de `mutation` no-objeto,
+  // que solo mira una capa más adentro; y coherente con harness.schema.json, que ya
+  // declara `commands` y `paths` como "type": "object". Convertir la edición
+  // equivocada en un [FAIL] legible, no en un verde engañoso.
+  const CONTAINER_HINT = {
+    commands: '"commands": { "test": "go test ./..." }',
+    paths: '"paths": { "src": "src", "tests": "tests" }',
+  };
+  for (const key of ['paths', 'commands']) {
+    if (cfg[key] !== undefined && !isPlainObject(cfg[key])) {
+      fail(`${CONFIG_NAME}: "${key}" debe ser un objeto { clave: "valor" } (encontrado: ${jsonKind(cfg[key])}).`);
+      console.log(
+        `\n  Declara las claves dentro de un objeto, p. ej.  ${CONTAINER_HINT[key]}.\n` +
+        `  Omitir "${key}" también es válido: el motor usa los valores por defecto.`,
+      );
+      process.exit(2);
+    }
+  }
   cfg.paths = Object.assign(
     {
       src: 'src', tests: 'tests', features: 'features', progress: 'progress',
