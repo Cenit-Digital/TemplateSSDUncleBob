@@ -339,10 +339,22 @@ function cmdInit() {
   }
 
   rule(cfg.commands.lint ? '5. Tests' : '4. Tests');
+  // Corre `commands.test` si hay código donde pueda haber tests: en `paths.tests`
+  // O en `paths.src`. Mirar SOLO `paths.tests` era un falso verde para los stacks
+  // que colocan los tests JUNTO al código, no en un `tests/` aparte: Go (`_test.go`
+  // en el paquete) y los tests unitarios de Rust (`#[cfg(test)]` dentro de cada
+  // `.rs`). Un proyecto Rust que sigue el `paths.tests: "tests"` que recomienda
+  // `.harness/adapters/rust.md` pero solo tiene tests unitarios NO tiene carpeta
+  // `tests/`: `dirHasFiles(tests)` daba false, el motor SALTABA `cargo test` y
+  // reportaba [OK] verde aunque hubiera tests en rojo en `src/`. Un falso verde que
+  // traiciona la puerta —peor que un fallo (límite 2 de AUTONOMOUS.md)—, la misma
+  // familia que los guardianes de config. Con `src/` como segunda señal, esos
+  // stacks corren de verdad; la plantilla recién clonada (src Y tests vacíos) sigue
+  // avisando sin fallar, que es el único caso que este gate debía cubrir.
   if (!cfg.commands.test) {
     warn('No hay comando de tests declarado (commands.test vacío)');
-  } else if (!dirHasFiles(cfg.paths.tests)) {
-    warn(`Carpeta ${cfg.paths.tests}/ vacía o inexistente todavía`);
+  } else if (!dirHasFiles(cfg.paths.tests) && !dirHasFiles(cfg.paths.src)) {
+    warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que testear)`);
   } else {
     console.log(`$ ${resolveCmd(cfg.commands.test)}\n`);
     const r = run(cfg.commands.test);
