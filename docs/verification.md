@@ -66,3 +66,23 @@ bin/harness verify     # init (entorno + tests) + prueba de mutación
 Si `verify` está rojo o sobreviven mutantes sin justificar, **no** marques
 nada como `done`. Anota el bloqueo en `progress/current.md` con estado
 `blocked` en `feature_list.json`.
+
+## El propio motor del arnés se testea
+
+El motor `.harness/harness.mjs` es toda la cadena de verificación, así que
+también tiene su propia red de seguridad: `.harness/test/engine.test.mjs` fija
+por regresión sus conductas críticas (los guardianes de forma de config, la
+tolerancia a BOM, la forma de `mutation.targets`, la sustitución literal del
+token `{{target}}`, el gate de tests-en-`src/`…). Se corre sin dependencias
+npm, solo con la stdlib de Node (`node:test`):
+
+```bash
+node --test .harness/test/engine.test.mjs
+```
+
+> Ruta de fichero explícita (no glob) a propósito: funciona en Node 18+, el
+> mínimo del arnés. Conviene añadir un job `engine-tests` a `harness-ci.yml`
+> con este mismo comando para que la CI lo ejecute en cada PR.
+
+Si tocas el motor, este suite debe seguir verde: es la evidencia de que un
+cambio en el verificador no rompe en silencio la propia puerta que protege.
