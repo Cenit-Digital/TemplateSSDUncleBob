@@ -80,9 +80,25 @@ npm, solo con la stdlib de Node (`node:test`):
 node --test .harness/test/engine.test.mjs
 ```
 
-> Ruta de fichero explícita (no glob) a propósito: funciona en Node 18+, el
-> mínimo del arnés. Conviene añadir un job `engine-tests` a `harness-ci.yml`
-> con este mismo comando para que la CI lo ejecute en cada PR.
+> Ruta de fichero explícita (no directorio ni glob) a propósito: funciona en
+> Node 18+, el mínimo del arnés, y es la única forma fiable en Node 22 —la forma
+> de directorio (`node --test .harness/test/`) intenta cargar la carpeta como
+> módulo y revienta con `MODULE_NOT_FOUND`—.
+
+Para que una regresión del motor ponga la CI en rojo (y no en falso verde),
+añade este job a `.github/workflows/harness-ci.yml`, junto a `root-harness`:
+
+```yaml
+  engine-tests:
+    name: Motor del arnés (red de regresión)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: node --test .harness/test/engine.test.mjs
+```
 
 Si tocas el motor, este suite debe seguir verde: es la evidencia de que un
 cambio en el verificador no rompe en silencio la propia puerta que protege.
