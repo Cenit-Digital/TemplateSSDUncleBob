@@ -10,7 +10,14 @@
 // introdujo.
 //
 // Sin dependencias npm: usa `node:test` (estable desde Node 18, el único
-// requisito del arnés). Se corre con `node --test .harness/test/`.
+// requisito del arnés). Se corre con la RUTA DE FICHERO explícita:
+//
+//   node --test .harness/test/engine.test.mjs
+//
+// (no `node --test .harness/test/`: en Node 22 la forma de directorio intenta
+// cargar la carpeta como módulo y revienta con MODULE_NOT_FOUND; la ruta de
+// fichero explícita funciona en Node 18+, el mínimo del arnés). El job
+// `engine-tests` recomendado en docs/verification.md corre este mismo comando.
 //
 // El motor llama a `process.exit()` y escribe con console.log, así que cada caso
 // lo lanza como SUBPROCESO en un directorio temporal y comprueba el código de
