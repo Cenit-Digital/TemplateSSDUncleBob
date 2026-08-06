@@ -277,6 +277,42 @@ function validateFeatureList(cfg) {
     fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
     good = false;
   }
+
+  // Integridad de identidad: `id` y `name` son CLAVES y deben ser únicos entre las
+  // features. Los agentes referencian una feature por su `id` (un id repetido hace
+  // ambigua la orden "trabaja la feature N"); y el motor DERIVA rutas de fichero de
+  // su `name`: `features/<name>.feature` —el contrato que aprueba el humano— y, por
+  // la convención anti-teléfono-descompuesto del pipeline, `progress/tdd_<name>.md`,
+  // `judge_<name>.md`, `mutation_<name>.md`. Dos features con el mismo `name`
+  // comparten el MISMO `.feature`: la puerta de aprobación humana de una tapa a la
+  // otra (fs.existsSync la da por buena) y sus artefactos de progreso se pisan. Sin
+  // este chequeo, esa edición a mano equivocada pasaba como "válido" verde en vez de
+  // un [FAIL] legible —un falso verde sobre una lista que rompe la propia convención
+  // de ficheros del arnés—, la misma familia que los guardianes de forma de config y
+  // de las entradas de features. Se comparan solo los valores presentes; `id` se
+  // normaliza a string para que 1 y "1" (la misma "feature 1") colisionen.
+  const duplicatesOf = (values) => {
+    const seen = new Set();
+    const dups = new Set();
+    for (const v of values) {
+      if (seen.has(v)) dups.add(v);
+      else seen.add(v);
+    }
+    return [...dups];
+  };
+  for (const id of duplicatesOf(
+    wellFormed.filter((f) => f.id !== undefined && f.id !== null).map((f) => String(f.id)),
+  )) {
+    fail(`id duplicado en features: ${id} (cada feature necesita un id único)`);
+    good = false;
+  }
+  for (const name of duplicatesOf(
+    wellFormed.filter((f) => typeof f.name === 'string').map((f) => f.name),
+  )) {
+    fail(`name duplicado en features: "${name}" (deriva ${cfg.paths.features}/${name}.feature y progress/*_${name}.md; debe ser único)`);
+    good = false;
+  }
+
   for (const f of wellFormed) {
     if (!VALID_STATUS.includes(f.status)) {
       fail(`Estado inválido en feature ${f.id}: ${f.status}`);

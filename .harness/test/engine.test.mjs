@@ -175,6 +175,70 @@ test('feature_list: entrada no-objeto falla legible, sin stack trace (#13)', () 
   assert.match(out, /features\[0\] debe ser un objeto/);
 });
 
+// ── feature_list: unicidad de id/name ────────────────────────────────────────
+
+test('feature_list: id duplicado falla legible, no en falso "válido"', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'done' },
+        { id: 1, name: 'b', status: 'done' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /id duplicado en features: 1/);
+});
+
+test('feature_list: name duplicado falla (colisiona su features/<name>.feature)', () => {
+  // Dos features con el mismo name comparten el mismo .feature: el gate de
+  // aprobación humana de una tapa a la otra. Debe ser un [FAIL], no un verde.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'cli_add', status: 'pending' },
+        { id: 2, name: 'cli_add', status: 'pending' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /name duplicado en features: "cli_add"/);
+});
+
+test('feature_list: id "1" (string) y 1 (número) colisionan como la misma feature', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'done' },
+        { id: '1', name: 'b', status: 'done' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /id duplicado en features: 1/);
+});
+
+test('feature_list: ids y names únicos siguen en verde (sin falso positivo)', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'done' },
+        { id: 2, name: 'b', status: 'pending' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(2 features\)/);
+});
+
 // ── init: gate tests-en-src (#19) ────────────────────────────────────────────
 
 test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#19)', () => {
