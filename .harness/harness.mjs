@@ -512,20 +512,32 @@ function cmdStatus() {
   const cfg = loadConfig();
   const v = validateFeatureList(cfg);
   rule('Estado de features');
-  if (!v.features.length) {
+  // "(sin features definidas)" solo cuando la lista es VÁLIDA y vacía. Si
+  // `feature_list.json` está corrupto (features no-array), validateFeatureList
+  // dejó v.features en [] tras imprimir su [FAIL]: mostrar aquí "sin features"
+  // contradiría ese fallo (la lista no está vacía, está mal formada).
+  if (v.ok && !v.features.length) {
     console.log('  (sin features definidas todavía)');
-    process.exit(0);
-  }
-  for (const f of v.features) {
-    if (!isPlainObject(f)) {
-      console.log(`  ${red(`(entrada inválida en features: ${jsonKind(f)})`)}`);
-      continue;
+  } else {
+    for (const f of v.features) {
+      if (!isPlainObject(f)) {
+        console.log(`  ${red(`(entrada inválida en features: ${jsonKind(f)})`)}`);
+        continue;
+      }
+      const status = typeof f.status === 'string' ? f.status : '(sin estado)';
+      const tag = { done: green, in_progress: yellow, blocked: red }[status] || ((s) => s);
+      console.log(`  #${String(f.id ?? '?').padStart(2)} ${tag(status.padEnd(12))} ${f.name ?? '(sin nombre)'}${f.sdd ? ' (sdd)' : ''}`);
     }
-    const status = typeof f.status === 'string' ? f.status : '(sin estado)';
-    const tag = { done: green, in_progress: yellow, blocked: red }[status] || ((s) => s);
-    console.log(`  #${String(f.id ?? '?').padStart(2)} ${tag(status.padEnd(12))} ${f.name ?? '(sin nombre)'}${f.sdd ? ' (sdd)' : ''}`);
   }
-  process.exit(0);
+  // status es informativo, pero no puede reportar VERDE (exit 0) sobre un
+  // feature_list.json estructuralmente inválido. validateFeatureList ya imprimió
+  // el [FAIL] concreto (features no-array, entradas no-objeto, id/name duplicados,
+  // estado inválido, feature sdd sin .feature...); `init` YA propaga ese fallo a su
+  // exit code, pero `cmdStatus` lo descartaba y salía 0. Un script o un job de CI
+  // que consulte `bin/harness status` veía verde sobre una lista corrupta: un falso
+  // verde de la misma familia que el resto de guardianes del motor —peor que un
+  // fallo (límite 2 de AUTONOMOUS.md)—. Propagar v.ok cierra la incoherencia.
+  process.exit(v.ok ? 0 : 1);
 }
 
 function help() {

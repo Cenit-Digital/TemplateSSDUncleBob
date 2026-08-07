@@ -373,6 +373,42 @@ test('status: renderiza las features declaradas', () => {
   assert.match(out, /done/);
 });
 
+test('status: lista válida vacía sigue en verde (exit 0) sin falso positivo', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['status']);
+  assert.equal(status, 0, out);
+  assert.match(out, /sin features definidas/);
+});
+
+test('status: feature_list corrupto (features no-array) sale con exit 1, no en falso verde', () => {
+  // validateFeatureList imprime su [FAIL], pero cmdStatus descartaba v.ok y salía
+  // 0: un falso verde de la misma familia que el resto de guardianes (límite 2).
+  // Además NO debe decir "sin features definidas": la lista no está vacía, está
+  // corrupta.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: 42 },
+  });
+  const { status, out } = runEngine(dir, ['status']);
+  assert.equal(status, 1);
+  assert.match(out, /"features" debe ser un array/);
+  assert.doesNotMatch(out, /sin features definidas/);
+});
+
+test('status: entrada corrupta mezclada con una válida sale con exit 1 pero renderiza la válida', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'ok', status: 'done' }, 99] },
+  });
+  const { status, out } = runEngine(dir, ['status']);
+  assert.equal(status, 1);
+  assert.match(out, /features\[1\] debe ser un objeto/);
+  assert.match(out, /ok/); // la entrada válida se sigue mostrando para el humano
+});
+
 test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
   const dir = scenario(GREEN_FILES);
   const { status, out } = runEngine(dir, ['frobnicate']);
