@@ -272,6 +272,26 @@ function validateFeatureList(cfg) {
     }
   });
 
+  // Cada `name` presente debe ser un string NO VACÍO: de él DERIVA el motor
+  // `features/<name>.feature` —el contrato que aprueba el humano— y, por la
+  // convención anti-teléfono-descompuesto del pipeline, `progress/tdd_<name>.md`,
+  // `judge_<name>.md`, `mutation_<name>.md`. El guardián de unicidad de abajo
+  // filtra `typeof f.name === 'string'`, así que un name NO-string (olvidar las
+  // comillas: `"name": 123`, o un `true`) ESCAPABA por completo: dos features con
+  // el mismo name numérico 123 pasaban como "válido" en verde y colisionaban en el
+  // mismo `features/123.feature` —justo el falso verde que la unicidad de name
+  // venía a cerrar—. Un name vacío o en blanco deriva `features/.feature`, igual de
+  // roto. Misma familia que el string-leaf guard de paths/commands y el `!x.trim()`
+  // de mutation.targets: convertir la edición a mano equivocada en un [FAIL]
+  // legible, no en un verde engañoso ni en una ruta de fichero corrupta.
+  for (const f of wellFormed) {
+    if (f.name !== undefined && (typeof f.name !== 'string' || !f.name.trim())) {
+      const found = typeof f.name === 'string' ? 'string vacío' : jsonKind(f.name);
+      fail(`${cfg.paths.feature_list}: el "name" de la feature ${f.id ?? '?'} debe ser un string no vacío (encontrado: ${found}); de él derivan ${cfg.paths.features}/<name>.feature y progress/*_<name>.md.`);
+      good = false;
+    }
+  }
+
   const inProgress = wellFormed.filter((f) => f.status === 'in_progress');
   if (cfg.rules.one_feature_at_a_time && inProgress.length > 1) {
     fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
