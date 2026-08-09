@@ -239,6 +239,47 @@ test('feature_list: ids y names únicos siguen en verde (sin falso positivo)', (
   assert.match(out, /válido \(2 features\)/);
 });
 
+// ── feature_list: name debe ser un string no vacío ───────────────────────────
+
+test('feature_list: name numérico duplicado falla, no en falso verde (deriva el mismo .feature)', () => {
+  // Regresión del hueco del guardián de unicidad (#22): filtra typeof name ===
+  // 'string', así que dos names numéricos 123 (olvidar las comillas) lo ESQUIVABAN
+  // y pasaban como "válido" en verde pese a colisionar en features/123.feature.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 123, status: 'done' },
+        { id: 2, name: 123, status: 'done' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /"name" de la feature .* debe ser un string no vacío/);
+  assert.doesNotMatch(out, /feature_list\.json válido/);
+});
+
+test('feature_list: name no-string (boolean) falla legible, sin stack trace', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: true, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: boolean\)/);
+});
+
+test('feature_list: name vacío falla (derivaría features/.feature)', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: '   ', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: string vacío\)/);
+});
+
 // ── init: gate tests-en-src (#19) ────────────────────────────────────────────
 
 test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#19)', () => {
