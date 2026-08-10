@@ -200,6 +200,28 @@ function loadConfig() {
   }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
   if (typeof cfg.standalone !== 'boolean') cfg.standalone = true;
+  // `rules` debe ser un objeto { one_feature_at_a_time, ... } o estar ausente. Es
+  // el ÚLTIMO de los cuatro contenedores que harness.schema.json declara "type":
+  // "object" (commands, paths, mutation, rules) que aún NO tenía guardián de forma.
+  // Un string, número o array (edición a mano equivocada, p. ej. "rules":
+  // "estrictas" en vez de "rules": { "one_feature_at_a_time": true }) NO revienta,
+  // pero se descarta EN SILENCIO: Object.assign ignora los primitivos y esparce los
+  // índices de un array como claves numéricas, así que los defaults SOBREVIVEN y el
+  // motor sale VERDE sin avisar de que la config de reglas del usuario se ignoró.
+  // A diferencia de commands/paths/mutation —donde el descarte deja la puerta sin
+  // el comando declarado y produce un falso verde—, aquí los defaults son los
+  // ESTRICTOS, así que no se debilita ninguna puerta; pero el silencio contradice a
+  // los guardianes hermanos (#16, #18) y al propio harness.schema.json. Misma
+  // familia: convertir la edición a mano equivocada en un [FAIL] legible, no en un
+  // descarte mudo.
+  if (cfg.rules !== undefined && !isPlainObject(cfg.rules)) {
+    fail(`${CONFIG_NAME}: "rules" debe ser un objeto { one_feature_at_a_time, ... } (encontrado: ${jsonKind(cfg.rules)}).`);
+    console.log(
+      `\n  Declara las banderas dentro de un objeto, p. ej.  "rules": { "one_feature_at_a_time": true }.\n` +
+      `  Omitir "rules" también es válido: el motor usa los valores por defecto (todas estrictas).`,
+    );
+    process.exit(2);
+  }
   cfg.rules = Object.assign(
     {
       one_feature_at_a_time: true,
