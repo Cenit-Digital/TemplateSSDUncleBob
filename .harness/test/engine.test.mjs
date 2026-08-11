@@ -145,6 +145,32 @@ test('loadConfig: "mutation" no-objeto falla legible (#16)', () => {
   assert.match(out, /"mutation" debe ser un objeto/);
 });
 
+test('loadConfig: "rules" no-objeto falla legible, no en descarte mudo', () => {
+  // `rules` es el último de los cuatro contenedores "type": "object" del schema
+  // (commands, paths, mutation, rules) que faltaba por guardar. Un string se
+  // tragaba en silencio (Object.assign deja los defaults en pie) y salía verde sin
+  // avisar de que la config de reglas se ignoró. Debe ser un [FAIL] como sus
+  // hermanos (#16, #18), no un descarte mudo.
+  const dir = scenario({ 'harness.config.json': { project: 't', rules: 'estrictas' } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"rules" debe ser un objeto/);
+});
+
+test('loadConfig: "rules" objeto válido sigue en verde (sin falso positivo)', () => {
+  // El guardián de contenedor no debe rechazar una config de reglas legítima.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { one_feature_at_a_time: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
 test('loadConfig: tolera BOM UTF-8 al parsear config (#11)', () => {
   const raw = '﻿' + json({ project: 't', standalone: false, commands: {} });
   const dir = scenario({ 'harness.config.json': raw, 'feature_list.json': { features: [] } });
