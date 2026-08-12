@@ -199,7 +199,31 @@ function loadConfig() {
     process.exit(2);
   }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
-  if (typeof cfg.standalone !== 'boolean') cfg.standalone = true;
+  // `standalone` gobierna si `init` comprueba los ficheros base del arnés
+  // (AGENTS.md, CLAUDE.md, CHECKPOINTS.md, docs/workflow.md, feature_list,
+  // progress/current.md): true → proyecto autónomo con los suyos; false → hereda
+  // el arnés raíz y se OMITE esa comprobación. Ausente → true por defecto. Pero un
+  // valor PRESENTE no-booleano —el error clásico de entrecomillar un booleano en
+  // JSON: `"standalone": "false"`— se coercía EN SILENCIO a true (`typeof ... !==
+  // 'boolean'` → reasignar). El sub-proyecto que el usuario quería marcar como
+  // heredero (standalone:false) acababa comprobando ficheros base que no tiene y
+  // fallaba con una ráfaga de "Falta archivo base" que NO menciona la causa real:
+  // el valor declarado se descartaba sin avisar y el mensaje desorientaba. Es el
+  // ÚNICO campo escalar de config que quedaba con coerción silenciosa; los cuatro
+  // contenedores (commands, paths, mutation, rules) ya fallan legible ante un tipo
+  // equivocado (#16, #18, #25). Misma familia: convertir la edición a mano
+  // equivocada en un [FAIL] legible, no en un descarte mudo ni en un fallo que
+  // apunta al síntoma en vez de a la causa.
+  if (cfg.standalone !== undefined && typeof cfg.standalone !== 'boolean') {
+    fail(`${CONFIG_NAME}: "standalone" debe ser true o false (encontrado: ${jsonKind(cfg.standalone)}).`);
+    console.log(
+      `\n  Es un booleano SIN comillas: "standalone": false (hereda el arnés raíz)\n` +
+      `  o "standalone": true (proyecto autónomo con sus propios ficheros base).\n` +
+      `  Omitir "standalone" también es válido: el motor asume true (autónomo).`,
+    );
+    process.exit(2);
+  }
+  if (cfg.standalone === undefined) cfg.standalone = true;
   // `rules` debe ser un objeto { one_feature_at_a_time, ... } o estar ausente. Es
   // el ÚLTIMO de los cuatro contenedores que harness.schema.json declara "type":
   // "object" (commands, paths, mutation, rules) que aún NO tenía guardián de forma.
