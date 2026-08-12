@@ -171,6 +171,55 @@ test('loadConfig: "rules" objeto válido sigue en verde (sin falso positivo)', (
   assert.match(out, /Entorno listo/);
 });
 
+// ── loadConfig: standalone booleano ──────────────────────────────────────────
+
+test('loadConfig: "standalone" no-booleano (string "false") falla legible, no en coerción muda', () => {
+  // Entrecomillar un booleano en JSON ("standalone": "false") es el error de mano
+  // clásico. Antes se coercía EN SILENCIO a true: el sub-proyecto que el usuario
+  // quería marcar como heredero del arnés raíz (standalone:false) acababa
+  // comprobando ficheros base ausentes y fallaba con "Falta archivo base" —un
+  // mensaje que apunta al síntoma, no a la causa—. Debe ser un [FAIL] legible que
+  // nombre `standalone`, como sus hermanos commands/paths/mutation/rules.
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: 'false', commands: {} } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"standalone" debe ser true o false/);
+  assert.doesNotMatch(out, /Falta archivo base/); // no desorienta con el síntoma
+});
+
+test('loadConfig: "standalone" numérico falla legible con su tipo', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: 0, commands: {} } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"standalone" debe ser true o false \(encontrado: number\)/);
+});
+
+test('loadConfig: "standalone" ausente asume autónomo (comprueba ficheros base)', () => {
+  // Omitir standalone es válido: el motor asume true. Sin ficheros base, init falla
+  // por su ausencia (no por el campo), demostrando que el default sigue en pie.
+  const dir = scenario({
+    'harness.config.json': { project: 't', commands: {} },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Falta archivo base/);
+  assert.doesNotMatch(out, /"standalone" debe ser/); // el campo ausente no es un error
+});
+
+test('loadConfig: "standalone" false legítimo omite los ficheros base y sigue en verde', () => {
+  // El guardián no debe rechazar el valor legítimo que toda la suite usa para
+  // heredar el arnés raíz.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /hereda el arnés raíz/);
+  assert.match(out, /Entorno listo/);
+});
+
 test('loadConfig: tolera BOM UTF-8 al parsear config (#11)', () => {
   const raw = '﻿' + json({ project: 't', standalone: false, commands: {} });
   const dir = scenario({ 'harness.config.json': raw, 'feature_list.json': { features: [] } });

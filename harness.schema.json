@@ -18,6 +18,11 @@
       "examples": ["python", "node", "go", "rust", "generic"]
     },
     "description": { "type": "string" },
+    "standalone": {
+      "type": "boolean",
+      "default": true,
+      "description": "true (por defecto): proyecto autónomo; init comprueba sus propios ficheros base (AGENTS.md, CLAUDE.md, ...). false: hereda el arnés raíz y omite esa comprobación (útil para sub-proyectos dentro de examples/). Debe ser un booleano sin comillas."
+    },
     "commands": {
       "type": "object",
       "description": "Comandos de shell de tu stack. Admiten el token {{py}} (intérprete de Python) y, en mutate, {{target}}.",
