@@ -385,6 +385,24 @@ function validateFeatureList(cfg) {
       good = false;
     }
     if (f.sdd && REQUIRES_SPEC.has(f.status)) {
+      // El contrato `features/<name>.feature` —el que aprueba el humano— DERIVA de
+      // `f.name`. Sin un name usable no hay contrato que buscar: derivar la ruta con
+      // un name ausente producía `features/undefined.feature` y un [FAIL] que
+      // mandaba al usuario a crear un fichero fantasma en vez de a la causa real
+      // (falta el `name`); con un name present-pero-inválido (no-string/vacío) —que
+      // el guardián de name de arriba YA reportó— añadía un segundo [FAIL] sobre
+      // `features/   .feature`, doble ruido para el mismo error. Guardar la
+      // derivación cierra ambos: si el name falta, un mensaje que nombra la causa;
+      // si es inválido, se calla (ya está reportado) y no deriva la ruta fantasma.
+      // Misma familia que los guardianes de name/unicidad (#22, #24): un [FAIL]
+      // legible que apunta a la causa, no a un síntoma derivado.
+      if (typeof f.name !== 'string' || !f.name.trim()) {
+        if (f.name === undefined) {
+          fail(`feature ${f.id ?? '?'} (sdd) en ${f.status} necesita un "name" del que derivar ${cfg.paths.features}/<name>.feature; falta.`);
+          good = false;
+        }
+        continue; // name inválido: no derivar features/undefined.feature ni un doble [FAIL]
+      }
       const feat = path.join(CWD, cfg.paths.features, `${f.name}.feature`);
       if (!fs.existsSync(feat)) {
         fail(`feature ${f.id} (${f.name}) en ${f.status} sin ${cfg.paths.features}/${f.name}.feature`);

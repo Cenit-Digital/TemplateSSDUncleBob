@@ -355,6 +355,74 @@ test('feature_list: name vacío falla (derivaría features/.feature)', () => {
   assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: string vacío\)/);
 });
 
+// ── feature_list: feature sdd sin name usable deriva features/<name>.feature ──
+
+test('feature_list: feature sdd en estado con-spec SIN name culpa al name, no a un fichero fantasma', () => {
+  // Una feature sdd en un estado que exige spec (spec_ready/in_progress/done)
+  // DERIVA features/<name>.feature de su name. Sin name, el motor derivaba
+  // features/undefined.feature y fallaba con "sin features/undefined.feature": un
+  // mensaje que manda a crear un fichero fantasma en vez de a la causa (falta el
+  // name). Debe nombrar el name como la causa.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'in_progress' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /feature 1 \(sdd\) en in_progress necesita un "name"/);
+  assert.doesNotMatch(out, /undefined\.feature/); // no manda a un fichero fantasma
+});
+
+test('feature_list: feature sdd con name en blanco reporta el name UNA vez, sin doble [FAIL]', () => {
+  // Un name present-pero-en-blanco lo reporta el guardián de name (#24). La rama
+  // sdd NO debe añadir un segundo [FAIL] sobre features/   .feature (doble ruido
+  // por el mismo error): con la derivación guardada, solo queda el mensaje de name.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 7, name: '   ', sdd: true, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /"name" de la feature 7 debe ser un string no vacío/);
+  assert.doesNotMatch(out, /sin features\/.*\.feature/); // sin el segundo [FAIL] derivado
+});
+
+test('feature_list: feature sdd en PENDING sin name no exige spec (no la toca esta puerta)', () => {
+  // REQUIRES_SPEC excluye pending/blocked: una feature sdd aún en pending no deriva
+  // .feature todavía, así que un name ausente aquí no es un error de ESTA puerta
+  // (el name se exigirá al pasar a spec_ready). Sin falso positivo.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'pending' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /necesita un "name"/);
+});
+
+test('feature_list: feature sdd con name válido pero SIN su .feature sigue fallando por el fichero', () => {
+  // El guardián de name no debe tapar el chequeo real: con un name usable y sin el
+  // features/<name>.feature correspondiente, la puerta sigue exigiendo el contrato.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /feature 1 \(cli_since\) en done sin features\/cli_since\.feature/);
+});
+
+test('feature_list: feature sdd con name válido y su .feature presente termina en verde', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
+    'features/cli_since.feature': 'Feature: since\n',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
 // ── init: gate tests-en-src (#19) ────────────────────────────────────────────
 
 test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#19)', () => {
