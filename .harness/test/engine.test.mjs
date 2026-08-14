@@ -452,6 +452,58 @@ test('init: sin código en src/ ni tests/ avisa pero no falla (#19)', () => {
   assert.match(out, /nada que testear/);
 });
 
+// ── init: gate de lint sobre árbol vacío (simétrico al de tests, #19) ────────
+
+test('init: NO corre el lint si src/ y tests/ están vacíos (clon limpio, avisa sin fallar)', () => {
+  // Simétrico al gate de tests (#19): un clon recién hecho trae src/ y tests/
+  // vacíos; correr el linter ahí no tiene sentido y muchos linters salen NO-CERO
+  // cuando su patrón no casa nada, rompiendo `init` en la primera experiencia
+  // (límite 5 de AUTONOMOUS.md). El comando de lint aquí SIEMPRE falla: si corriera,
+  // init saldría 1. Debe SALTARSE con un WARN y quedarse en verde.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { lint: 'node -e "process.exit(1)"' },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out); // el linter NO corrió: nada que lintar
+  assert.match(out, /nada que lintar/);
+  assert.doesNotMatch(out, /Lint con errores/);
+});
+
+test('init: corre el lint si hay código en src/ aunque tests/ esté vacío', () => {
+  // Con código presente el gate deja pasar y un fallo real de lint sigue siendo
+  // [FAIL]: el gate no debilita la puerta (límite 2), solo evita el árbol vacío.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { lint: 'node -e "process.exit(1)"' },
+    },
+    'feature_list.json': { features: [] },
+    'src/foo.txt': 'código',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1); // el comando de lint corrió y falló
+  assert.match(out, /Lint con errores/);
+});
+
+test('init: lint que pasa con código presente termina en verde', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { lint: 'node -e "process.exit(0)"' },
+    },
+    'feature_list.json': { features: [] },
+    'src/foo.txt': 'código',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Lint sin errores/);
+  assert.match(out, /Entorno listo/);
+});
+
 // ── mutate: objetivos, umbral y sustitución de tokens ────────────────────────
 
 test('mutate: commands.mutate vacío falla con exit 2', () => {

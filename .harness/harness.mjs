@@ -449,12 +449,27 @@ function cmdInit() {
 
   if (cfg.commands.lint) {
     rule('4. Lint');
-    console.log(`$ ${resolveCmd(cfg.commands.lint)}\n`);
-    const r = run(cfg.commands.lint);
-    if (r.status === 0) ok('Lint sin errores');
-    else {
-      fail('Lint con errores');
-      exit = 1;
+    // Mismo gate "¿hay código todavía?" que la puerta de tests (#19): no corras un
+    // comando del proyecto sobre un árbol vacío. Un clon recién hecho de la plantilla
+    // trae `src/` y `tests/` vacíos; si declara `commands.lint`, muchos linters
+    // salen NO-CERO cuando su patrón no casa ningún fichero (p. ej. eslint con flat
+    // config: "No files matching the pattern were found"), y `init` FALLABA en la
+    // primera experiencia de quien clona —justo el clon limpio que el límite 5 de
+    // AUTONOMOUS.md exige mantener en verde—. La puerta de tests ya trataba este caso
+    // como WARN-no-FAIL; la de lint se quedó atrás y divergía ante la misma
+    // precondición (src Y tests vacíos). Con código presente, el linter corre de
+    // verdad y un fallo real sigue siendo [FAIL]: el gate no debilita la puerta
+    // (límite 2), solo evita correrla antes de que haya proyecto que lintar.
+    if (!dirHasFiles(cfg.paths.tests) && !dirHasFiles(cfg.paths.src)) {
+      warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que lintar)`);
+    } else {
+      console.log(`$ ${resolveCmd(cfg.commands.lint)}\n`);
+      const r = run(cfg.commands.lint);
+      if (r.status === 0) ok('Lint sin errores');
+      else {
+        fail('Lint con errores');
+        exit = 1;
+      }
     }
   }
 
