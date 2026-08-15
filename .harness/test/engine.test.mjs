@@ -651,3 +651,76 @@ test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
   assert.equal(status, 2);
   assert.match(out, /Comando desconocido: frobnicate/);
 });
+
+// ── verify: la puerta de mutación obligatoria no puede quedar en falso verde ──
+
+test('verify: require_mutation_to_close:true con commands.mutate VACÍO aborta, no en falso verde', () => {
+  // verify es la puerta de cierre de sesión (docs/verification.md: "Si verify está
+  // rojo... no marques nada como done"). Con la regla obligatoria activa (el
+  // DEFAULT) y sin mutador declarado, la puerta se OMITÍA en silencio y aún así
+  // imprimía "Todo verde. Puedes cerrar la sesión": un falso verde sobre la puerta
+  // de cierre (límite 2). El `mutate` directo ya falla ante commands.mutate vacío;
+  // verify —la misma puerta a nivel de sesión— debe fallar igual, nombrando la causa.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_mutation_to_close: true },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /require_mutation_to_close es true pero commands\.mutate está vacío/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+});
+
+test('verify: require_mutation_to_close:false con commands.mutate vacío omite la puerta y sigue en verde', () => {
+  // Opt-out legítimo: si el proyecto declara que no cierra por mutación, verify no
+  // debe exigir un mutador. El guardián nuevo no puede romper este caso.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_mutation_to_close: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Puedes cerrar la sesión/);
+});
+
+test('verify: require_mutation_to_close:true con mutador que pasa termina en verde', () => {
+  // Con un mutador declarado que supera el umbral, la puerta corre de verdad y
+  // verify certifica el cierre: el guardián no debilita la puerta (límite 2).
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { mutate: 'node -e "process.exit(0)"' },
+      mutation: { targets: [] },
+      rules: { require_mutation_to_close: true },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Prueba de mutación superada/);
+  assert.match(out, /Puedes cerrar la sesión/);
+});
+
+test('verify: require_mutation_to_close:true con mutador que NO supera el umbral aborta', () => {
+  // La puerta corre y falla: verify no certifica el cierre. Comprobación de que la
+  // rama del guardián (mutate vacío) no tapa la rama real (mutate presente que falla).
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { mutate: 'node -e "process.exit(1)"' },
+      mutation: { targets: [] },
+      rules: { require_mutation_to_close: true },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /no supera el umbral/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+});
