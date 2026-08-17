@@ -596,8 +596,27 @@ function cmdVerify() {
     process.exit(1);
   }
   const cfg = loadConfig();
-  if (cfg.rules.require_mutation_to_close && cfg.commands.mutate) {
+  if (cfg.rules.require_mutation_to_close) {
     rule('Prueba de mutación');
+    // `require_mutation_to_close:true` (el DEFAULT) exige correr la puerta de
+    // mutación para poder cerrar. Con `commands.mutate` vacío no hay mutador que
+    // ejecutar: la puerta se OMITÍA en silencio y verify aún imprimía "Todo verde.
+    // Puedes cerrar la sesión" —un FALSO VERDE sobre la puerta de cierre, que la
+    // doc describe como el último filtro antes de marcar `done` (docs/verification.md):
+    // peor que un fallo (límite 2 de AUTONOMOUS.md)—. El `mutate` directo YA falla
+    // ante `commands.mutate` vacío (exit 2); verify, que es la MISMA puerta a nivel
+    // de sesión, la silenciaba: una asimetría que este chequeo cierra. Si la
+    // mutación es obligatoria y no hay mutador declarado, no se certifica el cierre.
+    // `require_mutation_to_close:false` sigue omitiéndola sin ruido (opt-out válido).
+    if (!cfg.commands.mutate) {
+      fail('verify abortado: require_mutation_to_close es true pero commands.mutate está vacío.');
+      console.log(
+        `\n  La puerta de mutación es obligatoria para cerrar y no hay mutador que ejecutar.\n` +
+        `  Declara "commands": { "mutate": "..." } en ${CONFIG_NAME}, o pon\n` +
+        `  "rules": { "require_mutation_to_close": false } si este proyecto no cierra por mutación.`,
+      );
+      process.exit(1);
+    }
     if (!runMutation(cfg)) {
       fail('verify abortado: la prueba de mutación no supera el umbral.');
       process.exit(1);
