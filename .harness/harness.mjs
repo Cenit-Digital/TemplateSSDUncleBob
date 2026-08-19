@@ -246,6 +246,33 @@ function loadConfig() {
     );
     process.exit(2);
   }
+  // Cada bandera PRESENTE en `rules` debe ser un booleano. El guardián de arriba
+  // solo asegura que `rules` es un objeto; sus VALORES escalares seguían con
+  // coerción silenciosa —el mismo error de mano que #26 cerró para `standalone`,
+  // que se creía el "único campo escalar" con este problema pero pasó por alto los
+  // flags anidados aquí—. Entrecomillar un booleano en JSON
+  // (`"require_mutation_to_close": "false"`) produce el string "false", que es
+  // TRUTHY: la regla que el usuario quería DESACTIVAR sigue activa, y `verify`
+  // aborta imprimiendo "require_mutation_to_close es true..." —un mensaje que
+  // CONTRADICE lo que el usuario escribió (`"false"`) y lo manda a poner `false`
+  // sin comillas, que es justo lo que creía haber puesto—. Igual con
+  // `one_feature_at_a_time: "false"`, que sigue exigiendo "máximo 1". El schema
+  // declara los cuatro flags como "type": "boolean"; validarlos como tal convierte
+  // la edición equivocada en un [FAIL] legible, no en una coerción muda que apunta
+  // al síntoma en vez de a la causa. Misma familia que el string-leaf de
+  // paths/commands (#15) y el guardián de standalone (#26).
+  if (cfg.rules !== undefined) {
+    for (const [key, val] of Object.entries(cfg.rules)) {
+      if (typeof val !== 'boolean') {
+        fail(`${CONFIG_NAME}: "rules.${key}" debe ser true o false (encontrado: ${jsonKind(val)}).`);
+        console.log(
+          `\n  Son booleanos SIN comillas, p. ej.  "rules": { "${key}": false }.\n` +
+          `  Omitir una regla también es válido: el motor usa su valor por defecto (estricto).`,
+        );
+        process.exit(2);
+      }
+    }
+  }
   cfg.rules = Object.assign(
     {
       one_feature_at_a_time: true,

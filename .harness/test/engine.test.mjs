@@ -171,6 +171,77 @@ test('loadConfig: "rules" objeto válido sigue en verde (sin falso positivo)', (
   assert.match(out, /Entorno listo/);
 });
 
+test('loadConfig: flag de "rules" no-booleano (string "false") falla legible, no en coerción muda', () => {
+  // Entrecomillar un booleano en JSON ("require_mutation_to_close": "false") es el
+  // mismo error de mano que #26 cerró para `standalone`, pero en un flag anidado en
+  // `rules`. El string "false" es TRUTHY, así que la regla que el usuario quería
+  // DESACTIVAR seguía activa y `verify` abortaba imprimiendo "require_mutation_to_close
+  // es true..." —contradiciendo lo que el usuario escribió—. Debe ser un [FAIL] que
+  // nombre la regla y su tipo, no una coerción silenciosa.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_mutation_to_close: 'false' },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"rules\.require_mutation_to_close" debe ser true o false \(encontrado: string\)/);
+});
+
+test('loadConfig: flag de "rules" numérico falla legible con su tipo', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { one_feature_at_a_time: 0 },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"rules\.one_feature_at_a_time" debe ser true o false \(encontrado: number\)/);
+});
+
+test('loadConfig: flag de "rules" no-booleano NO cae en el síntoma downstream (verify no contradice)', () => {
+  // Con el bug antiguo, "require_mutation_to_close": "false" (truthy) hacía que
+  // verify abortara diciendo "require_mutation_to_close es true": un mensaje que
+  // contradice lo escrito. El guardián corta antes, ya en la fase init de verify
+  // (que corre init como subproceso y aborta con exit 1 si falla), con la causa real.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_mutation_to_close: 'false' },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /"rules\.require_mutation_to_close" debe ser true o false/);
+  assert.doesNotMatch(out, /es true pero commands\.mutate/); // no desorienta con el síntoma
+});
+
+test('loadConfig: flags de "rules" booleanos legítimos siguen en verde (sin falso positivo)', () => {
+  // El guardián no debe rechazar los valores booleanos legítimos: false explícito
+  // para relajar una regla, o una config parcial que hereda los defaults del resto.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { one_feature_at_a_time: false, require_mutation_to_close: false },
+    },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'in_progress' },
+        { id: 2, name: 'b', status: 'in_progress' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out); // one_feature_at_a_time:false permite 2 en in_progress
+  assert.match(out, /Entorno listo/);
+  assert.doesNotMatch(out, /máximo 1/);
+});
+
 // ── loadConfig: standalone booleano ──────────────────────────────────────────
 
 test('loadConfig: "standalone" no-booleano (string "false") falla legible, no en coerción muda', () => {
