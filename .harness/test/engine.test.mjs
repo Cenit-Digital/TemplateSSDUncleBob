@@ -735,7 +735,10 @@ test('verify: require_mutation_to_close:true con commands.mutate VACÍO aborta, 
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
-      rules: { require_mutation_to_close: true },
+      // require_tests_to_close:false aísla la puerta de mutación: sin él, el
+      // guardián hermano de tests (default true, commands.test vacío) fallaría
+      // primero y taparía la conducta de mutación que este caso fija.
+      rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
     'feature_list.json': { features: [] },
   });
@@ -751,7 +754,8 @@ test('verify: require_mutation_to_close:false con commands.mutate vacío omite l
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
-      rules: { require_mutation_to_close: false },
+      // Ambas puertas opt-out: este caso fija SOLO que verify no exige mutador.
+      rules: { require_tests_to_close: false, require_mutation_to_close: false },
     },
     'feature_list.json': { features: [] },
   });
@@ -768,7 +772,7 @@ test('verify: require_mutation_to_close:true con mutador que pasa termina en ver
       project: 't', standalone: false,
       commands: { mutate: 'node -e "process.exit(0)"' },
       mutation: { targets: [] },
-      rules: { require_mutation_to_close: true },
+      rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
     'feature_list.json': { features: [] },
   });
@@ -786,7 +790,7 @@ test('verify: require_mutation_to_close:true con mutador que NO supera el umbral
       project: 't', standalone: false,
       commands: { mutate: 'node -e "process.exit(1)"' },
       mutation: { targets: [] },
-      rules: { require_mutation_to_close: true },
+      rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
     'feature_list.json': { features: [] },
   });
@@ -794,4 +798,59 @@ test('verify: require_mutation_to_close:true con mutador que NO supera el umbral
   assert.equal(status, 1);
   assert.match(out, /no supera el umbral/);
   assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+});
+
+// ── verify: la puerta de tests obligatoria no puede quedar en falso verde ─────
+
+test('verify: require_tests_to_close:true con commands.test VACÍO aborta, no en falso verde', () => {
+  // Hermano simétrico del guardián de mutación (#29). `init` corre los tests pero
+  // con commands.test vacío solo AVISA y sale 0; verify aún certificaba "Puedes
+  // cerrar la sesión" pese a require_tests_to_close:true (el DEFAULT): un falso
+  // verde sobre la puerta de cierre (límite 2 de AUTONOMOUS.md). Era, además, la
+  // única de las cuatro reglas que el motor declaraba pero NO enforzaba. Aquí se
+  // apaga la mutación para AISLAR la puerta de tests como la causa del abort.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_tests_to_close: true, require_mutation_to_close: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+});
+
+test('verify: require_tests_to_close:false con commands.test vacío omite la puerta y sigue en verde', () => {
+  // Opt-out legítimo: si el proyecto declara que no cierra por tests, verify no
+  // debe exigir un comando de tests. El guardián nuevo no puede romper este caso.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_tests_to_close: false, require_mutation_to_close: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Puedes cerrar la sesión/);
+});
+
+test('verify: require_tests_to_close:true con commands.test declarado pasa la puerta y certifica', () => {
+  // Con un comando de tests declarado, la puerta de tests se satisface e `init` ya
+  // los corrió (o los avisó si no hay código); verify llega al verde. El guardián
+  // no debilita la puerta (límite 2): solo exige que exista el comando. Se apaga la
+  // mutación para que el único filtro relevante aquí sea la puerta de tests.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { test: 'node -e "process.exit(0)"' },
+      rules: { require_tests_to_close: true, require_mutation_to_close: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Puedes cerrar la sesión/);
 });

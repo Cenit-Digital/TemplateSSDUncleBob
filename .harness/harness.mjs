@@ -623,6 +623,31 @@ function cmdVerify() {
     process.exit(1);
   }
   const cfg = loadConfig();
+  // `require_tests_to_close:true` (el DEFAULT) exige que los tests corran para
+  // poder cerrar. `init` (arriba) los ejecuta, PERO con `commands.test` vacío solo
+  // AVISA ("No hay comando de tests declarado") y sale 0: la puerta de tests se
+  // OMITE en silencio y verify aún certifica "Todo verde. Puedes cerrar la sesión"
+  // —un FALSO VERDE sobre la puerta de cierre, exactamente el hermano del hueco que
+  // #29 cerró para la mutación—. `require_tests_to_close` era, además, la ÚNICA de
+  // las cuatro reglas que el motor declaraba por defecto pero NO enforzaba en
+  // ningún sitio (one_feature_at_a_time y require_mutation_to_close sí; esta no):
+  // una regla que el usuario podía activar y que el motor ignoraba. El WARN de
+  // `init` sobre `commands.test` vacío es de diseño para el clon limpio de la
+  // plantilla (agnóstica) y NO debe convertirse en [FAIL] —init sigue en verde—;
+  // pero VERIFY es la puerta de cierre de sesión, no la orientación inicial: si
+  // cerrar exige tests y no hay comando que ejecutar, no se certifica el cierre.
+  // `require_tests_to_close:false` sigue omitiéndola sin ruido (opt-out válido).
+  // Se comprueba ANTES que la mutación por el orden natural del pipeline (TDD antes
+  // que mutación); misma familia y misma forma que el guardián de mutación (#29).
+  if (cfg.rules.require_tests_to_close && !cfg.commands.test) {
+    fail('verify abortado: require_tests_to_close es true pero commands.test está vacío.');
+    console.log(
+      `\n  La puerta de tests es obligatoria para cerrar y no hay suite que ejecutar.\n` +
+      `  Declara "commands": { "test": "..." } en ${CONFIG_NAME}, o pon\n` +
+      `  "rules": { "require_tests_to_close": false } si este proyecto no cierra por tests.`,
+    );
+    process.exit(1);
+  }
   if (cfg.rules.require_mutation_to_close) {
     rule('Prueba de mutación');
     // `require_mutation_to_close:true` (el DEFAULT) exige correr la puerta de
