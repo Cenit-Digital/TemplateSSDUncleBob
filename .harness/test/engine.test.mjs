@@ -575,6 +575,63 @@ test('init: lint que pasa con código presente termina en verde', () => {
   assert.match(out, /Entorno listo/);
 });
 
+// ── loadConfig: comando solo-espacios == sin comando (no falso verde) ─────────
+
+test('loadConfig: commands.mutate solo-espacios == vacío → mutate falla con exit 2, no en falso verde', () => {
+  // "   " NO es un comando, es la ausencia de comando con un desliz de tecla. Con
+  // el bug antiguo, `!cfg.commands.mutate` daba false (el string es truthy) → se
+  // corría `run()`, que trata el comando en blanco-tras-trim como SKIP (status 0),
+  // y `mutate` imprimía "Prueba de mutación superada" SIN lanzar mutador: un falso
+  // verde en la puerta de mutación (peor que un fallo, límite 2). Al recortar en
+  // loadConfig, "   " se unifica con "" y toma la MISMA rama que el vacío: [FAIL].
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: '   ' },
+      mutation: { targets: ['src/x.py'] },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate']);
+  assert.equal(status, 2);
+  assert.match(out, /commands\.mutate vacío/);
+  assert.doesNotMatch(out, /Prueba de mutación superada/); // no certifica sin mutador
+});
+
+test('loadConfig: commands.test solo-espacios == vacío → init avisa, no "Todos los tests pasan"', () => {
+  // Hermano en `init`: con código presente y "   " como comando de tests, el bug
+  // corría `run()` (SKIP, status 0) e imprimía "Todos los tests pasan" sin ejecutar
+  // suite alguna. Recortado, "   " == "" → WARN "commands.test vacío", igual que el
+  // vacío. Se pone código en src/ para pasar el gate de árbol-vacío (#19) y aislar
+  // que la causa del WARN es el comando en blanco, no la ausencia de código.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: { test: '   ' } },
+    'feature_list.json': { features: [] },
+    'src/foo.txt': 'código',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /No hay comando de tests declarado/);
+  assert.doesNotMatch(out, /Todos los tests pasan/); // no dice que pasan si no corrió nada
+});
+
+test('loadConfig: comando con espacios de borde alrededor de un comando REAL sigue corriendo (sin falso positivo)', () => {
+  // El recorte no puede romper un comando legítimo escrito con espacios de sobra:
+  // "  node -e ... exit(4)  " debe recortarse y EJECUTARSE, no saltarse. Si se
+  // corriera, init falla con exit 1 (el comando sale 4); si se saltara por error,
+  // saldría verde. exit 1 demuestra que el comando real corrió tras el trim.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { test: '  node -e "process.exit(4)"  ' },
+    },
+    'feature_list.json': { features: [] },
+    'src/foo.txt': 'código',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Hay tests rotos/); // el comando real corrió y falló (no se saltó)
+});
+
 // ── mutate: objetivos, umbral y sustitución de tokens ────────────────────────
 
 test('mutate: commands.mutate vacío falla con exit 2', () => {
@@ -835,6 +892,45 @@ test('verify: require_tests_to_close:false con commands.test vacío omite la pue
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
   assert.match(out, /Puedes cerrar la sesión/);
+});
+
+test('verify: require_mutation_to_close:true con commands.mutate solo-espacios aborta (gemelo de #29)', () => {
+  // El guardián de #29 mira `!cfg.commands.mutate`, al que "   " (truthy) se le
+  // escapaba: verify pasaba el guardián, corría el mutador en blanco (SKIP, status
+  // 0) y certificaba "Puedes cerrar la sesión" sin mutador real —el mismo falso
+  // verde de #29, reabierto por un espacio—. Al recortar en loadConfig, "   " == ""
+  // y el guardián lo caza igual, abortando con la causa.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { mutate: '   ' },
+      rules: { require_tests_to_close: false, require_mutation_to_close: true },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /require_mutation_to_close es true pero commands\.mutate está vacío/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+});
+
+test('verify: require_tests_to_close:true con commands.test solo-espacios aborta (gemelo de #31)', () => {
+  // Igual que arriba, para la puerta de tests (#31): "   " se colaba por truthy y
+  // verify certificaba el cierre sin suite. Recortado, toma la rama del guardián de
+  // commands.test vacío y aborta nombrando la causa. Se apaga la mutación para
+  // aislar la puerta de tests como el motivo del abort.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: { test: '  ' },
+      rules: { require_tests_to_close: true, require_mutation_to_close: false },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
 });
 
 test('verify: require_tests_to_close:true con commands.test declarado pasa la puerta y certifica', () => {

@@ -180,6 +180,27 @@ function loadConfig() {
       }
     }
   }
+  // Normaliza los comandos recortando sus espacios de borde: un valor solo-espacios
+  // ("   ") NO es un comando, es la AUSENCIA de comando escrita con un desliz de
+  // tecla. Sin esto, la comprobación "¿hay comando?" de los llamadores
+  // (`if (cfg.commands.test)`, `!cfg.commands.mutate`) usa la VERACIDAD cruda del
+  // string —para la que "   " es truthy → "declarado"—, pero `run()` (más abajo)
+  // trata un comando en blanco-tras-trim como SKIP y devuelve status 0. Las dos
+  // lecturas se contradicen y el resultado es un FALSO VERDE: `mutate` imprime
+  // "Prueba de mutación superada" sin lanzar mutador, `init` "Todos los tests
+  // pasan" sin correr suite, y `verify` certifica "Puedes cerrar la sesión"
+  // esquivando los guardianes de commands.mutate/commands.test vacíos (#29, #31),
+  // que solo miran `!cfg.commands.X` y a los que "   " se les cuela por truthy —el
+  // mismo hueco que cerraron para "", reabierto por un espacio—. Recortar aquí
+  // unifica el solo-espacios con el vacío (""): la MISMA intención —sin comando—
+  // tratada igual en TODOS los llamadores (init, test, mutate, verify, lint), y sin
+  // depender de que cada uno recuerde hacer `.trim()`. Un comando real nunca cuelga
+  // de sus espacios de borde. Misma familia que el string-leaf guard (#15) y la
+  // tolerancia a BOM: convertir el desliz de edición en la conducta honesta, no en
+  // un verde engañoso.
+  for (const key of Object.keys(cfg.commands)) {
+    cfg.commands[key] = cfg.commands[key].trim();
+  }
   // `mutation` debe ser un objeto { threshold, targets } o estar ausente. Un
   // string, número o array (edición a mano equivocada, p. ej. "mutation":
   // "src/x.py" en vez de "mutation": { "targets": ["src/x.py"] }) NO revienta:
