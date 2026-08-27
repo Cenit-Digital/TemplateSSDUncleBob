@@ -426,6 +426,101 @@ test('feature_list: name vacío falla (derivaría features/.feature)', () => {
   assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: string vacío\)/);
 });
 
+// ── feature_list: id debe ser un escalar (string o número) ───────────────────
+
+test('feature_list: id no-escalar (objeto) falla legible, sin coerción muda ni stack trace', () => {
+  // `name` ya valida su tipo (#24); `id` —el otro campo-clave, que la unicidad
+  // (#22) coacciona con String(f.id)— quedó sin guardar. Un id objeto se pintaba
+  // como `#[object Object]` en status y se colaba por la coerción. Debe ser un
+  // [FAIL] legible que nombre el tipo.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: {}, name: 'a', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: object\)/);
+  assert.doesNotMatch(out, /\[object Object\]/); // sin la coerción muda en la salida
+});
+
+test('feature_list: id array [1] NO colisiona con id 1 por coerción (evita el falso rojo)', () => {
+  // Con el bug, String([1]) === String(1) === "1": `id:[1]` e `id:1` se reportaban
+  // como "id duplicado" sin serlo. El guardián reporta el id no-escalar como la
+  // causa real y la unicidad ya no lo coacciona, así que NO aparece el falso
+  // "id duplicado: 1".
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: [1], name: 'a', status: 'done' },
+        { id: 1, name: 'b', status: 'done' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: array\)/);
+  assert.doesNotMatch(out, /id duplicado en features: 1/); // no un falso rojo por coerción
+});
+
+test('feature_list: dos ids no-escalares DISTINTOS ({} y []) no pasan como "válido" (evita el falso verde)', () => {
+  // El peor caso (límite 2): "[object Object]" y "" no colisionan, así que la lista
+  // salía "válido (2 features)" en verde con dos features de identidad rota. El
+  // guardián corta ambas con un [FAIL] por id.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: {}, name: 'a', status: 'done' },
+        { id: [], name: 'b', status: 'done' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.doesNotMatch(out, /feature_list\.json válido/); // no certifica identidad rota
+});
+
+test('feature_list: id booleano falla legible con su tipo', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: true, name: 'a', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: boolean\)/);
+});
+
+test('feature_list: id string y id número siguen siendo válidos (sin falso positivo)', () => {
+  // El guardián acepta ambos escalares: el número de todos los ejemplos reales y el
+  // string. La colisión intencionada 1 === "1" (#22) se prueba en su propio caso;
+  // aquí basta con que dos escalares DISTINTOS convivan en verde.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'done' },
+        { id: 'dos', name: 'b', status: 'pending' },
+      ],
+    },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(2 features\)/);
+});
+
+test('feature_list: id ausente sigue siendo válido (el id es opcional)', () => {
+  // El filtro de unicidad ya trataba undefined/null como "sin id"; el guardián no
+  // debe convertir un id ausente en un error.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ name: 'a', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(1 features\)/);
+});
+
 // ── feature_list: feature sdd sin name usable deriva features/<name>.feature ──
 
 test('feature_list: feature sdd en estado con-spec SIN name culpa al name, no a un fichero fantasma', () => {

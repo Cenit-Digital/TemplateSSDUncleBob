@@ -366,6 +366,34 @@ function validateFeatureList(cfg) {
     }
   });
 
+  // Cada `id` PRESENTE debe ser un escalar (string o número): es la CLAVE por la
+  // que los agentes referencian una feature ("trabaja la feature N") y la que el
+  // chequeo de unicidad de abajo normaliza con `String(f.id)`. Esa coerción es
+  // justo el agujero. `name` —el OTRO campo-clave— ya valida su tipo (#24), pero
+  // `id` quedó sin guardar pese a que la unicidad (#22) depende de coaccionarlo, y
+  // un id no-escalar (olvidar que es un identificador y poner un objeto/array/
+  // booleano) NO revienta: se coacciona en silencio y rompe la identidad de dos
+  // formas simétricas.
+  //   • FALSO ROJO: `String([1])` === `String(1)` === "1", así que `id:[1]` e
+  //     `id:1` COLISIONAN como "id duplicado" sin serlo realmente.
+  //   • FALSO VERDE: dos ids no-escalares DISTINTOS (`{}` y `[]`) coaccionan a
+  //     "[object Object]" y "", no colisionan, y la lista pasa como "válido" en
+  //     verde con dos features de identidad rota —peor que un fallo (límite 2 de
+  //     AUTONOMOUS.md)—; `status`, además, las pinta como `#[object Object]`.
+  // `null`/ausente se tratan como "sin id" (igual que el filtro de unicidad de
+  // abajo, que ya excluye `undefined`/`null`), no como error: un id es opcional,
+  // pero si está, debe ser usable. Misma familia que el string-leaf de
+  // paths/commands (#15) y el guardián de name (#24): convertir la edición a mano
+  // equivocada en un [FAIL] legible, no en una coerción muda que rompe la clave.
+  const isScalarId = (v) => typeof v === 'string' || typeof v === 'number';
+  for (const f of wellFormed) {
+    if (f.id !== undefined && f.id !== null && !isScalarId(f.id)) {
+      const label = typeof f.name === 'string' && f.name.trim() ? ` (feature "${f.name}")` : '';
+      fail(`${cfg.paths.feature_list}: el "id" de una feature${label} debe ser un string o un número (encontrado: ${jsonKind(f.id)}); los agentes la referencian por su id, que debe ser único.`);
+      good = false;
+    }
+  }
+
   // Cada `name` presente debe ser un string NO VACÍO: de él DERIVA el motor
   // `features/<name>.feature` —el contrato que aprueba el humano— y, por la
   // convención anti-teléfono-descompuesto del pipeline, `progress/tdd_<name>.md`,
@@ -415,7 +443,7 @@ function validateFeatureList(cfg) {
     return [...dups];
   };
   for (const id of duplicatesOf(
-    wellFormed.filter((f) => f.id !== undefined && f.id !== null).map((f) => String(f.id)),
+    wellFormed.filter((f) => isScalarId(f.id)).map((f) => String(f.id)),
   )) {
     fail(`id duplicado en features: ${id} (cada feature necesita un id único)`);
     good = false;
