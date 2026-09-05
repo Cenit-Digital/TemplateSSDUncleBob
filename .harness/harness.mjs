@@ -414,6 +414,36 @@ function validateFeatureList(cfg) {
     }
   }
 
+  // Cada `sdd` PRESENTE debe ser un booleano. Es el flag que mete a una feature en
+  // el pipeline SDD (spec → gherkin → TDD → review → mutación) y activa la puerta
+  // de aprobación humana sobre `features/<name>.feature`; el motor lo lee como
+  // truthy CRUDO (`f.sdd === true` abajo, `f.sdd ? ' (sdd)'` en status). Es el
+  // ÚLTIMO flag escalar-booleano con coerción silenciosa: sus hermanos de config
+  // `standalone` (#26) y los de `rules.*` (#30) ya fallan legible ante un tipo
+  // equivocado, pero `sdd` —el MISMO error de mano, un booleano entrecomillado en
+  // JSON— quedó sin guardar en `feature_list.json`, y rompe la identidad de la
+  // feature en dos direcciones:
+  //   • FALSO ROJO: `"sdd": "false"` (string TRUTHY) mete en el pipeline a una
+  //     feature que el usuario marcó como NO-SDD; init falla con "sin
+  //     features/<name>.feature" —un mensaje que apunta al SÍNTOMA (falta el
+  //     fichero) en vez de a la CAUSA (el `sdd` se coaccionó)—, exactamente el
+  //     desvío que #26 cerró para `standalone`.
+  //   • FALSO VERDE: `"sdd": ""`/`0`/`null` (FALSY) SALTA en silencio la puerta de
+  //     aprobación humana de una feature que debía recorrerla; la lista pasa como
+  //     "válido" en verde —peor que un fallo (límite 2 de AUTONOMOUS.md)—.
+  // Ausente se trata como no-SDD (el default de todo el motor: `f.sdd` undefined es
+  // falsy), no como error: `sdd` es opcional, pero si está, debe ser un booleano.
+  // Misma familia que los guardianes de standalone (#26) y de los flags de rules
+  // (#30): convertir la edición a mano equivocada en un [FAIL] legible, no en una
+  // coerción muda que rompe la puerta.
+  for (const f of wellFormed) {
+    if (f.sdd !== undefined && typeof f.sdd !== 'boolean') {
+      const label = typeof f.name === 'string' && f.name.trim() ? ` (${f.name})` : '';
+      fail(`${cfg.paths.feature_list}: el "sdd" de la feature ${f.id ?? '?'}${label} debe ser true o false (encontrado: ${jsonKind(f.sdd)}); es el flag que activa el pipeline SDD y su puerta de aprobación humana.`);
+      good = false;
+    }
+  }
+
   const inProgress = wellFormed.filter((f) => f.status === 'in_progress');
   if (cfg.rules.one_feature_at_a_time && inProgress.length > 1) {
     fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
@@ -460,7 +490,12 @@ function validateFeatureList(cfg) {
       fail(`Estado inválido en feature ${f.id}: ${f.status}`);
       good = false;
     }
-    if (f.sdd && REQUIRES_SPEC.has(f.status)) {
+    // `=== true`, no truthy crudo: un `sdd` no-booleano ya lo reportó el guardián de
+    // arriba con la causa real; tratarlo aquí como truthy (`"sdd": "false"`) añadiría
+    // un segundo [FAIL] derivado sobre `features/<name>.feature` —doble ruido para el
+    // mismo error, justo lo que #27 evitó en la derivación del name—. Solo un booleano
+    // true (todos los ejemplos reales) activa la puerta del contrato.
+    if (f.sdd === true && REQUIRES_SPEC.has(f.status)) {
       // El contrato `features/<name>.feature` —el que aprueba el humano— DERIVA de
       // `f.name`. Sin un name usable no hay contrato que buscar: derivar la ruta con
       // un name ausente producía `features/undefined.feature` y un [FAIL] que

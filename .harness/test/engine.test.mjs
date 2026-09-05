@@ -521,6 +521,84 @@ test('feature_list: id ausente sigue siendo válido (el id es opcional)', () => 
   assert.match(out, /válido \(1 features\)/);
 });
 
+// ── feature_list: sdd debe ser un booleano (sibling de standalone #26 / rules #30) ─
+
+test('feature_list: sdd:"false" (string truthy) NO mete en el pipeline por coerción; falla nombrando sdd, no el fichero', () => {
+  // El error de mano clásico: entrecomillar el booleano. "false" es TRUTHY, así que
+  // con el bug antiguo (`if (f.sdd && ...)`) una feature marcada como NO-SDD entraba
+  // al pipeline y fallaba con "sin features/<name>.feature" —el síntoma, no la causa,
+  // igual que #26 para standalone—. El guardián reporta `sdd` como la causa y (por el
+  // `=== true`) NO añade el segundo [FAIL] derivado sobre el .feature.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: 'false', status: 'in_progress' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "sdd" de la feature 1 \(cli_add\) debe ser true o false \(encontrado: string\)/);
+  assert.doesNotMatch(out, /sin features\/cli_add\.feature/); // no desorienta con el síntoma ni duplica el [FAIL]
+});
+
+test('feature_list: sdd:"" (falsy) no pasa como "válido" saltando la puerta SDD en silencio', () => {
+  // La dirección de falso verde (límite 2): un sdd falsy no-booleano ("", 0, null)
+  // SALTABA la puerta de aprobación humana en silencio y la lista salía "válido" en
+  // verde. El guardián lo corta con un [FAIL] por tipo.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: '', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "sdd" de la feature 1 \(cli_add\) debe ser true o false \(encontrado: string\)/);
+  assert.doesNotMatch(out, /feature_list\.json válido/); // no certifica una lista que salta la puerta
+});
+
+test('feature_list: sdd numérico (1) falla legible con su tipo', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'a', sdd: 1, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /el "sdd" de la feature 1 \(a\) debe ser true o false \(encontrado: number\)/);
+});
+
+test('feature_list: sdd:true legítimo con su .feature sigue en verde (sin falso positivo)', () => {
+  // El guardián no debe rechazar el valor booleano que usan todos los ejemplos reales.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
+    'features/cli_since.feature': 'Feature: since\n',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
+test('feature_list: sdd:false legítimo (feature fuera del pipeline SDD) sigue en verde', () => {
+  // false explícito es válido: la feature no recorre el pipeline y no exige .feature.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'chore', sdd: false, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(1 features\)/);
+});
+
+test('feature_list: sdd ausente se trata como no-SDD (opcional), sin exigir .feature', () => {
+  // Omitir sdd es válido: undefined es falsy → no-SDD. La feature en done sin .feature
+  // no es un error, porque no está en el pipeline.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'a', status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(1 features\)/);
+  assert.doesNotMatch(out, /"sdd" de la feature/); // el campo ausente no es un error
+});
+
 // ── feature_list: feature sdd sin name usable deriva features/<name>.feature ──
 
 test('feature_list: feature sdd en estado con-spec SIN name culpa al name, no a un fichero fantasma', () => {
