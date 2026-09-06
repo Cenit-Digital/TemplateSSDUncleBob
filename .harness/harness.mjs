@@ -219,6 +219,42 @@ function loadConfig() {
     );
     process.exit(2);
   }
+  // `mutation.threshold` PRESENTE debe ser un número en [0, 1]: es la puntuación
+  // mínima de mutación (proporción de mutantes muertos) para cerrar una feature, y
+  // el `mutation_tester` la LEE de aquí para decidir la puerta de cierre (ver
+  // `.claude/agents/mutation_tester.md` y `craftsman_lead.md`). Es el ÚLTIMO campo
+  // que harness.schema.json declara ("threshold": number, minimum 0, maximum 1) y
+  // que el motor aún NO guardaba, mientras que su hermano `targets` del mismo objeto
+  // sí valida forma (#14). Sin guardián, tres ediciones a mano equivocadas se
+  // colaban en silencio:
+  //   • entrecomillar el número (`"threshold": "0.9"`, el mismo desliz que #26/#30
+  //     para los booleanos) → un string, no un número: la comparación de puntuación
+  //     del agente queda a merced de una coerción implícita.
+  //   • confundir proporción con PORCENTAJE (`"threshold": 90` en vez de `0.9`) → el
+  //     agente exigiría "el 9000%" de mutantes muertos: una puerta IMPOSIBLE que
+  //     nada superaría, o —según cómo la lea— un umbral sin sentido.
+  //   • un array/objeto/booleano (`[1]`, `{}`) → ni siquiera es un número.
+  // Como en el guardián de contenedor de `rules` (#25), aquí el default (0.8) es
+  // válido y no se debilita ninguna puerta por el mero descarte; pero el silencio
+  // contradice al propio harness.schema.json y a los agentes que consumen el valor.
+  // Se valida ANTES del merge para que el default 0.8 —cuando el usuario omite el
+  // campo— no dispare el guardián: solo un valor DECLARADO y equivocado falla.
+  // Misma familia que los guardianes de standalone (#26) y de los flags de rules
+  // (#30): convertir la edición a mano equivocada en un [FAIL] legible, no en una
+  // coerción muda que contradice el umbral que el usuario creía haber fijado.
+  if (isPlainObject(cfg.mutation) && cfg.mutation.threshold !== undefined) {
+    const th = cfg.mutation.threshold;
+    if (typeof th !== 'number' || th < 0 || th > 1) {
+      const detail = typeof th === 'number' ? `${th}, fuera de [0, 1]` : jsonKind(th);
+      fail(`${CONFIG_NAME}: "mutation.threshold" debe ser un número entre 0 y 1 (encontrado: ${detail}).`);
+      console.log(
+        `\n  Es una PROPORCIÓN de mutantes muertos, no un porcentaje: 0.9 (no 90), 1.0 = 100%.\n` +
+        `  Un número SIN comillas, p. ej.  "mutation": { "threshold": 1.0, "targets": [...] }.\n` +
+        `  Omitir "threshold" también es válido: el motor usa el valor por defecto (0.8).`,
+      );
+      process.exit(2);
+    }
+  }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
   // `standalone` gobierna si `init` comprueba los ficheros base del arnés
   // (AGENTS.md, CLAUDE.md, CHECKPOINTS.md, docs/workflow.md, feature_list,

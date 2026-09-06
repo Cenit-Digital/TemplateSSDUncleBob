@@ -145,6 +145,110 @@ test('loadConfig: "mutation" no-objeto falla legible (#16)', () => {
   assert.match(out, /"mutation" debe ser un objeto/);
 });
 
+test('loadConfig: "mutation.threshold" string ("0.9") falla legible, no en coerción muda', () => {
+  // Entrecomillar el número (el mismo desliz que #26/#30 para los booleanos) es un
+  // string, no un número. El motor lo aceptaba EN SILENCIO pese a que el schema lo
+  // declara "type": "number" y el mutation_tester lee el valor para la puerta de
+  // cierre. Debe ser un [FAIL] como los guardianes hermanos, no un descarte mudo.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: '0.9', targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: string\)/);
+  assert.doesNotMatch(out, /Entorno listo/); // no certifica un umbral coaccionado
+});
+
+test('loadConfig: "mutation.threshold" fuera de [0,1] (90, porcentaje) falla nombrando el rango', () => {
+  // Confundir proporción con porcentaje ("threshold": 90 en vez de 0.9) produciría
+  // una puerta imposible (el 9000% de mutantes muertos). El guardián nombra el rango
+  // y la causa (proporción, no porcentaje), no lo acepta en silencio.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: 90, targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: 90, fuera de \[0, 1\]\)/);
+});
+
+test('loadConfig: "mutation.threshold" array falla legible con su tipo', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: [1], targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: array\)/);
+});
+
+test('loadConfig: "mutation.threshold" negativo falla nombrando el rango', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: -0.1, targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: -0\.1, fuera de \[0, 1\]\)/);
+});
+
+test('loadConfig: "mutation.threshold" 1.0 (extremo válido del schema) sigue en verde', () => {
+  // El schema declara minimum 0, maximum 1: ambos extremos son válidos. El guardián
+  // no debe rechazar el 1.0 que usan todos los adaptadores (mutación al 100%).
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: 1.0, targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
+test('loadConfig: "mutation.threshold" 0 (otro extremo válido) sigue en verde', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { threshold: 0, targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
+test('loadConfig: "mutation.threshold" ausente asume el default (0.8), sin exigir el campo', () => {
+  // Omitir threshold es válido: el motor usa 0.8. El guardián valida ANTES del merge,
+  // así que el default no dispara el [FAIL]; solo un valor DECLARADO y equivocado.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      mutation: { targets: [] },
+    },
+    'feature_list.json': { features: [] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+  assert.doesNotMatch(out, /"mutation\.threshold"/); // el campo ausente no es un error
+});
+
 test('loadConfig: "rules" no-objeto falla legible, no en descarte mudo', () => {
   // `rules` es el último de los cuatro contenedores "type": "object" del schema
   // (commands, paths, mutation, rules) que faltaba por guardar. Un string se
