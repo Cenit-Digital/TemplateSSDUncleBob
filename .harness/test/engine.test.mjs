@@ -771,6 +771,92 @@ test('feature_list: feature sdd con name válido y su .feature presente termina 
   assert.match(out, /Entorno listo/);
 });
 
+// ── feature_list: la puerta de spec aprobada respeta require_approved_spec_to_implement ─
+
+test('feature_list: require_approved_spec_to_implement:false omite la puerta de spec (opt-out honrado)', () => {
+  // La comprobación de `features/<name>.feature` ES la enforcement mecánica de
+  // `require_approved_spec_to_implement` (el humano aprueba ese contrato antes de
+  // implementar). Pero corría INCONDICIONALMENTE, ignorando el flag: un usuario que
+  // declaraba el opt-out `false` seguía BLOQUEADO con "sin features/<name>.feature"
+  // —un mensaje que NO delata que su ajuste se ignoró—. Era la ÚLTIMA de las cuatro
+  // reglas sin enforcement real: el comentario de #31 afirmó que require_tests_to_close
+  // era "la única" que el motor declaraba pero no enforzaba, pasando por alto ésta.
+  // Con el opt-out honrado, la feature sdd en in_progress SIN su .feature pasa en
+  // verde. Simétrico a los opt-out de require_tests_to_close / require_mutation_to_close
+  // en verify (#29/#31).
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_approved_spec_to_implement: false },
+    },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'in_progress' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out); // el opt-out se respeta: no exige el .feature
+  assert.match(out, /Entorno listo/);
+  assert.doesNotMatch(out, /sin features\/cli_add\.feature/); // no bloquea ignorando el flag
+});
+
+test('feature_list: require_approved_spec_to_implement:true (default) sigue exigiendo el .feature', () => {
+  // El opt-out no puede debilitar la puerta por defecto (límite 2 de AUTONOMOUS.md):
+  // con la regla en true —el DEFAULT, y lo que usan todos los ejemplos— una feature
+  // sdd en un estado con-spec SIN su .feature sigue siendo [FAIL], igual que siempre.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_approved_spec_to_implement: true },
+    },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'in_progress' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /feature 1 \(cli_add\) en in_progress sin features\/cli_add\.feature/);
+});
+
+test('feature_list: require_approved_spec_to_implement ausente asume el default (exige el .feature)', () => {
+  // Omitir la regla es válido: el motor asume true (estricto). Sin el .feature, la
+  // puerta sigue firme, demostrando que el default en pie no depende de declararla.
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'done' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /feature 1 \(cli_add\) en done sin features\/cli_add\.feature/);
+});
+
+test('feature_list: require_approved_spec_to_implement:false + sdd sin name no exige name (puerta apagada)', () => {
+  // Con la puerta de spec apagada no hay `features/<name>.feature` que derivar, así
+  // que un name ausente en una feature sdd en in_progress ya no dispara "necesita un
+  // name del que derivar ...": la rama entera se omite. Los guardianes de tipo y
+  // unicidad de `name` (para names presentes) siguen corriendo aparte.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_approved_spec_to_implement: false },
+    },
+    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'in_progress' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /necesita un "name"/);
+});
+
+test('feature_list: require_approved_spec_to_implement:false con el .feature presente sigue en verde', () => {
+  // El opt-out no rompe el camino normal: con el contrato presente, verde igual.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      rules: { require_approved_spec_to_implement: false },
+    },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'done' }] },
+    'features/cli_add.feature': 'Feature: add\n',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Entorno listo/);
+});
+
 // ── init: gate tests-en-src (#19) ────────────────────────────────────────────
 
 test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#19)', () => {

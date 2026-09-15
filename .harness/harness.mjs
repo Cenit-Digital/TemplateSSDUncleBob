@@ -526,12 +526,29 @@ function validateFeatureList(cfg) {
       fail(`Estado inválido en feature ${f.id}: ${f.status}`);
       good = false;
     }
+    // La existencia de `features/<name>.feature` ES la enforcement mecánica de
+    // `require_approved_spec_to_implement`: el humano APRUEBA ese contrato antes de
+    // implementar, y exigir que exista para un estado con-spec (spec_ready/in_progress/
+    // done) es justo "requerir la spec aprobada para implementar". Pero la puerta
+    // corría INCONDICIONALMENTE, ignorando el flag: `require_approved_spec_to_implement`
+    // era la ÚLTIMA de las cuatro reglas SIN enforcement real —el comentario de #31
+    // afirmó que `require_tests_to_close` era "la única" que el motor declaraba pero no
+    // enforzaba (one_feature_at_a_time y require_mutation_to_close sí), pasando por alto
+    // ésta—. Un usuario que declaraba el opt-out `false` seguía BLOQUEADO con "sin
+    // features/<name>.feature", un mensaje que NO delata que su ajuste se ignoró: la
+    // misma familia de "el motor contradice en silencio lo que el usuario configuró".
+    // Gatear la puerta en el flag la hace un opt-out real, simétrico a los de
+    // require_tests_to_close (#31) y require_mutation_to_close (#29) en verify. Con la
+    // regla en true —el DEFAULT y lo que usan todos los ejemplos— la conducta es
+    // idéntica a la de siempre: el default no se debilita (límite 2 de AUTONOMOUS.md),
+    // solo se honra el `false` explícito.
+    //
     // `=== true`, no truthy crudo: un `sdd` no-booleano ya lo reportó el guardián de
     // arriba con la causa real; tratarlo aquí como truthy (`"sdd": "false"`) añadiría
     // un segundo [FAIL] derivado sobre `features/<name>.feature` —doble ruido para el
     // mismo error, justo lo que #27 evitó en la derivación del name—. Solo un booleano
     // true (todos los ejemplos reales) activa la puerta del contrato.
-    if (f.sdd === true && REQUIRES_SPEC.has(f.status)) {
+    if (cfg.rules.require_approved_spec_to_implement && f.sdd === true && REQUIRES_SPEC.has(f.status)) {
       // El contrato `features/<name>.feature` —el que aprueba el humano— DERIVA de
       // `f.name`. Sin un name usable no hay contrato que buscar: derivar la ruta con
       // un name ausente producía `features/undefined.feature` y un [FAIL] que
