@@ -1060,6 +1060,47 @@ test('mutate <target> explícito ignora la lista de la config', () => {
   assert.doesNotMatch(out, /AAA|BBB/);
 });
 
+test('mutate <target> solo-espacios NO pasa como verde por la rama explícita (gemelo de #14/#32)', () => {
+  // El guardián de #14 rechaza un blanco DENTRO de `mutation.targets`, pero la
+  // rama del objetivo explícito por CLI (`if (explicitTarget) return ...`) lo
+  // devolvía SIN validar: `bin/harness mutate "   "` corría el mutador con
+  // {{target}} en blanco y, con un mutador que sale 0 sin objetivo, reportaba
+  // "Prueba de mutación superada" (exit 0) sin medir nada —un falso verde sobre la
+  // puerta de mutación (límite 2), y una asimetría con la lista de config que
+  // rechaza ese MISMO "   "—. El comando de abajo FALLA (exit 1) si recibe un
+  // objetivo real y "pasa" (exit 0) si el objetivo va en blanco: sin el guardián,
+  // el objetivo "   " tomaría la rama del exit 0 y colaría el verde.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: `node -e "process.exit(process.argv[1] && process.argv[1].trim() ? 1 : 0)" {{target}}` },
+      mutation: { targets: ['src/real.py'] },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate', '   ']);
+  assert.equal(status, 1);
+  assert.match(out, /objetivo de mutación indicado por la línea de comandos debe ser una ruta no vacía/);
+  assert.doesNotMatch(out, /superada/); // no certifica la mutación
+});
+
+test('mutate <target> real (con espacios de borde) sigue corriendo, sin falso positivo del guardián', () => {
+  // El guardián solo caza el objetivo SOLO-ESPACIOS; un objetivo real no se ve
+  // afectado. El motor imprime el comando resuelto ("$ ...") con el objetivo tal
+  // cual antes de ejecutarlo; el objetivo se pasa entero (no se recorta): el
+  // guardián decide con `.trim()` pero no muta el valor.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: `node -e "console.log('ran')" {{target}}` },
+      mutation: { targets: ['AAA'] },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate', 'src/real.py']);
+  assert.equal(status, 0, out);
+  assert.match(out, /src\/real\.py/);
+  assert.doesNotMatch(out, /AAA/); // el explícito sigue ignorando la lista de config
+});
+
 test('mutate: verde solo si TODOS los objetivos superan el umbral', () => {
   // El comando "pasa" (exit 0) solo cuando el objetivo es "ok".
   const dir = scenario({
