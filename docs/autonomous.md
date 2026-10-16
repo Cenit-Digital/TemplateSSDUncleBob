@@ -6,10 +6,17 @@
 > El mandato que sigue el bot vive en `.github/AUTONOMOUS.md`. Esta página es la
 > cara humana: qué es, cómo se pone en marcha, qué cuesta y por qué es seguro.
 
+> **Estado: PAUSADO.** El `cron` está retirado: el bot solo corre si lo lanzas a
+> mano (Actions → "Evolución autónoma del arnés" → *Run workflow*). Cada sesión
+> consume cuota de la suscripción y la mayoría de sus PRs eran endurecimiento de
+> entradas malformadas. Para reactivar la cadencia diaria, restaura el bloque
+> `schedule` comentado al inicio de `autonomous-evolve.yml`. Lo que sigue describe
+> el diseño cuando está activo.
+
 ## Qué es
 
-Un workflow programado (`.github/workflows/autonomous-evolve.yml`) que, a diario
-—siempre que no haya ya un PR suyo esperando revisión—, lanza
+Un workflow (`.github/workflows/autonomous-evolve.yml`) que, cuando está
+programado —siempre que no haya ya un PR suyo esperando revisión—, lanza
 [Claude Code](https://github.com/anthropics/claude-code-action) dentro de GitHub
 Actions con un único encargo: **elegir una tarea del backlog, completarla con
 verificación real y abrir un Pull Request**. Nunca fusiona, nunca empuja a
