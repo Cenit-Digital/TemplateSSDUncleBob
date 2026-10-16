@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Qué ficheros son de la plantilla y cuáles del proyecto (ADR 0001, D9). Lo lee scripts/harness-upgrade.mjs de la plantilla descargada. Cada fichero cae en exactamente una categoría; una entrada que acaba en '/' es un directorio. template: se propaga tal cual. executable: subconjunto de template que debe llevar el bit ejecutable. mixedBlock: contiene un bloque gestionado entre marcadores (comprobación pendiente). mixedJson: JSON mixto, solo se informa de la deriva. project: del proyecto, nunca se toca. excluded: solo de la plantilla, no se propaga.",
+  "description": "Qué ficheros son de la plantilla y cuáles del proyecto (ADR 0001, D9). Lo lee scripts/harness-upgrade.mjs de la plantilla descargada. Cada fichero cae en exactamente una categoría; una entrada que acaba en '/' es un directorio. template: se propaga tal cual. executable: subconjunto de template que debe llevar el bit ejecutable. mixedBlock: contiene un bloque gestionado entre marcadores; blockSource es el fichero de la plantilla que lo define (marcadores incluidos) y el script lo compara y lo reemplaza. mixedJson: JSON mixto, solo se informa de la deriva. project: del proyecto, nunca se toca. excluded: solo de la plantilla, no se propaga.",
   "template": [
     ".claude/agents/", ".harness/adapters/", ".harness/harness.mjs", "CHECKPOINTS.md",
     "bin/harness", "bin/harness.ps1", "harness.manifest.json", "harness.schema.json",
@@ -10,6 +10,7 @@
   ],
   "executable": ["bin/harness", "init.sh"],
   "mixedBlock": ["AGENTS.md"],
+  "blockSource": ".harness/agents-block.md",
   "mixedJson": [".claude/settings.json", "harness.config.json"],
   "project": [
     ".editorconfig", ".gitattributes", ".gitignore", ".github/CODEOWNERS", ".github/workflows/harness-ci.yml",
@@ -18,7 +19,7 @@
   ],
   "excluded": [
     ".agents/skills/", ".github/AUTONOMOUS.md", ".github/workflows/autonomous-evolve.yml",
-    ".github/workflows/guard-sensitive-paths.yml", ".harness/test/", "docs/autonomous.md",
+    ".github/workflows/guard-sensitive-paths.yml", ".harness/agents-block.md", ".harness/test/", "docs/autonomous.md",
     "docs/decisiones/", "docs/memoria-organizacional.md", "examples/",
     "scripts/sync-memoria.ps1", "scripts/sync-memoria.sh", "skills-lock.json"
   ]
