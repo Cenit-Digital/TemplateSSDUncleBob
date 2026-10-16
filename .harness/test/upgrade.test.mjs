@@ -205,13 +205,20 @@ const BLOCK_CASES = [
   ['sin marcadores', 'solo texto\n', 1, /sin bloque gestionado/],
   ['bloque distinto', `antes\n${STALE}`, 1, /bloque gestionado difiere/],
   ['marcadores solo dentro de una valla ```', FENCED, 1, /sin bloque gestionado/],
-  ['marcadores dentro de una valla ~~~~ que contiene ```', `~~~~\n\`\`\`\n${BLOCK}~~~~\n`, 1, /sin bloque gestionado/],
+  ['marcadores dentro de una valla ```` que contiene ```', `\`\`\`\`\n\`\`\`\n${BLOCK}\`\`\`\`\n`, 1, /sin bloque gestionado/],
+  ['marcadores dentro de una valla ~~~ que contiene ```', `~~~\n\`\`\`\n${BLOCK}~~~\n`, 1, /sin bloque gestionado/],
+  ['una línea ```js dentro de una valla no la cierra', `\`\`\`\n\`\`\`js\n${BLOCK}\`\`\`\n`, 1, /sin bloque gestionado/],
+  ['una línea con ``` que no abre valla', `\`\`\`x\`\`\` texto\n${BLOCK}`, 0, /al día/],
+  ['``` sangrado 4 espacios no abre valla', `    \`\`\`\n${BLOCK}`, 0, /al día/],
+  ['BOM y bloque en la primera línea', `﻿${BLOCK}`, 0, /al día/],
   ['marcadores sangrados 4 espacios (código)', `${BLOCK.trimEnd().replace(/^/gm, '    ')}\n`, 1, /sin bloque gestionado/],
   ['bloque real y otro de ejemplo en una valla', FENCED + BLOCK, 0, /al día/],
   ['dos bloques', BLOCK + BLOCK, 1, /duplicados o desbalanceados/],
   ['solo begin', '<!-- harness:begin -->\n', 1, /desbalanceados/],
   ['solo end', '<!-- harness:end -->\n', 1, /desbalanceados/],
   ['end antes de begin', '<!-- harness:end -->\n<!-- harness:begin -->\n', 1, /orden inverso/],
+  ['dos begin y un end', `<!-- harness:begin -->\n${BLOCK}`, 1, /2 begin, 1 end/],
+  ['un begin y dos end', `${BLOCK}<!-- harness:end -->\n`, 1, /1 begin, 2 end/],
 ];
 for (const [name, text, code, re] of BLOCK_CASES) {
   test(`AGENTS.md: ${name}`, () => {
@@ -228,10 +235,12 @@ test('AGENTS.md: --apply reemplaza el bloque y conserva BOM, CRLF y el resto byt
 });
 
 test('AGENTS.md: sin marcadores se añade al final y es idempotente; sin fichero se crea', () => {
-  const p = proj({ 'AGENTS.md': 'solo texto' });
-  assert.equal(exec(BASE, p, APPLY).code, 0);
-  assert.equal(rd(p, 'AGENTS.md'), `solo texto\n\n${BLOCK}`);
-  assert.match(exec(BASE, p, APPLY).out, /Nada que aplicar/);
+  for (const text of ['solo texto', 'solo texto\n', 'solo texto\n\n\n']) {
+    const p = proj({ 'AGENTS.md': text });
+    assert.equal(exec(BASE, p, APPLY).code, 0);
+    assert.equal(rd(p, 'AGENTS.md'), `solo texto\n\n${BLOCK}`);
+    assert.match(exec(BASE, p, APPLY).out, /Nada que aplicar/);
+  }
   const q = proj({ 'AGENTS.md': null });
   assert.equal(exec(BASE, q, APPLY).code, 0);
   assert.equal(rd(q, 'AGENTS.md'), BLOCK);
@@ -253,8 +262,17 @@ test('AGENTS.md registrado como enlace simbólico: --check da 1 y --apply 2, sin
     const r = exec(BASE, p, args);
     assert.equal(r.code, code, r.out);
     assert.match(r.out, /enlace\(s\) simbólico\(s\) en el proyecto/);
+    assert.doesNotMatch(r.out, /sin confirmar/); // la guarda de enlaces sale antes que la de árbol limpio
   }
   assert.equal(rd(p, 'AGENTS.md'), 'solo texto\n');
+});
+
+test('AGENTS.md: --diff enseña solo el cambio del bloque', () => {
+  const r = exec(BASE, proj({ 'AGENTS.md': `antes\n${STALE}` }), ['--diff']);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^-- otro/m);
+  assert.match(r.out, /^\+- uno/m);
+  assert.doesNotMatch(r.out, /^-antes/m);
 });
 
 test('el bloque real de AGENTS.md coincide con su fuente en la plantilla', () => {
