@@ -10,12 +10,15 @@
 //   --check  SOLO LECTURA: lista la deriva.
 //   --diff   SOLO LECTURA: lo mismo, y muestra el diff de cada fichero que difiere.
 //   --apply  reemplaza los ficheros `template` que difieren, tras mostrar el diff y pedir
-//            confirmación (--yes la omite). Nunca borra ni toca `project`. Un JSON mixto
-//            solo se reemplaza si se nombra con --replace-json. Rechaza enlaces simbólicos
-//            de la plantilla y ediciones sin confirmar en lo que pisaría. Lo aplicado queda
+//            confirmación (--yes la omite). Nunca borra ni toca `project`. El bloque
+//            gestionado de AGENTS.md (entre marcadores harness:begin/end; su texto lo define
+//            blockSource en la plantilla) se compara y se reemplaza sin tocar el resto del
+//            fichero, y si falta se añade al final. Un JSON mixto solo se reemplaza si se
+//            nombra con --replace-json. Rechaza enlaces simbólicos (de la plantilla y del
+//            proyecto) y ediciones sin confirmar en lo que pisaría. Lo aplicado queda
 //            añadido al índice (git add), con el bit ejecutable fijado.
-// Salida: 0 sin deriva (o aplicado) · 1 deriva en ficheros de plantilla (o aplicación
-// rechazada) · 2 error de uso, descarga, manifiesto o guarda. Requiere Node >= 18 y git.
+// Salida: 0 sin deriva (o aplicado) · 1 deriva en ficheros de plantilla o en el bloque (o
+// aplicación rechazada) · 2 error de uso, descarga, manifiesto o guarda. Requiere Node >= 18 y git.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -99,6 +102,9 @@ function loadManifest(dir, files) {
   for (const e of [...m.template, ...m.mixedBlock, ...m.mixedJson]) {
     if (!files.some((f) => covers(e, f))) die(`El manifiesto lista "${e}", que no existe en la plantilla.`);
   }
+  if (m.mixedBlock.length > 0 && !(safe(m.blockSource) && files.includes(m.blockSource))) {
+    die('harness.manifest.json: "blockSource" debe ser la ruta relativa segura de un fichero de la plantilla (hay mixedBlock).');
+  }
   for (const e of [...m.template, ...m.executable, ...m.mixedBlock, ...m.mixedJson]) {
     const x = [...m.project, ...m.excluded].find((p) => covers(e, p) || covers(p, e));
     if (x) die(`El manifiesto pone "${e}" como de la plantilla y "${x}" como del proyecto o excluido, y se solapan.`);
@@ -113,13 +119,72 @@ function isExecutable(rel) {
   return process.platform === 'win32' ? null : (fs.statSync(path.join(ROOT, rel)).mode & 0o111) !== 0;
 }
 
-/** Diff de `rel` (proyecto → plantilla) con git; las copias old/ y new/ dan cabeceras legibles. */
-function showDiff(tmp, rel) {
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const MARK = /^ {0,3}<!--\s*harness:(begin|end)(?:\s.*)?-->\s*$/;
+
+/** Marcadores [tipo, nº de línea] fuera de las vallas de código (reglas CommonMark; el código sangrado 4+ tampoco cuenta). */
+function markers(lines) {
+  const found = [];
+  let fence = null;
+  lines.forEach((line, i) => {
+    const f = FENCE.exec(line);
+    const mark = MARK.exec(line);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === '') fence = null;
+    } else if (f && !(f[1][0] === '`' && f[2].includes('`'))) fence = f[1];
+    else if (mark) found.push([mark[1], i]);
+  });
+  return found;
+}
+
+/** {start, end} (índices de línea) del único bloque gestionado; null si no hay; aborta si hay duplicados o desbalance. */
+function blockRange(lines) {
+  const ms = markers(lines);
+  if (ms.length === 0) return null;
+  const [b, e] = ['begin', 'end'].map((k) => ms.filter(([t]) => t === k).map(([, i]) => i));
+  if (b.length !== 1 || e.length !== 1 || b[0] > e[0]) {
+    die(`marcadores harness:begin/harness:end duplicados o desbalanceados (${b.length} begin, ${e.length} end) o en orden inverso; corrígelos a mano`);
+  }
+  return { start: b[0], end: e[0] };
+}
+
+/** Compara el bloque de `raw` con `block`: {kind:'ok'} o {kind:'replace'|'add', next}. Lo de fuera del bloque queda byte a byte. */
+function placeBlock(raw, block, verify = true) {
+  const lines = raw.split('\n'); // cada línea conserva su \r final
+  const clean = lines.map((l, i) => (i === 0 ? l.replace(/^\uFEFF/, '') : l).replace(/\r$/, ''));
+  const r = blockRange(clean);
+  if (r && clean.slice(r.start, r.end + 1).join('\n') === block.join('\n')) return { kind: 'ok' };
+  const cr = raw.includes('\r\n') ? '\r' : '';
+  const mine = block.map((l) => l + cr);
+  let n = lines.length;
+  while (!r && n > 0 && clean[n - 1] === '') n--;
+  const out = r ? [...lines.slice(0, r.start), ...mine, ...lines.slice(r.end + 1)] : [...lines.slice(0, n), ...(n ? [cr] : []), ...mine, ''];
+  const next = out.join('\n');
+  // Si tras colocarlo no queda "ok" (p. ej. una valla sin cerrar se lo traga), abortar evita acumular un bloque nuevo en cada ejecución.
+  if (verify && placeBlock(next, block, false).kind !== 'ok') die('no puedo colocar el bloque (¿hay un bloque de código sin cerrar antes?)');
+  return { kind: r ? 'replace' : 'add', next };
+}
+
+/** Líneas del bloque gestionado (blockSource): debe ser un único bloque que ocupe todo el fichero. */
+function loadBlock(dir, m) {
+  const lines = read(path.join(dir, m.blockSource)).replace(/\n+$/, '').split('\n');
+  const r = blockRange(lines);
+  if (!r || r.start !== 0 || r.end !== lines.length - 1) die(`${m.blockSource} debe ser un único bloque entre marcadores, sin nada fuera.`);
+  return lines;
+}
+
+/** Rutas de `rels` que el proyecto registra como enlace simbólico (modo 120000 del índice; vale también donde Windows las deja como fichero). */
+const projectLinks = (rels) => (rels.length === 0 ? [] : (git(['ls-files', '-s', '-z', '--', ...rels], ROOT, true) ?? '').split('\0'))
+  .filter((l) => l.startsWith('120000')).map((l) => l.slice(l.indexOf('\t') + 1));
+
+/** Diff de `rel` (proyecto → plantilla, o → `next` si es un string) con git; las copias old/ y new/ dan cabeceras legibles. */
+function showDiff(tmp, rel, next) {
   const stage = path.join(tmp, '.stage');
   for (const [side, src] of [['old', path.join(ROOT, rel)], ['new', path.join(tmp, rel)]]) {
     const dst = path.join(stage, side, rel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
-    if (fs.existsSync(src)) fs.copyFileSync(src, dst);
+    if (side === 'new' && typeof next === 'string') fs.writeFileSync(dst, next);
+    else if (fs.existsSync(src)) fs.copyFileSync(src, dst);
     else fs.writeFileSync(dst, '');
   }
   spawnSync('git', ['--no-pager', 'diff', '--no-index', '--no-ext-diff', '--no-color', '--ignore-cr-at-eol', '--', `old/${rel}`, `new/${rel}`], { cwd: stage, stdio: 'inherit' });
@@ -138,8 +203,10 @@ async function applyChanges(tmp, m, todo, yes) {
   }
   for (const [f, content] of todo) {
     if (!content) continue;
-    fs.mkdirSync(path.dirname(path.join(ROOT, f)), { recursive: true });
-    fs.copyFileSync(path.join(tmp, f), path.join(ROOT, f));
+    const dest = path.join(ROOT, f);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (typeof content === 'string') fs.writeFileSync(dest, content);
+    else fs.copyFileSync(path.join(tmp, f), dest);
   }
   ok(`${rels.length} cambio(s) aplicado(s).`);
   if (dirty === null || git(['add', '--', ...rels], ROOT, true) === null) {
@@ -165,8 +232,9 @@ async function main() {
     for (const f of opts.json) if (!m.mixedJson.includes(f)) die(`--replace-json ${f}: no es un JSON mixto del manifiesto.`);
 
     const owned = files.filter((f) => m.template.some((e) => covers(e, f)));
-    const links = [...owned, ...m.mixedJson].filter((f) => modes.get(f) === '120000');
+    const links = [...owned, ...m.mixedJson, m.blockSource].filter((f) => modes.get(f) === '120000');
     if (links.length > 0) die(`La plantilla trae enlaces simbólicos entre lo que se propaga (no se reemplazan): ${links.join(', ')}`);
+    const block = m.mixedBlock.length > 0 ? loadBlock(tmp, m) : null;
     const todo = new Map(); // ruta → true si hay que copiar su contenido, false si solo el bit ejecutable
     const differs = []; // rutas cuyo contenido difiere (las que enseña --diff)
     let drift = 0;
@@ -178,7 +246,17 @@ async function main() {
     }
     if (drift === 0) ok(`${owned.length} ficheros de plantilla sin deriva.`);
 
-    for (const f of m.mixedBlock) warn(`${f}: bloque gestionado sin comprobar (aún no soportado).`);
+    for (const f of m.mixedBlock) {
+      const gone = !fs.existsSync(path.join(ROOT, f));
+      let r;
+      try { r = placeBlock(gone ? '' : fs.readFileSync(path.join(ROOT, f), 'utf8'), block); } catch (e) {
+        if (opts.mode === '--apply') die(`${f}: ${e.message}`);
+        fail(`${f}: ${e.message}`); drift++; continue;
+      }
+      if (r.kind === 'ok') { ok(`${f}: bloque gestionado al día.`); continue; }
+      fail(`${f}: ${gone ? 'falta' : r.kind === 'add' ? 'sin bloque gestionado' : 'el bloque gestionado difiere de la plantilla'}`);
+      drift++; todo.set(f, r.next); differs.push(f);
+    }
     for (const f of m.mixedJson) {
       const gone = !fs.existsSync(path.join(ROOT, f));
       if (!gone && read(path.join(ROOT, f)) === read(path.join(tmp, f))) { ok(`${f}: igual que la plantilla.`); continue; }
@@ -186,8 +264,14 @@ async function main() {
       if (opts.json.includes(f)) { todo.set(f, true); warn(`${f}: se reemplazará (--replace-json).`); }
       else warn(`${f}: ${gone ? 'falta' : 'difiere de la plantilla'} (JSON mixto; revísalo, el reemplazo es explícito: --apply --replace-json ${f}).`);
     }
-    if (opts.mode !== '--check') for (const f of differs) if (opts.mode === '--diff' || todo.has(f)) showDiff(tmp, f);
-    if (drift > 0 && opts.mode !== '--apply') fail(`Deriva en ${drift} comprobación(es) de ficheros de plantilla.`);
+    const linked = projectLinks([...todo.keys()]);
+    if (linked.length > 0) {
+      const msg = `${linked.join(', ')}: enlace(s) simbólico(s) en el proyecto; no se escribe a través de ellos. Si es AGENTS.md: haz que sea el fichero real y CLAUDE.md un enlace a él, o usa un CLAUDE.md mínimo con @AGENTS.md.`;
+      if (opts.mode === '--apply') die(msg);
+      fail(msg); drift++;
+    }
+    if (opts.mode !== '--check') for (const f of differs) if (opts.mode === '--diff' || todo.has(f)) showDiff(tmp, f, todo.get(f));
+    if (drift > 0 && opts.mode !== '--apply') fail(`Deriva en ${drift} comprobación(es).`);
     process.exitCode = opts.mode === '--apply' ? await applyChanges(tmp, m, todo, opts.yes) : Number(drift > 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

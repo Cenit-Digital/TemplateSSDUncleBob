@@ -29,8 +29,9 @@ const git = (cwd, ...args) => {
   return r.stdout;
 };
 
-const MANIFEST = { version: 1, template: ['a.txt', 'dir/', 'run.sh'], executable: ['run.sh'], mixedBlock: ['AGENTS.md'], mixedJson: ['cfg.json'], project: ['proj.txt'], excluded: [] };
-const FILES = { 'a.txt': 'uno\n', 'dir/b.txt': 'dos\n', 'run.sh': '#!/bin/sh\n', 'AGENTS.md': 'x\n', 'cfg.json': '{"k":1}\n', 'proj.txt': 'p\n' };
+const BLOCK = '<!-- harness:begin -->\n## Arnés\n- uno\n<!-- harness:end -->\n';
+const MANIFEST = { version: 1, template: ['a.txt', 'dir/', 'run.sh'], executable: ['run.sh'], mixedBlock: ['AGENTS.md'], blockSource: 'blk.md', mixedJson: ['cfg.json'], project: ['proj.txt'], excluded: ['blk.md'] };
+const FILES = { 'a.txt': 'uno\n', 'dir/b.txt': 'dos\n', 'run.sh': '#!/bin/sh\n', 'AGENTS.md': `# a\n\n${BLOCK}`, 'blk.md': BLOCK, 'cfg.json': '{"k":1}\n', 'proj.txt': 'p\n' };
 
 /** Repo git con FILES + `files` (null borra). `tags` => commit + tags; `exec` fija el bit de run.sh; `link` añade ese enlace simbólico (-> b.txt) al índice. */
 function repo(files, { exec = true, manifest, tags, link } = {}) {
@@ -77,6 +78,9 @@ const CASES = [
   ['manifiesto que solapa plantilla y proyecto', {}, {}, tpl({ project: ['dir/b.txt'] }), 2, /"dir\/".*"dir\/b\.txt".*se solapan/],
   ['manifiesto que solapa plantilla y excluido', {}, {}, tpl({ excluded: ['a.txt'] }), 2, /"a\.txt".*se solapan/],
   ['manifiesto con un proyecto que contiene algo de plantilla', {}, {}, tpl({ template: ['dir/b.txt'], project: ['dir/'] }), 2, /se solapan/],
+  ['manifiesto con mixedBlock sin blockSource', {}, {}, tpl({ blockSource: undefined }), 2, /blockSource/],
+  ['blockSource con texto fuera del bloque', {}, {}, repo({ 'blk.md': `fuera\n${BLOCK}` }, { manifest: MANIFEST, tags: ['v1.0.0'] }), 2, /único bloque/],
+  ['blockSource que es un enlace simbólico de la plantilla', {}, {}, repo({}, { manifest: MANIFEST, tags: ['v1.0.0'], link: 'blk.md' }), 2, /enlaces simbólicos.*blk\.md/],
 ];
 for (const [name, files, opts, template, code, re] of CASES) {
   test(name, () => {
@@ -191,6 +195,94 @@ test('argumentos: un solo modo; --yes y --replace-json solo con --apply', () => 
   }
 });
 
+const STALE = BLOCK.replace('uno', 'otro');
+const FENCED = `\`\`\`md\n${BLOCK}\`\`\`\n`;
+const CRLF = (s) => s.replace(/\n/g, '\r\n');
+// [nombre, AGENTS.md del proyecto, salida de --check, salida esperada]
+const BLOCK_CASES = [
+  ['bloque al día entre texto', `antes\n\n${BLOCK}\ndespués\n`, 0, /bloque gestionado al día/],
+  ['bloque al día con BOM y CRLF', `\uFEFF${CRLF(`antes\n${BLOCK}`)}`, 0, /al día/],
+  ['sin marcadores', 'solo texto\n', 1, /sin bloque gestionado/],
+  ['bloque distinto', `antes\n${STALE}`, 1, /bloque gestionado difiere/],
+  ['marcadores solo dentro de una valla ```', FENCED, 1, /sin bloque gestionado/],
+  ['marcadores dentro de una valla ```` que contiene ```', `\`\`\`\`\n\`\`\`\n${BLOCK}\`\`\`\`\n`, 1, /sin bloque gestionado/],
+  ['marcadores dentro de una valla ~~~ que contiene ```', `~~~\n\`\`\`\n${BLOCK}~~~\n`, 1, /sin bloque gestionado/],
+  ['una línea ```js dentro de una valla no la cierra', `\`\`\`\n\`\`\`js\n${BLOCK}\`\`\`\n`, 1, /sin bloque gestionado/],
+  ['una línea con ``` que no abre valla', `\`\`\`x\`\`\` texto\n${BLOCK}`, 0, /al día/],
+  ['``` sangrado 4 espacios no abre valla', `    \`\`\`\n${BLOCK}`, 0, /al día/],
+  ['BOM y bloque en la primera línea', `\uFEFF${BLOCK}`, 0, /al día/],
+  ['marcadores sangrados 4 espacios (código)', `${BLOCK.trimEnd().replace(/^/gm, '    ')}\n`, 1, /sin bloque gestionado/],
+  ['bloque real y otro de ejemplo en una valla', FENCED + BLOCK, 0, /al día/],
+  ['dos bloques', BLOCK + BLOCK, 1, /duplicados o desbalanceados/],
+  ['solo begin', '<!-- harness:begin -->\n', 1, /desbalanceados/],
+  ['solo end', '<!-- harness:end -->\n', 1, /desbalanceados/],
+  ['end antes de begin', '<!-- harness:end -->\n<!-- harness:begin -->\n', 1, /\(1 begin, 1 end\) o en orden inverso/], // el recuento prueba que lo atrapa la comprobación de orden, no la postcondición
+  ['dos begin y un end', `<!-- harness:begin -->\n${BLOCK}`, 1, /2 begin, 1 end/],
+  ['un begin y dos end', `${BLOCK}<!-- harness:end -->\n`, 1, /1 begin, 2 end/],
+];
+for (const [name, text, code, re] of BLOCK_CASES) {
+  test(`AGENTS.md: ${name}`, () => {
+    const r = run(BASE, proj({ 'AGENTS.md': text }));
+    assert.equal(r.code, code, r.out);
+    assert.match(r.out, re);
+  });
+}
+
+test('AGENTS.md: --apply reemplaza el bloque y conserva BOM, CRLF y el resto byte a byte', () => {
+  const p = proj({ 'AGENTS.md': `\uFEFF${CRLF(`antes\n\n${STALE}\ndespués\n`)}` });
+  assert.equal(exec(BASE, p, APPLY).code, 0);
+  assert.equal(rd(p, 'AGENTS.md'), `\uFEFF${CRLF(`antes\n\n${BLOCK}\ndespués\n`)}`);
+});
+
+test('AGENTS.md: sin marcadores se añade al final y es idempotente; sin fichero se crea', () => {
+  for (const text of ['solo texto', 'solo texto\n', 'solo texto\n\n\n']) {
+    const p = proj({ 'AGENTS.md': text });
+    assert.equal(exec(BASE, p, APPLY).code, 0);
+    assert.equal(rd(p, 'AGENTS.md'), `solo texto\n\n${BLOCK}`);
+    assert.match(exec(BASE, p, APPLY).out, /Nada que aplicar/);
+  }
+  const q = proj({ 'AGENTS.md': null });
+  assert.equal(exec(BASE, q, APPLY).code, 0);
+  assert.equal(rd(q, 'AGENTS.md'), BLOCK);
+});
+
+test('AGENTS.md: --apply aborta sin escribir con marcadores duplicados o con una valla sin cerrar', () => {
+  for (const [text, re] of [[BLOCK + BLOCK, /duplicados o desbalanceados/], ['```\nsin cerrar\n', /sin cerrar/]]) {
+    const p = proj({ 'AGENTS.md': text });
+    const r = exec(BASE, p, APPLY);
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, re);
+    assert.equal(rd(p, 'AGENTS.md'), text);
+  }
+});
+
+test('AGENTS.md registrado como enlace simbólico: --check da 1 y --apply 2, sin escribir', () => {
+  const p = proj({ 'AGENTS.md': 'solo texto\n' }, { link: 'AGENTS.md' });
+  for (const [args, code] of [[['--check'], 1], [APPLY, 2]]) {
+    const r = exec(BASE, p, args);
+    assert.equal(r.code, code, r.out);
+    assert.match(r.out, /enlace\(s\) simbólico\(s\) en el proyecto/);
+    assert.doesNotMatch(r.out, /sin confirmar/); // la guarda de enlaces sale antes que la de árbol limpio
+  }
+  assert.equal(rd(p, 'AGENTS.md'), 'solo texto\n');
+});
+
+test('AGENTS.md: --diff enseña solo el cambio del bloque', () => {
+  const r = exec(BASE, proj({ 'AGENTS.md': `antes\n${STALE}` }), ['--diff']);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^-- otro/m);
+  assert.match(r.out, /^\+- uno/m);
+  assert.doesNotMatch(r.out, /^-antes/m);
+});
+
+test('el bloque real de AGENTS.md coincide con su fuente en la plantilla', () => {
+  const src = '.harness/agents-block.md';
+  const t = repo({ [src]: fs.readFileSync(path.join(REPO, src), 'utf8') }, { manifest: { ...MANIFEST, blockSource: src, excluded: [src] }, tags: ['v1.0.0'] });
+  const r = run(t, proj({ 'AGENTS.md': fs.readFileSync(path.join(REPO, 'AGENTS.md'), 'utf8') }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /bloque gestionado al día/);
+});
+
 test('el manifiesto real clasifica cada fichero rastreado en exactamente una categoría', () => {
   const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
   const cats = ['template', 'mixedBlock', 'mixedJson', 'project', 'excluded'];
@@ -206,4 +298,5 @@ test('el manifiesto real clasifica cada fichero rastreado en exactamente una cat
     assert.ok(m.template.includes(x), `${x} no está en template`);
     assert.equal(files[x], '100755', `${x} perdió el bit ejecutable`);
   }
+  assert.ok(files[m.blockSource], `blockSource ${m.blockSource} no es un fichero rastreado`);
 });

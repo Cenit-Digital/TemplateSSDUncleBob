@@ -41,6 +41,7 @@
 | `scripts/harness-upgrade.mjs` · `harness.manifest.json` | `--check`/`--diff`: deriva del proyecto respecto a la plantilla; `--apply`: reemplazo explícito; el manifiesto dice qué es de cada uno | Para saber si el arnés está al día |
 | `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
+| `.harness/agents-block.md` | Fuente del bloque gestionado del final de este `AGENTS.md` (`harness-upgrade` lo reemplaza en los derivados) | Para cambiar ese bloque |
 | `.claude/agents/`          | 6 subagentes del pipeline + 3 de apoyo                                     | Si orquestas                      |
 | `examples/`                | Arneses completos y ejecutables (Python y Node/JS) de referencia          | Para ver el método en acción      |
 | `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
@@ -87,3 +88,11 @@ pending
 - Relee la sección relevante de `docs/`.
 - Si una herramienta no hace lo que esperas, **no inventes un workaround**:
   documenta el bloqueo en `progress/current.md` y para la sesión.
+
+<!-- harness:begin — bloque gestionado por la plantilla: no lo edites aquí; lo reemplaza scripts/harness-upgrade.mjs al aplicar -->
+## Arnés SSD (gestionado por la plantilla)
+
+- Entorno y arnés: `bin/harness init` · tests: `bin/harness test` · mutación: `bin/harness mutate [target]`.
+- ¿Al día con la plantilla? `node scripts/harness-upgrade.mjs --check` (solo lectura); `--diff` enseña los cambios.
+- Qué es de la plantilla y qué del proyecto: `harness.manifest.json`.
+<!-- harness:end -->
