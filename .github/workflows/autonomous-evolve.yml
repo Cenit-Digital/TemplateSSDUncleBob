@@ -13,18 +13,16 @@ name: Evolución autónoma del arnés
 # explican en docs/autonomous.md.
 
 on:
-  schedule:
-    # Todos los días, 06:23 UTC. El minuto NO es 0 a propósito: la doc oficial
-    # dice que "High load times include the start of every hour" y que con carga
-    # alta "some queued jobs may be dropped" — recomienda literalmente programar
-    # "at a different time of the hour".
-    #
-    # Diario NO significa un PR al día: la guarda de abajo no deja que haya más
-    # de un PR del bot esperando revisión a la vez. Con alcance total, cada PR
-    # puede tocar el motor o los agentes y exige lectura humana con calma — eso
-    # lo garantiza la guarda, que es un mecanismo, no el cron, que era solo una
-    # espera. Ver docs/autonomous.md § Cadencia.
-    - cron: "23 6 * * *"
+  # PAUSADO (cron retirado): cada sesión consumía la cuota de la suscripción
+  # (Opus, hasta 15 USD / 90 min por ejecución) y la mayoría de los PRs eran
+  # endurecimiento de entradas malformadas, de poco valor práctico. Sigue
+  # disponible a mano con "Run workflow". Para reactivar la cadencia diaria,
+  # restaura este bloque:
+  #
+  #   schedule:
+  #     - cron: "23 6 * * *"   # 06:23 UTC; el minuto NO es 0 a propósito
+  #
+  # La guarda de PR abierto (más abajo) sigue activa en las ejecuciones manuales.
   workflow_dispatch:
     inputs:
       forzar:
