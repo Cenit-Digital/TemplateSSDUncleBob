@@ -201,7 +201,7 @@ const CRLF = (s) => s.replace(/\n/g, '\r\n');
 // [nombre, AGENTS.md del proyecto, salida de --check, salida esperada]
 const BLOCK_CASES = [
   ['bloque al día entre texto', `antes\n\n${BLOCK}\ndespués\n`, 0, /bloque gestionado al día/],
-  ['bloque al día con BOM y CRLF', `﻿${CRLF(`antes\n${BLOCK}`)}`, 0, /al día/],
+  ['bloque al día con BOM y CRLF', `\uFEFF${CRLF(`antes\n${BLOCK}`)}`, 0, /al día/],
   ['sin marcadores', 'solo texto\n', 1, /sin bloque gestionado/],
   ['bloque distinto', `antes\n${STALE}`, 1, /bloque gestionado difiere/],
   ['marcadores solo dentro de una valla ```', FENCED, 1, /sin bloque gestionado/],
@@ -210,13 +210,13 @@ const BLOCK_CASES = [
   ['una línea ```js dentro de una valla no la cierra', `\`\`\`\n\`\`\`js\n${BLOCK}\`\`\`\n`, 1, /sin bloque gestionado/],
   ['una línea con ``` que no abre valla', `\`\`\`x\`\`\` texto\n${BLOCK}`, 0, /al día/],
   ['``` sangrado 4 espacios no abre valla', `    \`\`\`\n${BLOCK}`, 0, /al día/],
-  ['BOM y bloque en la primera línea', `﻿${BLOCK}`, 0, /al día/],
+  ['BOM y bloque en la primera línea', `\uFEFF${BLOCK}`, 0, /al día/],
   ['marcadores sangrados 4 espacios (código)', `${BLOCK.trimEnd().replace(/^/gm, '    ')}\n`, 1, /sin bloque gestionado/],
   ['bloque real y otro de ejemplo en una valla', FENCED + BLOCK, 0, /al día/],
   ['dos bloques', BLOCK + BLOCK, 1, /duplicados o desbalanceados/],
   ['solo begin', '<!-- harness:begin -->\n', 1, /desbalanceados/],
   ['solo end', '<!-- harness:end -->\n', 1, /desbalanceados/],
-  ['end antes de begin', '<!-- harness:end -->\n<!-- harness:begin -->\n', 1, /orden inverso/],
+  ['end antes de begin', '<!-- harness:end -->\n<!-- harness:begin -->\n', 1, /\(1 begin, 1 end\) o en orden inverso/], // el recuento prueba que lo atrapa la comprobación de orden, no la postcondición
   ['dos begin y un end', `<!-- harness:begin -->\n${BLOCK}`, 1, /2 begin, 1 end/],
   ['un begin y dos end', `${BLOCK}<!-- harness:end -->\n`, 1, /1 begin, 2 end/],
 ];
@@ -229,9 +229,9 @@ for (const [name, text, code, re] of BLOCK_CASES) {
 }
 
 test('AGENTS.md: --apply reemplaza el bloque y conserva BOM, CRLF y el resto byte a byte', () => {
-  const p = proj({ 'AGENTS.md': `﻿${CRLF(`antes\n\n${STALE}\ndespués\n`)}` });
+  const p = proj({ 'AGENTS.md': `\uFEFF${CRLF(`antes\n\n${STALE}\ndespués\n`)}` });
   assert.equal(exec(BASE, p, APPLY).code, 0);
-  assert.equal(rd(p, 'AGENTS.md'), `﻿${CRLF(`antes\n\n${BLOCK}\ndespués\n`)}`);
+  assert.equal(rd(p, 'AGENTS.md'), `\uFEFF${CRLF(`antes\n\n${BLOCK}\ndespués\n`)}`);
 });
 
 test('AGENTS.md: sin marcadores se añade al final y es idempotente; sin fichero se crea', () => {

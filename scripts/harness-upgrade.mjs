@@ -151,7 +151,7 @@ function blockRange(lines) {
 /** Compara el bloque de `raw` con `block`: {kind:'ok'} o {kind:'replace'|'add', next}. Lo de fuera del bloque queda byte a byte. */
 function placeBlock(raw, block, verify = true) {
   const lines = raw.split('\n'); // cada línea conserva su \r final
-  const clean = lines.map((l, i) => (i === 0 ? l.replace(/^﻿/, '') : l).replace(/\r$/, ''));
+  const clean = lines.map((l, i) => (i === 0 ? l.replace(/^\uFEFF/, '') : l).replace(/\r$/, ''));
   const r = blockRange(clean);
   if (r && clean.slice(r.start, r.end + 1).join('\n') === block.join('\n')) return { kind: 'ok' };
   const cr = raw.includes('\r\n') ? '\r' : '';
