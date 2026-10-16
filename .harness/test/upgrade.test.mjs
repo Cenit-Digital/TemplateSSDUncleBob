@@ -1,4 +1,4 @@
-// upgrade.test.mjs — Tests de scripts/harness-upgrade.mjs (--check) y de harness.manifest.json.
+// upgrade.test.mjs — Tests de scripts/harness-upgrade.mjs (--check, --diff, --apply) y de harness.manifest.json.
 //
 // El script es un CLI: cada caso lo lanza como subproceso contra una plantilla de
 // juguete (repo git temporal, aislado de la config git del usuario y de la CI) y
@@ -32,8 +32,8 @@ const git = (cwd, ...args) => {
 const MANIFEST = { version: 1, template: ['a.txt', 'dir/', 'run.sh'], executable: ['run.sh'], mixedBlock: ['AGENTS.md'], mixedJson: ['cfg.json'], project: ['proj.txt'], excluded: [] };
 const FILES = { 'a.txt': 'uno\n', 'dir/b.txt': 'dos\n', 'run.sh': '#!/bin/sh\n', 'AGENTS.md': 'x\n', 'cfg.json': '{"k":1}\n', 'proj.txt': 'p\n' };
 
-/** Repo git con FILES + `files` (null borra). `tags` => commit + tags; `exec` fija el bit de run.sh. */
-function repo(files, { exec = true, manifest, tags } = {}) {
+/** Repo git con FILES + `files` (null borra). `tags` => commit + tags; `exec` fija el bit de run.sh; `link` añade ese enlace simbólico (-> b.txt) al índice. */
+function repo(files, { exec = true, manifest, tags, link } = {}) {
   const d = tmp();
   const all = { ...FILES, ...files, ...(manifest ? { 'harness.manifest.json': JSON.stringify(manifest) } : {}) };
   for (const [f, body] of Object.entries(all)) {
@@ -44,14 +44,21 @@ function repo(files, { exec = true, manifest, tags } = {}) {
   git(d, 'init', '-q', '-b', 'main');
   git(d, 'add', '-A');
   if (exec && all['run.sh'] !== null) git(d, 'update-index', '--chmod=+x', 'run.sh');
+  if (link) { // un enlace real en el índice, sin necesitar permisos de symlink (también vale en Windows)
+    const target = path.join(tmp(), 'target');
+    fs.writeFileSync(target, 'b.txt');
+    git(d, 'update-index', '--add', '--cacheinfo', `120000,${git(d, 'hash-object', '-w', target).trim()},${link}`);
+  }
   if (tags) { git(d, 'commit', '-q', '-m', 't'); tags.forEach((t) => git(d, 'tag', t)); }
   return d;
 }
 const tpl = (patch = {}, tags = ['v1.0.0']) => repo({}, { manifest: { ...MANIFEST, ...patch }, tags });
-const run = (template, project, ...args) => {
-  const r = spawnSync(process.execPath, [SCRIPT, '--check', '--repo', template, ...args], { cwd: project, env: ENV, encoding: 'utf8' });
+const proj = (files, opts) => repo(files, { tags: [], ...opts }); // proyecto con línea base confirmada
+const exec = (template, project, args, input = '') => {
+  const r = spawnSync(process.execPath, [SCRIPT, ...args, '--repo', template], { cwd: project, env: ENV, encoding: 'utf8', input });
   return { code: r.status, out: r.stdout + r.stderr };
 };
+const run = (template, project, ...args) => exec(template, project, ['--check', ...args]);
 
 const BASE = tpl();
 // [nombre, ficheros del proyecto, opciones del proyecto, plantilla, código de salida, salida esperada]
@@ -67,6 +74,9 @@ const CASES = [
   ['sin bit ejecutable', {}, { exec: false }, BASE, 1, /sin bit ejecutable: run\.sh/],
   ['manifiesto con ruta insegura', {}, {}, tpl({ template: ['../fuera'] }), 2, /rutas relativas seguras/],
   ['manifiesto con entrada inexistente', {}, {}, tpl({ template: ['nada.txt'] }), 2, /no existe en la plantilla/],
+  ['manifiesto que solapa plantilla y proyecto', {}, {}, tpl({ project: ['dir/b.txt'] }), 2, /"dir\/".*"dir\/b\.txt".*se solapan/],
+  ['manifiesto que solapa plantilla y excluido', {}, {}, tpl({ excluded: ['a.txt'] }), 2, /"a\.txt".*se solapan/],
+  ['manifiesto con un proyecto que contiene algo de plantilla', {}, {}, tpl({ template: ['dir/b.txt'], project: ['dir/'] }), 2, /se solapan/],
 ];
 for (const [name, files, opts, template, code, re] of CASES) {
   test(name, () => {
@@ -95,6 +105,90 @@ test('--ref fija la versión: el tag no ve los cambios posteriores de la rama', 
   git(t, 'commit', '-aqm', 'b');
   assert.equal(run(t, repo({}), '--ref', 'v1.0.0').code, 0);
   assert.equal(run(t, repo({}), '--ref', 'main').code, 1);
+});
+
+const APPLY = ['--apply', '--yes'];
+const rd = (p, f) => fs.readFileSync(path.join(p, f), 'utf8');
+
+test('--diff enseña el diff y no escribe nada', () => {
+  const p = proj({ 'a.txt': 'otro\n', 'cfg.json': '{"k":2}\n', 'dir/b.txt': 'dos\r\nmas\r\n' });
+  const r = exec(BASE, p, ['--diff']);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /old\/a\.txt[\s\S]*-otro\r?\n\+uno/);
+  assert.match(r.out, /old\/cfg\.json/); // el JSON mixto con deriva también se enseña, aunque no se reemplace
+  assert.match(r.out, /^-mas/m);
+  assert.doesNotMatch(r.out, /^-dos/m); // CRLF vs LF no es un cambio de línea (coherente con la comparación)
+  assert.deepEqual([rd(p, 'a.txt'), rd(p, 'cfg.json')], ['otro\n', '{"k":2}\n']);
+});
+
+test('--apply solo reemplaza lo de plantilla y lo deja en el índice', () => {
+  const p = proj({ 'a.txt': 'otro\n', 'dir/b.txt': null, 'dir/extra.txt': 'x', 'proj.txt': 'mío', 'cfg.json': '{"k":2}\n' });
+  const r = exec(BASE, p, APPLY);
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual([rd(p, 'a.txt'), rd(p, 'dir/b.txt')], ['uno\n', 'dos\n']); // difería / faltaba
+  assert.deepEqual([rd(p, 'dir/extra.txt'), rd(p, 'proj.txt'), rd(p, 'cfg.json')], ['x', 'mío', '{"k":2}\n']);
+  assert.equal(git(p, 'diff', '--name-only', '--', 'a.txt', 'dir/b.txt'), ''); // lo aplicado está añadido al índice (run.sh no: en Linux el fixture lo deja 755 en el índice y 644 en disco)
+  assert.equal(run(BASE, p).code, 0);
+  assert.match(exec(BASE, p, APPLY).out, /Nada que aplicar/); // idempotente
+});
+
+test('--apply fija el bit ejecutable en el índice (con el contenido igual o distinto)', () => {
+  for (const files of [{}, { 'run.sh': '#!/bin/sh\necho x\n' }]) {
+    const p = proj(files, { exec: false });
+    assert.equal(run(BASE, p).code, 1);
+    assert.equal(exec(BASE, p, APPLY).code, 0);
+    assert.match(git(p, 'ls-files', '-s', 'run.sh'), /^100755 /);
+    assert.equal(rd(p, 'run.sh'), '#!/bin/sh\n');
+    assert.equal(run(BASE, p).code, 0);
+  }
+});
+
+test('--apply pide confirmación: n y sin respuesta no escriben, s aplica', () => {
+  for (const input of ['n\n', '']) {
+    const p = proj({ 'a.txt': 'otro\n' });
+    const r = exec(BASE, p, ['--apply'], input);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /Aplicar 1 cambio/);
+    assert.equal(rd(p, 'a.txt'), 'otro\n');
+  }
+  const p = proj({ 'a.txt': 'otro\n' });
+  assert.equal(exec(BASE, p, ['--apply'], 's\n').code, 0);
+  assert.equal(rd(p, 'a.txt'), 'uno\n');
+});
+
+test('--replace-json reemplaza solo el JSON nombrado y rechaza uno que no es mixto', () => {
+  const p = proj({ 'cfg.json': '{"k":2}\n' });
+  assert.equal(exec(BASE, p, [...APPLY, '--replace-json', 'cfg.json']).code, 0);
+  assert.equal(rd(p, 'cfg.json'), '{"k":1}\n');
+  const q = proj({ 'a.txt': 'otro\n' });
+  const r = exec(BASE, q, [...APPLY, '--replace-json', 'a.txt']);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /no es un JSON mixto/);
+  assert.equal(rd(q, 'a.txt'), 'otro\n');
+});
+
+test('--apply rechaza enlaces simbólicos de la plantilla sin escribir nada', () => {
+  const t = repo({}, { manifest: MANIFEST, tags: ['v1.0.0'], link: 'dir/link' });
+  const p = proj({ 'a.txt': 'otro\n' });
+  const r = exec(t, p, APPLY);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /enlaces simbólicos.*dir\/link/);
+  assert.equal(rd(p, 'a.txt'), 'otro\n');
+});
+
+test('--apply no pisa ediciones sin confirmar', () => {
+  const p = proj({});
+  fs.writeFileSync(path.join(p, 'a.txt'), 'local\n');
+  const r = exec(BASE, p, APPLY);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /sin confirmar[\s\S]*a\.txt/);
+  assert.equal(rd(p, 'a.txt'), 'local\n');
+});
+
+test('argumentos: un solo modo; --yes y --replace-json solo con --apply', () => {
+  for (const args of [[], ['--check', '--diff'], ['--check', '--yes'], ['--diff', '--replace-json', 'cfg.json']]) {
+    assert.equal(exec(BASE, proj({}), args).code, 2, args.join(' '));
+  }
 });
 
 test('el manifiesto real clasifica cada fichero rastreado en exactamente una categoría', () => {
