@@ -696,7 +696,32 @@ function cmdTest() {
  * equivocada en un [FAIL] legible, no en un verde engañoso ni en un stack trace.
  */
 function resolveMutationTargets(cfg, explicitTarget = '') {
-  if (explicitTarget) return { list: [explicitTarget] };
+  if (explicitTarget) {
+    // Un objetivo explícito por CLI (`bin/harness mutate <target>`) debe ser una
+    // ruta NO VACÍA, exactamente igual que las entradas de `mutation.targets`
+    // (#14). El llamador filtra el vacío ("") con `process.argv[3] || ''`, pero un
+    // objetivo SOLO-ESPACIOS ("   ") es truthy y se colaba SIN validar por esta
+    // rama, que devolvía [explicitTarget] tal cual. El mutador corría entonces con
+    // {{target}} en blanco —sin módulo que medir— y podía salir 0, imprimiendo
+    // "Prueba de mutación superada" sin morder nada: un FALSO VERDE sobre la
+    // puerta de mutación (peor que un fallo, límite 2 de AUTONOMOUS.md), y una
+    // ASIMETRÍA con la lista de config, que rechaza ese MISMO "   " (#14). Misma
+    // familia que el guardián de blank-command (#32, "solo-espacios == sin
+    // comando") y el de mutation.targets: convertir el desliz de tecla en un
+    // [FAIL] legible, no en un verde engañoso. Una ruta real nunca cuelga de sus
+    // espacios de borde.
+    if (!explicitTarget.trim()) {
+      return {
+        error:
+          `El objetivo de mutación indicado por la línea de comandos debe ser una ruta no vacía.\n` +
+          `  Un objetivo solo-espacios no apunta a ningún módulo: el mutador correría en blanco\n` +
+          `  y podría reportar VERDE sin medir nada. Pasa una ruta real, p. ej.\n` +
+          `  bin/harness mutate src/notes.py, u OMITE el objetivo para iterar los de\n` +
+          `  "mutation.targets".`,
+      };
+    }
+    return { list: [explicitTarget] };
+  }
   const t = cfg.mutation.targets;
   if (!Array.isArray(t)) {
     return {
