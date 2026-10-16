@@ -127,7 +127,7 @@ test('--apply solo reemplaza lo de plantilla y lo deja en el índice', () => {
   assert.equal(r.code, 0, r.out);
   assert.deepEqual([rd(p, 'a.txt'), rd(p, 'dir/b.txt')], ['uno\n', 'dos\n']); // difería / faltaba
   assert.deepEqual([rd(p, 'dir/extra.txt'), rd(p, 'proj.txt'), rd(p, 'cfg.json')], ['x', 'mío', '{"k":2}\n']);
-  assert.equal(git(p, 'diff', '--name-only'), ''); // todo lo aplicado está añadido al índice
+  assert.equal(git(p, 'diff', '--name-only', '--', 'a.txt', 'dir/b.txt'), ''); // lo aplicado está añadido al índice (run.sh no: en Linux el fixture lo deja 755 en el índice y 644 en disco)
   assert.equal(run(BASE, p).code, 0);
   assert.match(exec(BASE, p, APPLY).out, /Nada que aplicar/); // idempotente
 });
