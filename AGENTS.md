@@ -38,6 +38,7 @@
 | `docs/autonomous.md`       | El bot de evolución autónoma (solo-PR) y su puesta en marcha              | Para operar el bot de auto-mejora |
 | `docs/memoria-organizacional.md` | Patrones validados compartidos entre proyectos (memoria de la org)  | Al arrancar sesión (paso 2bis)    |
 | `scripts/sync-memoria.sh(.ps1)` | Sincroniza la memoria organizacional en `.memoria-cache/`           | Paso 2bis del Protocolo de arranque |
+| `scripts/harness-upgrade.mjs` · `harness.manifest.json` | `--check`: deriva del proyecto respecto a la plantilla; el manifiesto dice qué es de cada uno | Para saber si el arnés está al día |
 | `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
 | `.claude/agents/`          | 6 subagentes del pipeline + 3 de apoyo                                     | Si orquestas                      |
