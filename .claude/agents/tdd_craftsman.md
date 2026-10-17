@@ -1,6 +1,6 @@
 ---
 name: tdd_craftsman
-description: Implementa UNA feature por TDD estricto (un test a la vez, Rojo → Verde → Refactor) guiado por su .feature aprobado. Escribe código y tests.
+description: LEGADO (no usar; se retira). Implementa UNA feature por TDD estricto (un test a la vez, Rojo → Verde → Refactor) guiado por su .feature aprobado. Escribe código y tests.
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

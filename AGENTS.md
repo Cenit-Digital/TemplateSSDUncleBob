@@ -4,17 +4,18 @@
 > NO es una biblia de reglas: es un **mapa**. Lee solo lo que necesites,
 > cuando lo necesites (divulgación progresiva).
 >
-> Proceso: **Harness / SDD estilo Uncle Bob** — conversación → Gherkin → TDD →
-> review → mutación. Ver `docs/workflow.md`. Plantilla **agnóstica al
-> lenguaje**: los comandos del stack viven en `harness.config.json`.
+> Proceso: lo fija la «Política de trabajo» del final de este fichero (niveles,
+> puerta humana, delegación). El pipeline por fases anterior está retirado:
+> `docs/workflow.md` queda como legado. Plantilla **agnóstica al lenguaje**: los
+> comandos del stack viven en `harness.config.json`.
 
 ## 1. Antes de empezar (obligatorio)
 
 1. Ejecuta `./init.sh` (o `bin/harness init`). Si falla, **para** y resuelve
    el entorno antes de tocar código.
 2. Lee `progress/current.md` (estado de la última sesión).
-3. Lee `feature_list.json`. Toda feature `"sdd": true` recorre el pipeline.
-4. Lee `docs/workflow.md` antes de coordinar nada.
+3. Lee `feature_list.json` (el motor sigue validándolo).
+4. Lee la «Política de trabajo» (final de este fichero) antes de planificar.
 
 ## 2. Mapa del repositorio
 
@@ -26,7 +27,7 @@
 | `progress/history.md`      | Bitácora append-only                                                      | Si necesitas contexto             |
 | `project-spec.md`          | Spec conversada por feature                                               | Antes de Gherkin o de implementar |
 | `features/<name>.feature`  | Escenarios Gherkin (contrato aprobado por el humano)                      | Antes del ciclo TDD               |
-| `docs/workflow.md`         | El pipeline completo y los insights de cada fase                          | Antes de coordinar                |
+| `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado                          | Solo como referencia              |
 | `docs/tdd.md`              | Las Tres Leyes; Rojo-Verde-Refactor                                       | Antes de escribir código          |
 | `docs/gherkin.md`          | Cómo escribir `.feature`; de Gherkin a test                               | Antes de redactar escenarios      |
 | `docs/mutation-testing.md` | Por qué y cómo; umbral; mutación por stack                                | Antes de validar la suite         |
@@ -37,7 +38,7 @@
 | `docs/tooling.md`          | Agentes de apoyo y hooks                                                  | Para entender el tooling          |
 | `docs/modelos.md`          | Qué modelo es `frontier`/`balanced`/`fast` en cada herramienta (con fecha y fuentes) | Al delegar o cambiar de modelo |
 | `docs/instrucciones-de-usuario.md` | Plantilla de las instrucciones de usuario compartidas por todos tus repos (los siete pasos) y dónde instalarla en cada herramienta | Al configurar una máquina o una herramienta nueva |
-| `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` conserva el rol `craftsman_lead`   | Si usas Claude Code o Gemini CLI  |
+| `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` añade el arranque (memoria y comandos) | Si usas Claude Code o Gemini CLI |
 | `.github/ISSUE_TEMPLATE/` · `.github/pull_request_template.md` | Plantillas de issue de tarea y de PR (cuatro bloques + impacto en tareas anteriores) | Al abrir un issue o un PR |
 | `.harness/pr-body.mjs` · `.github/workflows/pr-body.yml` | Comprobador de la descripción del PR (sin LLM) y su workflow; no es check requerido | Si un PR falla «Cuerpo del PR» |
 | `docs/autonomous.md`       | El bot de evolución autónoma (solo-PR) y su puesta en marcha              | Para operar el bot de auto-mejora |
@@ -47,7 +48,7 @@
 | `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
 | `.harness/agents-block.md` | Fuente del bloque gestionado del final de este `AGENTS.md` (`harness-upgrade` lo reemplaza en los derivados) | Para cambiar ese bloque |
-| `.claude/agents/`          | 6 del pipeline vigente, 3 de nivel y 3 de apoyo                            | Si orquestas                      |
+| `.claude/agents/`          | 3 de nivel, 3 especialistas opt-in y 6 del pipeline anterior (legado; se borran) | Si delegas                  |
 | `examples/`                | Arneses completos y ejecutables (Python y Node/JS) de referencia          | Para ver el método en acción      |
 | `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
 
@@ -56,28 +57,20 @@
 - **Una sola feature a la vez.**
 - **No declares `done`** sin tests verdes **y** umbral de mutación superado
   (`bin/harness test` y `bin/harness mutate`).
-- **No saltes** la conversación de spec ni la destilación Gherkin para
-  features `"sdd": true`.
-- **No saltes la puerta humana** sobre los `.feature`.
-- **TDD estricto: un test a la vez** (`docs/tdd.md`).
+- **No saltes la puerta humana:** plan aprobado antes de implementar y diff
+  revisado en local antes de cualquier `git push` (ver «Política de trabajo»).
+- **Un test por criterio**; TDD estricto (un test a la vez, `docs/tdd.md`) en
+  nivel crítico.
 - **Documenta** en `progress/current.md` mientras trabajas.
 - **Deja el repo limpio** antes de cerrar (sin logs de debug, sin TODOs sin
   contexto).
 - **Si no sabes algo, busca en `docs/`** antes de inventarlo.
 
-## 4. Pipeline
+## 4. Flujo de trabajo
 
-```
-pending
-  → [spec_partner]    CONVERSACIÓN  → project-spec.md
-  → [gherkin_author]  DESTILACIÓN   → features/<name>.feature   (spec_ready)
-  → ⏸  PUERTA HUMANA: el humano aprueba los escenarios
-  → in_progress
-  → [tdd_craftsman]   ROJO → VERDE → REFACTOR  → src/ + tests/
-  → [judge]           REVIEW ("el review es el juego entero")
-  → [mutation_tester] MUTACIÓN (valida que los tests muerden)
-  → done
-```
+Lo fija la «Política de trabajo» del final de este fichero: nivel de la tarea,
+plan aprobado, ejecución delegada por capacidad y diff revisado en local. El
+pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
 
 ## 5. Cierre de sesión (lifecycle)
 
@@ -102,8 +95,6 @@ pending
 - Qué es de la plantilla y qué del proyecto: `harness.manifest.json`.
 
 ### Política de trabajo
-
-**Transición.** Mientras el proyecto conserve el rol `craftsman_lead` (hasta que la plantilla lo retire), las tareas que tocan `src/` o los tests siguen ese rol, el pipeline y sus reglas duras, incluida su tabla de esfuerzo y la aprobación de los `.feature`; los niveles fijan el ceremonial del resto (arnés, docs, configuración). La puerta humana y la tabla «Delegación» se suman a todo.
 
 **Niveles.** El planificador clasifica cada tarea por juicio (las pistas no son exhaustivas; ante la duda, el nivel superior) y escribe el nivel y su motivo en el plan; la persona lo corrige al aprobarlo.
 - **trivial:** cambio local y evidente. Un solo contexto, sin subagentes obligatorios.

@@ -34,6 +34,9 @@ Node/TS, Go, Rust, Java… Ver `docs/configuration.md` y `.harness/adapters/`.
 
 ## El pipeline
 
+> **Legado:** este flujo está retirado; la política vigente es la «Política de
+> trabajo» de `AGENTS.md`. Se conserva hasta que se reescriba la documentación.
+
 ```
 pending
   → [spec_partner]    CONVERSACIÓN  → project-spec.md
@@ -67,8 +70,9 @@ Una sola feature a la vez. Estado en disco (no en el chat): `project-spec.md`,
    node .harness/harness.mjs init
    ```
 
-5. Abre Claude Code en la raíz: `CLAUDE.md` fuerza el rol `craftsman_lead`
-   (orquesta, no teclea). Pide: **«implementa la siguiente feature pendiente»**.
+5. Abre Claude Code en la raíz: `CLAUDE.md` importa `AGENTS.md` y su «Política
+   de trabajo» (niveles, plan aprobado, diff revisado en local). Pide la tarea
+   y el planificador te propondrá el plan.
 
 ### Comandos del arnés
 
@@ -99,13 +103,11 @@ StrykerJS; para Go, el adaptador usa gremlins; para Rust, cargo-mutants.
 
 ## Los agentes (`.claude/agents/`)
 
-**Pipeline (6):** `craftsman_lead` (orquesta, no implementa), `spec_partner`
-(debate la spec), `gherkin_author` (destila el contrato), `tdd_craftsman`
-(Rojo-Verde-Refactor), `judge` (poda) y `mutation_tester` (mide que los tests
-muerden).
+**De nivel (3):** `worker_fast`, `worker_balanced` y `reviewer_frontier` (ver
+`docs/modelos.md`).
 
-**Apoyo, opcionales (3):** `security_reviewer`, `a11y_seo_auditor` (UI web) y
-`mentor`. Bórralos si tu proyecto no los necesita.
+**Especialistas, opcionales (3):** `security_reviewer`, `a11y_seo_auditor` (UI
+web) y `mentor`. Bórralos si tu proyecto no los necesita.
 
 ## Estructura
 

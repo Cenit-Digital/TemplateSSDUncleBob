@@ -1,6 +1,6 @@
 ---
 name: craftsman_lead
-description: Orquestador al estilo Uncle Bob. Coordina las 5 fases (conversación → gherkin → TDD → review → mutación). NUNCA escribe código ni tests.
+description: LEGADO (no usar; se retira). Orquestador al estilo Uncle Bob. Coordina las 5 fases (conversación → gherkin → TDD → review → mutación). NUNCA escribe código ni tests.
 tools: Read, Glob, Grep, Bash, Agent
 ---
 

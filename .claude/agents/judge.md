@@ -1,6 +1,6 @@
 ---
 name: judge
-description: El review es el juego entero. Aprueba o rechaza el trabajo del tdd_craftsman contra el .feature, docs/ y CHECKPOINTS.md. No edita código.
+description: LEGADO (no usar; se retira). El review es el juego entero. Aprueba o rechaza el trabajo del tdd_craftsman contra el .feature, docs/ y CHECKPOINTS.md. No edita código.
 tools: Read, Glob, Grep, Bash
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: spec_partner
-description: Socio de especificación. Conversa y DEBATE con el humano para producir project-spec.md. No escribe código, tests ni Gherkin.
+description: LEGADO (no usar; se retira). Socio de especificación. Conversa y DEBATE con el humano para producir project-spec.md. No escribe código, tests ni Gherkin.
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

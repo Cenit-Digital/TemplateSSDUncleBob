@@ -1,5 +1,8 @@
 # El flujo Uncle Bob (Harness Engineering, edición artesano)
 
+> **Legado:** este pipeline por fases está retirado; la política vigente es la
+> «Política de trabajo» de `AGENTS.md`. Se conserva hasta que se reescriba.
+
 > Esta plantilla reorganiza el desarrollo alrededor del proceso que
 > Robert C. Martin describe en su hilo: **conversar la spec, destilarla en
 > escenarios Gherkin, tallar el código con TDD estricto, podar con juicio y

@@ -7,8 +7,6 @@
 
 ### Política de trabajo
 
-**Transición.** Mientras el proyecto conserve el rol `craftsman_lead` (hasta que la plantilla lo retire), las tareas que tocan `src/` o los tests siguen ese rol, el pipeline y sus reglas duras, incluida su tabla de esfuerzo y la aprobación de los `.feature`; los niveles fijan el ceremonial del resto (arnés, docs, configuración). La puerta humana y la tabla «Delegación» se suman a todo.
-
 **Niveles.** El planificador clasifica cada tarea por juicio (las pistas no son exhaustivas; ante la duda, el nivel superior) y escribe el nivel y su motivo en el plan; la persona lo corrige al aprobarlo.
 - **trivial:** cambio local y evidente. Un solo contexto, sin subagentes obligatorios.
 - **pequeño:** acotado a pocos ficheros y sin decisiones de diseño. Se planifica con `frontier` y se implementa con `balanced`, en la misma sesión.

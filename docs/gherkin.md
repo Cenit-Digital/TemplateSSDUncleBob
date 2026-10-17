@@ -1,5 +1,9 @@
 # Gherkin — el contrato ejecutable
 
+> **Legado parcial:** la política vigente (`AGENTS.md`) ya no exige un agente ni
+> una puerta humana propios para los `.feature`. Se conserva como guía para
+> escribir criterios Given/When/Then.
+
 > "Once the project-spec.md is done, I have it create a set of .feature files
 > from the project-spec.md." Los `.feature` son lo que el humano aprueba en la
 > puerta, y el mapa que el `tdd_craftsman` recorre.

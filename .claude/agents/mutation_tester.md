@@ -1,6 +1,6 @@
 ---
 name: mutation_tester
-description: Valida que los tests muerden. Corre la prueba de mutación sobre el código de la feature y exige una puntuación por encima del umbral. No edita código.
+description: LEGADO (no usar; se retira). Valida que los tests muerden. Corre la prueba de mutación sobre el código de la feature y exige una puntuación por encima del umbral. No edita código.
 tools: Read, Glob, Grep, Bash
 ---
 
