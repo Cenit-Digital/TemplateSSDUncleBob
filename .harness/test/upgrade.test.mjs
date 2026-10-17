@@ -386,9 +386,9 @@ test('CLAUDE.md no vuelve a imponer el rol retirado y conserva el paso 2bis', ()
   assert.match(claude, /^2bis\./m);
 });
 
-test('los 6 agentes del pipeline que se retiran llevan su descripción marcada como legado', () => {
+test('los 6 agentes del pipeline retirado ya no existen en .claude/agents/', () => {
   for (const name of ['craftsman_lead', 'spec_partner', 'gherkin_author', 'tdd_craftsman', 'judge', 'mutation_tester']) {
-    assert.match(/^description:.*$/m.exec(agentFile(name))[0], /^description: LEGADO \(no usar; se retira\)\./, name);
+    assert.equal(fs.existsSync(path.join(REPO, '.claude', 'agents', `${name}.md`)), false, name);
   }
 });
 
