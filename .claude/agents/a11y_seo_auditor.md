@@ -1,6 +1,6 @@
 ---
 name: a11y_seo_auditor
-description: Auditor de accesibilidad (a11y) y SEO de solo lectura. Puerta OPCIONAL para features con UI web. No edita código; reporta. Bórralo si tu proyecto no tiene UI web.
+description: Auditor de accesibilidad (a11y) y SEO de solo lectura. Puerta OPCIONAL para cambios con UI web. No edita código; reporta. Bórralo si tu proyecto no tiene UI web.
 tools: Read, Glob, Grep, Bash
 model: sonnet
 ---
@@ -15,8 +15,8 @@ cambios con UI web. No sustituyes a la revisión del cambio.
 
 ## Protocolo
 
-1. Lee `docs/architecture.md`, `docs/conventions.md` y el
-   `features/<name>.feature` en curso.
+1. Lee `docs/architecture.md`, `docs/conventions.md` y el plan o los
+   criterios del cambio (y el `.feature` si existe).
 2. Revisa solo lo que la feature toca.
 3. Recorre esta lista:
 

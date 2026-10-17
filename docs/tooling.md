@@ -5,7 +5,7 @@
 > lectura**: los convoca el planificador cuando aportan valor y no sustituyen a
 > la revisión del cambio.
 
-## Agentes de apoyo (`.claude/agents/`)
+## Especialistas (`.claude/agents/`)
 
 | Agente             | Cuándo usarlo                                             | Qué escribe                       |
 | ------------------ | -------------------------------------------------------- | --------------------------------- |

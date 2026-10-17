@@ -367,8 +367,8 @@ test('los agentes de nivel y los especialistas fijan su modelo y su front matter
 
 test('ni los agentes de nivel ni los especialistas nombran el pipeline que se retira', () => {
   for (const name of Object.keys(TIER_AGENTS)) {
-    assert.doesNotMatch(agentFile(name), /craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b/, name);
-    assert.doesNotMatch(/^description:.*$/m.exec(agentFile(name))[0], /pipeline|Transición/, name);
+    assert.doesNotMatch(agentFile(name), /craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b/i, name);
+    assert.doesNotMatch(/^description:.*$/m.exec(agentFile(name))[0], /pipeline|transici[oó]n/i, name);
   }
   for (const name of ['worker_fast', 'worker_balanced', 'reviewer_frontier']) {
     assert.doesNotMatch(agentFile(name), /feature_list|progress\/|\.feature\b/, name);
@@ -377,7 +377,19 @@ test('ni los agentes de nivel ni los especialistas nombran el pipeline que se re
 
 test('el bloque gestionado no conserva la cláusula de transición ni el rol retirado', () => {
   const block = fs.readFileSync(path.join(REPO, '.harness', 'agents-block.md'), 'utf8');
-  assert.doesNotMatch(block, /Transición|craftsman_lead|pipeline/);
+  assert.doesNotMatch(block, /transici[oó]n|craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b|pipeline/i);
+});
+
+test('CLAUDE.md no vuelve a imponer el rol retirado y conserva el paso 2bis', () => {
+  const claude = fs.readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf8');
+  assert.doesNotMatch(claude, /craftsman_lead|rol obligatorio/i);
+  assert.match(claude, /^2bis\./m);
+});
+
+test('los 6 agentes del pipeline que se retiran llevan su descripción marcada como legado', () => {
+  for (const name of ['craftsman_lead', 'spec_partner', 'gherkin_author', 'tdd_craftsman', 'judge', 'mutation_tester']) {
+    assert.match(/^description:.*$/m.exec(agentFile(name))[0], /^description: LEGADO \(no usar; se retira\)\./, name);
+  }
 });
 
 test('docs/modelos.md recoge, en una misma línea, cada agente y su modelo', () => {

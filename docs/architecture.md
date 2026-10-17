@@ -1,7 +1,7 @@
 # Arquitectura — Qué significa "hacer un buen trabajo"
 
-> Este documento define el estándar de calidad de TU proyecto. Los agentes
-> revisores (`judge`) evalúan el código contra este archivo. **Si no está
+> Este documento define el estándar de calidad de TU proyecto. Quien
+> revisa el trabajo evalúa el código contra este archivo. **Si no está
 > aquí, no es un requisito.** Rellénalo al arrancar el proyecto.
 
 ## Principios (agnósticos, ajústalos a tu stack)
