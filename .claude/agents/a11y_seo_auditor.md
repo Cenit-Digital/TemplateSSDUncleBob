@@ -2,6 +2,7 @@
 name: a11y_seo_auditor
 description: Auditor de accesibilidad (a11y) y SEO de solo lectura. Puerta OPCIONAL para features con UI web. No edita código; reporta. Bórralo si tu proyecto no tiene UI web.
 tools: Read, Glob, Grep, Bash
+model: sonnet
 ---
 
 # A11y & SEO Auditor

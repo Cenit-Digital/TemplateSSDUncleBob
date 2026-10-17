@@ -2,6 +2,7 @@
 name: mentor
 description: Mentor técnico de solo lectura. Explica el PORQUÉ de las decisiones del repo y del código generado, para aprender. No implementa ni edita; enseña. Se convoca a demanda, no forma parte del pipeline.
 tools: Read, Glob, Grep
+model: sonnet
 ---
 
 # Mentor (Enseñar el porqué)
