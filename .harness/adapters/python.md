@@ -1,6 +1,7 @@
-# Adaptador: Python (cero dependencias)
+# Adaptador: Python
 
-Mapea el arnés a un proyecto Python usando solo la stdlib.
+Mapea el arnés a un proyecto Python. El runner de tests puede ser la stdlib o
+`pytest -q`; la mutación usa una herramienta externa. Ver también `generic.md`.
 
 ## `harness.config.json`
 
@@ -9,38 +10,43 @@ Mapea el arnés a un proyecto Python usando solo la stdlib.
   "language": "python",
   "commands": {
     "test": "{{py}} -m unittest discover -s tests -q",
-    "mutate": "{{py}} tools/mutate.py {{target}}"
+    "mutate": "cosmic-ray init cosmic-ray.toml cosmic-ray.sqlite && cosmic-ray exec cosmic-ray.toml cosmic-ray.sqlite && cr-rate cosmic-ray.sqlite --fail-over 20"
   },
-  "mutation": { "threshold": 1.0, "targets": ["src/mi_modulo.py"] }
+  "mutation": { "threshold": 0.8, "targets": [] }
 }
 ```
 
 - `{{py}}` lo resuelve el motor a `python3` o `python`.
-- El mutador `tools/mutate.py` es propio y sin dependencias: muta operadores,
-  palabras clave, números y `return`, valida que compile y restaura el
-  original. Fuerza salida UTF-8 (portable en Windows).
+- `mutate` usa [Cosmic Ray](https://cosmic-ray.readthedocs.io/en/latest/reference/cli.html) (8.7.0), la única
+  herramienta Python de este adaptador que puede ser puerta por sí sola.
+- `cr-rate --fail-over N` sale con 1 si se supera **N = máximo de supervivencia
+  en %**: con un 80 % de mutantes muertos, `--fail-over 20`. Ese valor es
+  `100 − umbral·100` y **no puede viajar por token** (`{{threshold_pct}}` daría
+  80, no 20): se calcula a mano y debe mantenerse alineado con
+  `mutation.threshold`. `--fail-over 0` nunca falla, así que un umbral de 1.0 no
+  se puede expresar con `cr-rate`.
+- El alcance se fija con `module-path` en el TOML; por línea de comandos, NO
+  VERIFICADO. Por eso el comando no usa `{{target}}`, `targets` va vacío y
+  `mutate <módulo>` no acota nada. Qué hace `cosmic-ray init` si el `.sqlite` ya
+  existe: NO VERIFICADO.
 
 ## Layout típico
 
 ```
-src/*.py          tests/test_*.py     tools/mutate.py
+src/*.py          tests/test_*.py     cosmic-ray.toml
 ```
 
-## Ejemplo ejecutable
+## Alternativa: mutmut (no sirve como puerta por sí sola)
 
-`examples/python-notes-cli` — flujo Uncle Bob completo, 47 tests, mutación
-100% en los 3 módulos. Cópialo como punto de partida.
+[mutmut](https://github.com/boxed/mutmut) 3.8.0 **no tiene umbral nativo** y no
+sale con código ≠ 0 por mutantes supervivientes (solo con 1 si fallan los tests
+sin mutar). Alcance con `mutmut run "modulo*"` (o `only_mutate`/`source_paths`
+en `setup.cfg`); `mutmut export-cicd-stats` escribe
+`mutants/mutmut-cicd-stats.json` (killed, survived, total, no_tests, skipped,
+suspicious, timeout), pero aplicar un umbral sobre ese fichero exigiría un
+script aparte. Su README exige un sistema con soporte de `fork` (en Windows,
+WSL). El CLI cambió mucho entre 2.x y 3.x: no mezcles documentación de ambas.
 
-## Producción
+Exclusión de mutantes equivalentes en Cosmic Ray y en mutmut: NO VERIFICADO.
 
-Para proyectos grandes puedes cambiar el runner a `pytest` y el mutador a
-[`mutmut`](https://github.com/boxed/mutmut) o
-[`cosmic-ray`](https://github.com/sixty-north/cosmic-ray):
-
-```json
-"commands": {
-  "lint": "ruff check . && mypy src",
-  "test": "pytest -q",
-  "mutate": "mutmut run"
-}
-```
+Verificado el 2026-10-17 en: https://cosmic-ray.readthedocs.io/en/latest/reference/cli.html · https://github.com/boxed/mutmut

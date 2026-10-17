@@ -1,42 +1,53 @@
 # Adaptador: Node / TypeScript
 
-## Cero dependencias (Node ≥ 18) — ver `examples/node-notes-cli`
+Mapea el arnés a un proyecto Node/TS. La mutación usa
+[StrykerJS](https://stryker-mutator.io/docs/stryker-js/configuration/) (10.0.0).
+
+## `harness.config.json`
 
 ```json
 {
   "language": "node",
   "commands": {
-    "test": "node --test",
-    "mutate": "node tools/mutate.mjs {{target}}"
-  },
-  "mutation": { "threshold": 1.0, "targets": ["src/cli.mjs", "src/notes.mjs", "src/storage.mjs"] }
-}
-```
-
-- Tests con el runner integrado `node --test` (Node 18+), sin instalar nada.
-- Mutador propio `tools/mutate.mjs`: enmascara strings/comentarios, muta
-  operadores/palabras/números/`return`, valida con `node --check`, respeta el
-  pragma `// mutate: skip` para mutantes equivalentes.
-- El ejemplo tiene 29 tests y mutación 100% en los 3 módulos.
-
-## Producción: TypeScript + Vitest + StrykerJS
-
-Es el stack que usa la web corporativa que inspiró esta plantilla:
-
-```json
-{
-  "language": "node",
-  "commands": {
-    "install": "pnpm install",
-    "lint": "eslint . && tsc --noEmit",
     "test": "vitest run",
-    "mutate": "stryker run",
-    "build": "vite build"
-  }
+    "mutate": "stryker run --mutate \"{{target}}\""
+  },
+  "mutation": { "threshold": 0.8, "targets": ["src/notes.ts"] }
 }
 ```
 
-- Mutación con [StrykerJS](https://stryker-mutator.io/) y
-  `@stryker-mutator/vitest-runner`; umbral en `stryker.config.json`.
-- Requiere `pnpm install`; añade la allowlist de comandos en
-  `.claude/settings.json` si tu agente los usa a menudo.
+- Las comillas dobles de `--mutate` van escapadas por ser JSON; en la shell
+  protegen los globs.
+- `--mutate` **sustituye** (no suma) la lista de `mutate` del fichero de config;
+  admite globs y rangos (`fichero:5-10`). Como el comando usa `{{target}}`, no
+  dejes `targets` vacío.
+- Qué plugin de runner de tests necesita Stryker para tu runner: NO VERIFICADO
+  aquí; ver su documentación.
+
+## El umbral va solo en el fichero de config
+
+Stryker **no tiene flag de línea de comandos para los umbrales** (su doc:
+«Command line: none»; tampoco el código de su CLI). Se fijan en el fichero de
+config, en escala 0–100, y hay que dar los tres valores («all or nothing»;
+`high >= low`):
+
+```json
+{ "thresholds": { "high": 90, "low": 80, "break": 80 } }
+```
+
+`break` es la puerta: `stryker run` sale con 1 si la puntuación queda por debajo.
+Como no puede recibir `{{threshold_pct}}`, **mantén `break` alineado a mano con
+`mutation.threshold`** (0.8 → `80`). El fichero de config también puede pasarse
+como argumento posicional (`stryker run fichero.json`). Leer el umbral de
+`process.env` desde un `.mjs`: NO VERIFICADO. Stryker no estaba instalado al
+verificar: nada de esto se ha ejecutado, solo leído en su doc y su código.
+
+## Layout típico
+
+```
+src/*.ts      tests/      (más el fichero de config de Stryker)
+```
+
+Exclusión de mutantes equivalentes: NO VERIFICADO en esta pasada.
+
+Verificado el 2026-10-17 en: https://stryker-mutator.io/docs/stryker-js/configuration/ · https://stryker-mutator.io/docs/stryker-js/config-file/

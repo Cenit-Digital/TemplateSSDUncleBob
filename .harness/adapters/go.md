@@ -1,8 +1,9 @@
 # Adaptador: Go
 
-Mapea el arnés a un proyecto Go. El runner de tests es la stdlib (`go test`);
-la mutación necesita una herramienta externa (Go no trae mutador). Ver también
-la receta de `docs/configuration.md` y el adaptador `generic.md`.
+Mapea el arnés a un proyecto Go. El runner de tests es la stdlib (`go test`); la
+mutación usa [gremlins](https://gremlins.dev/latest/usage/commands/unleash/)
+(v0.6.0; su README dice que solo se mantiene la última minor). Ver también
+`generic.md`.
 
 ## `harness.config.json`
 
@@ -12,20 +13,27 @@ la receta de `docs/configuration.md` y el adaptador `generic.md`.
   "commands": {
     "lint": "go vet ./...",
     "test": "go test ./...",
-    "mutate": "gremlins unleash {{target}} --dry-run=false"
+    "mutate": "gremlins unleash --threshold-efficacy {{threshold_pct}}"
   },
   "paths": { "src": ".", "tests": "." },
-  "mutation": { "threshold": 1.0, "targets": ["./..."] }
+  "mutation": { "threshold": 0.8, "targets": [] }
 }
 ```
 
-- `go test ./...` sale con código 0 **solo** si todos los tests pasan: cumple el
-  contrato de `commands.test`.
-- No hay `{{py}}`/intérprete que resolver: el toolchain de Go es un binario.
-- `{{target}}` lo sustituye el motor por cada entrada de `mutation.targets`.
-  A diferencia de Python/Node (mutación por fichero), en Go **gremlins muta por
-  paquete/módulo**, así que los `targets` son rutas de paquete (`./...`,
-  `./pkg/notes`), no ficheros sueltos.
+- Sin `{{py}}`: Go no necesita intérprete.
+- `--threshold-efficacy` recibe el porcentaje (`{{threshold_pct}}`, 0.8 → `80`).
+  Eficacia = KILLED / (KILLED + LIVED): **excluye NOT COVERED**. Umbral 0 =
+  desactivado. `--threshold-mcover` fija además un mínimo de cobertura de
+  mutantes.
+- Sale con 10 si no alcanza la eficacia y con 11 si no alcanza la cobertura de
+  mutantes: cualquier ≠ 0 es fallo para el motor.
+- La misma clave en `.gremlins.yaml` es `unleash.threshold.efficacy` (no
+  `thresholds.efficacy`); con el flag en `commands.mutate` no hace falta.
+- Alcance: `gremlins unleash [path]` recibe la raíz del módulo, no un filtro de
+  paquete; acotar por paquete: NO VERIFICADO. Opciones documentadas para acotar
+  (`--coverpkg`, `--exclude-files`/`-E`, `--diff <ref>`): su semántica exacta, NO
+  VERIFICADA. Por eso el comando no usa `{{target}}`, `targets` va vacío y
+  `mutate <módulo>` no acota nada.
 
 ## Layout típico
 
@@ -38,49 +46,16 @@ pkg/storage/storage.go  pkg/storage/storage_test.go
 cmd/notes/main.go
 ```
 
-Por eso `paths.src` y `paths.tests` apuntan ambos a la raíz (o al paquete): el
-arnés solo los usa para orientarse, y en Go fuente y test viven juntos.
+Por eso `paths.src` y `paths.tests` pueden apuntar ambos a `.`.
 
-## Mutación con gremlins
+## Alternativa: go-mutesting (no sirve como puerta por sí sola)
 
-[gremlins](https://github.com/go-gremlins/gremlins) es el mutador de referencia
-para Go. Se instala como binario y no toca tu `go.mod`:
+El original (zimmski) está sin mantenimiento desde 2021-06-10; el fork vivo es
+[avito-tech/go-mutesting](https://github.com/avito-tech/go-mutesting) (v2.3.1).
+**No tiene umbral**: imprime «The mutation score is 0.750000» (escala 0–1) y sale
+con 0 aunque queden mutantes vivos (≠ 0 solo por error de ejecución; el valor
+exacto de `returnError`: NO VERIFICADO).
 
-```sh
-go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
-```
+Exclusión de mutantes equivalentes en gremlins: NO VERIFICADO.
 
-El umbral se declara en `.gremlins.yaml` (junto al `go.mod`) para que
-`gremlins unleash` salga con código **!= 0** cuando no se alcanza —así el motor
-lo trata como fallo, igual que en los demás stacks:
-
-```yaml
-# .gremlins.yaml
-thresholds:
-  efficacy: 100   # % mínimo de mutantes muertos; el arnés exige 100 en los ejemplos
-  mutant-coverage: 0
-```
-
-Alternativa: [go-mutesting](https://github.com/zimmski/go-mutesting), si
-prefieres su catálogo de mutaciones (revisa su estado de mantenimiento y forks
-antes de adoptarlo).
-
-## Producción
-
-- Añade `build` (`go build ./...`) y, si usas un linter más estricto,
-  cambia `lint` a `golangci-lint run`.
-- Para módulos con muchos paquetes, apunta `mutation.targets` a los paquetes de
-  dominio y deja fuera `cmd/` y el pegamento de IO, igual que se acota en los
-  ejemplos Python/Node.
-
-## Si no quieres depender de gremlins
-
-El ejemplo `examples/go-notes-cli` trae exactamente eso: `tools/mutate.go`, un
-mutador nativo sin dependencias (~230 líneas sobre `go/scanner`) que muta
-operadores, enteros y las constantes `true`/`false`, descarta los mutantes que
-no compilan (`go build ./...`), respeta el pragma `// mutate: skip` para
-equivalentes y restaura el original. Se declara como
-`"mutate": "go run ./tools {{target}}"` y alcanza el 100% en los tres módulos.
-Es el mismo enfoque que `examples/python-notes-cli/tools/mutate.py` y
-`examples/node-notes-cli/tools/mutate.mjs`; cópialo como punto de partida si
-prefieres no depender de gremlins.
+Verificado el 2026-10-17 en: https://gremlins.dev/latest/usage/commands/unleash/ · https://github.com/go-gremlins/gremlins/blob/main/docs/docs/usage/configuration.md · https://github.com/avito-tech/go-mutesting
