@@ -691,6 +691,105 @@ test('mutate: lista vacía corre el mutador una vez sobre todo el proyecto', () 
   assert.match(out, /superada \(1 objetivo\)/);
 });
 
+// ── tokens {{threshold}} y {{threshold_pct}} (opt-in) ────────────────────────
+// Un comando que los usa recibe el umbral de mutation.threshold en la escala que pida
+// la herramienta: 0.8 → "0.8" y "80". El motor sigue sin medir nada: pasa el valor y
+// propaga el exit code del comando. Los derivados que no usan los tokens no cambian.
+
+/** Imprime los dos tokens: la salida `t=<threshold> p=<pct>` es lo que recibió el comando. */
+const SHOW_TOKENS = `node -e "console.log('t=' + process.argv[1] + ' p=' + process.argv[2])" {{threshold}} {{threshold_pct}}`;
+
+for (const [threshold, plain, pct] of [[0.8, '0.8', '80'], [1, '1', '100'], [0.75, '0.75', '75'], [0.29, '0.29', '29'], [0, '0', '0']]) {
+  test(`tokens: mutation.threshold ${threshold} → {{threshold}}="${plain}" y {{threshold_pct}}="${pct}" (Math.round, no ceil ni floor)`, () => {
+    // 0.8 * 100 es 80.00000000000001 (ceil daría 81); 0.29 * 100 es 28.999999999999996 (floor daría 28).
+    const dir = scenario({
+      'harness.config.json': { project: 't', commands: { mutate: SHOW_TOKENS }, mutation: { threshold, targets: [] } },
+    });
+    const { status, out } = runEngine(dir, ['mutate']);
+    assert.equal(status, 0, out);
+    assert.match(out, new RegExp(`^t=${plain.replace('.', '\\.')} p=${pct}$`, 'm')); // lo que ejecutó
+    assert.match(out, new RegExp(` ${plain.replace('.', '\\.')} ${pct}\\r?\\n`)); // el eco "$ ..." lo muestra resuelto
+    assert.doesNotMatch(out, /\{\{/);
+  });
+}
+
+test('tokens: sin "mutation" en la config el umbral por defecto es 0.8 (→ "0.8" y "80")', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', commands: { mutate: SHOW_TOKENS } } });
+  const { status, out } = runEngine(dir, ['mutate']);
+  assert.equal(status, 0, out);
+  assert.match(out, /^t=0\.8 p=80$/m);
+});
+
+test('tokens: un mutate que exige {{threshold_pct}} = 80 sale 0 con el umbral por defecto', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: `node -e "process.exit(process.argv[1]==='80'?0:1)" {{threshold_pct}}` },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Prueba de mutación superada/);
+});
+
+test('tokens: el mismo comando sale 1 si mutation.threshold es otro (el valor es el configurado)', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: `node -e "process.exit(process.argv[1]==='80'?0:1)" {{threshold_pct}}` },
+      mutation: { threshold: 0.5 },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate']);
+  assert.equal(status, 1);
+  assert.match(out, /por debajo del umbral/);
+});
+
+test('tokens: admiten espacios dentro de las llaves y conviven con {{target}} (con `$` literal)', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { mutate: `node -e "console.log('ran')" {{ target }} {{ threshold }} {{ threshold_pct }}` },
+      mutation: { threshold: 0.9, targets: ['a$$b'] },
+    },
+  });
+  const { status, out } = runEngine(dir, ['mutate']);
+  assert.equal(status, 0, out);
+  assert.match(out, / a\$\$b 0\.9 90\r?\n/);
+});
+
+test('tokens: también se resuelven en commands.test (bin/harness test)', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't',
+      commands: { test: `node -e "process.exit(process.argv[1]==='75'?0:1)" {{threshold_pct}}` },
+      mutation: { threshold: 0.75 },
+    },
+  });
+  const { status, out } = runEngine(dir, ['test']);
+  assert.equal(status, 0, out);
+});
+
+test('tokens: init los resuelve en lint y tests, y el eco "$ ..." muestra el comando ya resuelto', () => {
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false,
+      commands: {
+        lint: `node -e "process.exit(process.argv[1]==='0.75'?0:1)" {{threshold}}`,
+        test: `node -e "process.exit(process.argv[1]==='75'?0:1)" {{threshold_pct}}`,
+      },
+      mutation: { threshold: 0.75 },
+    },
+    'src/foo.txt': 'código',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Lint sin errores/);
+  assert.match(out, /Todos los tests pasan/);
+  assert.match(out, /\$ node .* 0\.75\r?\n/);
+  assert.match(out, /\$ node .* 75\r?\n/);
+});
+
 // ── status y comando desconocido ─────────────────────────────────────────────
 
 test('status: renderiza las features declaradas', () => {

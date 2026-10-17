@@ -8,8 +8,9 @@
 //   node .harness/harness.mjs <init|test|mutate [target]|verify|status|help>
 //
 // Requisito único: Node.js >= 18 (solo stdlib). Los comandos admiten los tokens {{py}}
-// (python3 o python, el que haya) y {{target}} (el módulo a mutar). Ejecútalo desde la
-// raíz de un proyecto que contenga `harness.config.json`.
+// (python3 o python, el que haya), {{target}} (el módulo a mutar) y {{threshold}} /
+// {{threshold_pct}} (el umbral de mutación, 0.8 u 80). Ejecútalo desde la raíz de un
+// proyecto que contenga `harness.config.json`.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,11 +51,14 @@ function resolvePython() {
   return (_py = 'python3'); // por defecto; fallará con mensaje claro si no existe
 }
 
-/** Sustituye tokens en un comando ({{py}} → intérprete, {{target}} → objetivo). */
+/**
+ * Sustituye tokens en un comando: {{py}} → intérprete de Python, {{target}} → objetivo,
+ * {{threshold}} → umbral de mutación (0.8), {{threshold_pct}} → ese umbral en % (80).
+ */
 function resolveCmd(cmd, tokens = {}) {
   if (!cmd) return cmd;
   // Reemplazo por FUNCIÓN: con un string, un `$` en la ruta (`a$&b`) se interpretaría.
-  return cmd.replace(/\{\{\s*(py|target)\s*\}\}/g, (_, k) => (k === 'py' ? resolvePython() : tokens.target || ''));
+  return cmd.replace(/\{\{\s*(py|target|threshold_pct|threshold)\s*\}\}/g, (_, k) => (k === 'py' ? resolvePython() : tokens[k] ?? ''));
 }
 
 /** Carga harness.config.json y le aplica los valores por defecto. */
@@ -89,6 +93,8 @@ function loadConfig() {
     cfg.commands[key] = cfg.commands[key].trim();
   }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation);
+  // Tokens de todos los comandos. Math.round, no ceil: 0.8 * 100 es 80.00000000000001.
+  cfg.tokens = { threshold: String(cfg.mutation.threshold), threshold_pct: String(Math.round(cfg.mutation.threshold * 100)) };
   cfg.standalone ??= true;
   cfg.rules = Object.assign(
     {
@@ -214,7 +220,7 @@ function cmdInit() {
     if (!hasCode) {
       warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que lintar)`);
     } else {
-      if (runEcho(cfg.commands.lint) === 0) ok('Lint sin errores');
+      if (runEcho(cfg.commands.lint, cfg.tokens) === 0) ok('Lint sin errores');
       else {
         fail('Lint con errores');
         exit = 1;
@@ -228,7 +234,7 @@ function cmdInit() {
   } else if (!hasCode) {
     warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que testear)`);
   } else {
-    if (runEcho(cfg.commands.test) === 0) ok('Todos los tests pasan');
+    if (runEcho(cfg.commands.test, cfg.tokens) === 0) ok('Todos los tests pasan');
     else {
       fail('Hay tests rotos');
       exit = 1;
@@ -247,7 +253,7 @@ function cmdTest() {
     warn('commands.test vacío');
     process.exit(0);
   }
-  process.exit(run(cfg.commands.test));
+  process.exit(run(cfg.commands.test, cfg.tokens));
 }
 
 /**
@@ -261,7 +267,7 @@ function runMutation(cfg, explicitTarget = '') {
   const failures = [];
   for (const t of list) {
     if (list.length > 1) rule(`Mutación · ${t}`);
-    if (runEcho(cfg.commands.mutate, { target: t }) !== 0) failures.push(t || '(proyecto)');
+    if (runEcho(cfg.commands.mutate, { ...cfg.tokens, target: t }) !== 0) failures.push(t || '(proyecto)');
   }
   if (failures.length) {
     fail(`Mutación por debajo del umbral en: ${failures.join(', ')}`);
