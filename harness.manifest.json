@@ -18,13 +18,13 @@
   "mixedJson": [".claude/settings.json", "harness.config.json"],
   "project": [
     ".editorconfig", ".gitattributes", ".gitignore", ".github/CODEOWNERS", ".github/workflows/harness-ci.yml",
-    "CLAUDE.md", "LICENSE", "README.md", "feature_list.json", "project-spec.md",
-    "features/", "progress/", "src/", "tests/"
+    "CLAUDE.md", "LICENSE", "README.md",
+    "features/", "src/", "tests/"
   ],
   "excluded": [
     ".agents/skills/", ".github/AUTONOMOUS.md", ".github/workflows/autonomous-evolve.yml",
     ".github/workflows/guard-sensitive-paths.yml", ".harness/agents-block.md", ".harness/test/", "docs/autonomous.md",
-    "docs/decisiones/", "docs/memoria-organizacional.md", "examples/",
+    "docs/decisiones/", "docs/memoria-organizacional.md",
     "scripts/sync-memoria.ps1", "scripts/sync-memoria.sh", "skills-lock.json"
   ]
 }
