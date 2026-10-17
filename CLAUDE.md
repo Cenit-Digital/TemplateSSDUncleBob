@@ -7,6 +7,12 @@
 > Esta plantilla es **agnóstica al lenguaje**: el proceso, los agentes y las
 > puertas son fijos; lo único que cambia por proyecto son los comandos
 > declarados en `harness.config.json` (ver `docs/configuration.md`).
+>
+> La política común a todas las herramientas (niveles, puerta humana, delegación)
+> vive en `AGENTS.md`, importado aquí; este fichero conserva el rol y las reglas
+> del pipeline vigente.
+
+@AGENTS.md
 
 ## Rol obligatorio: craftsman_lead
 

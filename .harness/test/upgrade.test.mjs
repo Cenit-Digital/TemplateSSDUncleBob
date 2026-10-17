@@ -300,3 +300,15 @@ test('el manifiesto real clasifica cada fichero rastreado en exactamente una cat
   }
   assert.ok(files[m.blockSource], `blockSource ${m.blockSource} no es un fichero rastreado`);
 });
+
+test('la capa 0 de la política (el bloque) no nombra modelos: eso es de docs/modelos.md', () => {
+  const block = fs.readFileSync(path.join(REPO, '.harness', 'agents-block.md'), 'utf8');
+  assert.deepEqual(block.match(/\b(opus|sonnet|haiku|fable|gpt|gemini)\b/gi), null);
+  for (const tier of ['frontier', 'balanced', 'fast']) assert.match(block, new RegExp(`\`${tier}\``));
+});
+
+test('CLAUDE.md y GEMINI.md importan AGENTS.md', () => {
+  const lines = (f) => fs.readFileSync(path.join(REPO, f), 'utf8').split(/\r?\n/);
+  assert.ok(lines('CLAUDE.md').includes('@AGENTS.md'), 'CLAUDE.md necesita la línea @AGENTS.md');
+  assert.ok(lines('GEMINI.md').includes('@./AGENTS.md'), 'GEMINI.md necesita la línea @./AGENTS.md');
+});

@@ -36,7 +36,7 @@ El titular declara que las tareas pequeñas consumen más de la mitad de su susc
 
 **D4. Puerta humana (decidido).** Dos puntos: aprobar el plan antes de implementar, y revisar en local el diff antes de cualquier push. Se elimina la aprobación del `.feature` como paso fijo; al titular le interesa ver qué se implementa y los casos, y eso lo cubren el plan y la spec viva. La puerta `require_approved_spec_to_implement` del motor solo comprueba que exista el fichero `.feature` **[R]**, así que se retira con D3.
 
-**D5. Niveles (decidido).** Cuatro niveles: trivial, pequeño, estándar y crítico. Los clasifica el planificador por juicio, no un algoritmo ni una documentación de reglas, porque esas no cubrirían todos los casos; también decide qué artefactos exige cada nivel. El nivel y su motivo van escritos en el plan y el humano lo corrige al aprobarlo; el nivel real se registra en el issue para calibrar entre modelos. Meta del nivel trivial: un solo contexto, cero subagentes obligatorios, sin `progress/*`. Unas líneas de orientación no exhaustivas en `AGENTS.md` son solo una propuesta sin respuesta (A9).
+**D5. Niveles (decidido).** Cuatro niveles: trivial, pequeño, estándar y crítico. Los clasifica el planificador por juicio, no un algoritmo ni una documentación de reglas, porque esas no cubrirían todos los casos; también decide qué artefactos exige cada nivel. El nivel y su motivo van escritos en el plan y el humano lo corrige al aprobarlo; el nivel real se registra en el issue para calibrar entre modelos. Meta del nivel trivial: un solo contexto, cero subagentes obligatorios, sin `progress/*`. A9 se cerró el 2026-10-17 (incremento 3): el bloque gestionado de `AGENTS.md` lleva unas líneas de orientación no exhaustivas por nivel.
 
 **D6. TDD y mutación proporcionales (decidido).** TDD estricto solo en crítico; en los demás, un test por criterio, y en un bugfix el test de regresión va primero. `tdd_craftsman` y `mutation_tester` dejan de ser agentes por defecto: la mutación pasa a ser `bin/harness mutate`, una puerta determinista sin LLM, solo en crítico. El planificador fija en el plan los módulos afectados y se corre `mutate <módulo>` sobre ellos (sin código nuevo en el motor); la mutación completa solo antes de una entrega. Umbral **0,8 por defecto** (el valor de `harness.config.json` **[R]**) y 1,0 solo por excepción justificada y registrada; los supervivientes tienen tope de 2 iteraciones. Hoy el 0,8 no se aplica (fila 10): hará falta pasar el umbral a la herramienta de mutación de cada proyecto. Hoy dos derivados usan 1,0 y dos usan 0,8 **[M]**.
 
@@ -56,7 +56,7 @@ El titular declara que las tareas pequeñas consumen más de la mitad de su susc
 
 ## Decisiones abiertas
 
-Cerradas el 2026-10-16: A2 → D12 · A4 → D9 · A5 → D13 · A6 → D5 · A7 (mutación) → D6 · A8 (formato de la spec y aviso) → D3 y D10 · A3 para la plantilla → D8.
+Cerradas el 2026-10-16: A2 → D12 · A4 → D9 · A5 → D13 · A6 → D5 · A7 (mutación) → D6 · A8 (formato de la spec y aviso) → D3 y D10 · A3 para la plantilla → D8. Cerrada el 2026-10-17: A9 → D5 (incremento 3).
 
 | # | Tema | Por defecto / estado |
 |---|---|---|
@@ -64,7 +64,6 @@ Cerradas el 2026-10-16: A2 → D12 · A4 → D9 · A5 → D13 · A6 → D5 · A7
 | A3 | Palancas de usuario fuera del repo (plugins globales por proyecto, instrucciones globales del Bonus del vídeo) | Se documentan, no se instalan; solo con OK explícito |
 | A7 | Prueba A/B de coste (trivial real, arnés viejo y nuevo, con la línea base de sesión recién abierta) | Abierta |
 | A8 | Prueba de agentes por nivel en Copilot (no verificado si `.github/agents` y `.claude/agents` se duplican en el selector) | Abierta, en el piloto |
-| A9 | Unas líneas de orientación no exhaustivas sobre niveles en `AGENTS.md` | Sin ellas: decide el planificador |
 | A10 | Job de CI sustituto de los ejemplos y actualización de la protección de rama | Un job `Motor (tests)` con la suite reducida; el ajuste de GitHub solo con OK |
 | A11 | Propagación de ficheros JSON (`harness.config.json`, `.claude/settings.json`) | `--check` informa de la deriva y el reemplazo es explícito, con diff visible |
 | A12 | `mentor`, `.agents/skills/` y `require_code_owner_reviews` (en `false` aunque la doc dice lo contrario) | `mentor` opt-in; skills fuera de la propagación; se decide al tocar el bot |
