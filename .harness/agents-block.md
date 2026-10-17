@@ -19,5 +19,5 @@
 
 **Delegación.** Por capacidad, no por proveedor: `frontier` (planificar, revisar, lo crítico), `balanced` (implementar), `fast` (tareas mecánicas y exploración). Salvo en trivial, el plan lleva una tabla «Delegación»: ejecutor, nivel, esfuerzo, motivo, «escalar si…» y verificación automática. Qué modelo es cada nivel en cada herramienta: `docs/modelos.md`.
 
-**Issues y PR.** Plantillas en `.github/`. El issue de tarea (objetivo, nivel, criterios Given/When/Then, plan en casillas, resultados) es opcional mientras el proyecto conserve `feature_list.json`; el PR lleva siempre cuatro bloques (qué, por qué, cómo se probó, pendiente), «Impacto en tareas anteriores» y la casilla de revisión local.
+**Issues y PR.** Plantillas en `.github/`. El issue de tarea (objetivo, nivel, criterios Given/When/Then, plan en casillas, resultados) es opcional mientras el proyecto conserve `feature_list.json`; el PR lleva siempre cuatro bloques (qué, por qué, cómo se probó, pendiente), «Impacto en tareas anteriores» y la casilla de revisión local, y el workflow «Plantilla del PR» lo comprueba (`node .harness/pr-body.mjs`).
 <!-- harness:end -->

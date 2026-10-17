@@ -38,6 +38,7 @@
 | `docs/modelos.md`          | Qué modelo es `frontier`/`balanced`/`fast` en cada herramienta (con fecha y fuentes) | Al delegar o cambiar de modelo |
 | `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` conserva el rol `craftsman_lead`   | Si usas Claude Code o Gemini CLI  |
 | `.github/ISSUE_TEMPLATE/` · `.github/pull_request_template.md` | Plantillas de issue de tarea y de PR (cuatro bloques + impacto en tareas anteriores) | Al abrir un issue o un PR |
+| `.harness/pr-body.mjs` · `.github/workflows/pr-body.yml` | Comprobador de la descripción del PR (sin LLM) y su workflow; no es check requerido | Si un PR falla «Cuerpo del PR» |
 | `docs/autonomous.md`       | El bot de evolución autónoma (solo-PR) y su puesta en marcha              | Para operar el bot de auto-mejora |
 | `docs/memoria-organizacional.md` | Patrones validados compartidos entre proyectos (memoria de la org)  | Al arrancar sesión (paso 2bis)    |
 | `scripts/sync-memoria.sh(.ps1)` | Sincroniza la memoria organizacional en `.memoria-cache/`           | Paso 2bis del Protocolo de arranque |
@@ -113,5 +114,5 @@ pending
 
 **Delegación.** Por capacidad, no por proveedor: `frontier` (planificar, revisar, lo crítico), `balanced` (implementar), `fast` (tareas mecánicas y exploración). Salvo en trivial, el plan lleva una tabla «Delegación»: ejecutor, nivel, esfuerzo, motivo, «escalar si…» y verificación automática. Qué modelo es cada nivel en cada herramienta: `docs/modelos.md`.
 
-**Issues y PR.** Plantillas en `.github/`. El issue de tarea (objetivo, nivel, criterios Given/When/Then, plan en casillas, resultados) es opcional mientras el proyecto conserve `feature_list.json`; el PR lleva siempre cuatro bloques (qué, por qué, cómo se probó, pendiente), «Impacto en tareas anteriores» y la casilla de revisión local.
+**Issues y PR.** Plantillas en `.github/`. El issue de tarea (objetivo, nivel, criterios Given/When/Then, plan en casillas, resultados) es opcional mientras el proyecto conserve `feature_list.json`; el PR lleva siempre cuatro bloques (qué, por qué, cómo se probó, pendiente), «Impacto en tareas anteriores» y la casilla de revisión local, y el workflow «Plantilla del PR» lo comprueba (`node .harness/pr-body.mjs`).
 <!-- harness:end -->

@@ -22,8 +22,8 @@ jobs:
         with:
           node-version: "22"
       - run: node .harness/harness.mjs init
-      - name: Tests del script de propagación y del manifiesto
-        run: node --test .harness/test/upgrade.test.mjs
+      - name: Tests del script de propagación, del manifiesto y del comprobador del PR
+        run: node --test .harness/test/upgrade.test.mjs .harness/test/pr-body.test.mjs
 
   python-example:
     name: Ejemplo Python (init + mutación 100%)
