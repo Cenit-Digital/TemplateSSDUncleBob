@@ -46,7 +46,7 @@
 | `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
 | `.harness/agents-block.md` | Fuente del bloque gestionado del final de este `AGENTS.md` (`harness-upgrade` lo reemplaza en los derivados) | Para cambiar ese bloque |
-| `.claude/agents/`          | 6 subagentes del pipeline + 3 de apoyo                                     | Si orquestas                      |
+| `.claude/agents/`          | 6 del pipeline vigente, 3 de nivel y 3 de apoyo                            | Si orquestas                      |
 | `examples/`                | Arneses completos y ejecutables (Python y Node/JS) de referencia          | Para ver el método en acción      |
 | `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
 

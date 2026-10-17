@@ -2,6 +2,7 @@
 name: security_reviewer
 description: Revisor de seguridad (AppSec) de solo lectura. Puerta OPCIONAL que el craftsman_lead convoca para features que tocan una frontera de confianza (entrada de usuario, auth, secretos, red, terceros). No edita código; reporta.
 tools: Read, Glob, Grep, Bash
+model: opus
 ---
 
 # Security Reviewer (AppSec)

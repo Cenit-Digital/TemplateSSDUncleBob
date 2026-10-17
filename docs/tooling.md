@@ -17,6 +17,20 @@
 Son **de solo lectura**: revisan y reportan, no editan `src/`. Bórralos si tu
 proyecto no los necesita (p. ej. `a11y_seo_auditor` en un proyecto sin UI web).
 
+## Agentes de nivel (`.claude/agents/`)
+
+Ejecutores y revisor por capacidad, sin atarse a `feature_list.json` ni a `progress/` (la política de niveles
+está en `AGENTS.md`; el modelo de cada uno, en `docs/modelos.md`):
+
+| Agente              | Nivel     | Para qué                                                      |
+| ------------------- | --------- | ------------------------------------------------------------- |
+| `worker_fast`       | fast      | Tareas mecánicas y de exploración con salida comprobable      |
+| `worker_balanced`   | balanced  | Implementa lo que el plan delega, con un test por criterio    |
+| `reviewer_frontier` | frontier  | Revisión independiente, solo lectura                          |
+
+Mientras siga vigente el pipeline (ver «Transición» en `AGENTS.md`), `worker_balanced` y `worker_fast` se usan en
+harness, docs y configuración; `src/` y sus tests siguen el pipeline.
+
 ## Hooks (`.claude/settings.json`)
 
 El arnés automatiza dos verificaciones que **el harness ejecuta, no el

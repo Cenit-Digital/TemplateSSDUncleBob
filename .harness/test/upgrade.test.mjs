@@ -339,3 +339,42 @@ test('lo que se propaga a los derivados no cita el ADR ni sus números de decisi
     assert.equal(hit, null, `${f}: cita «${hit?.[0]}», que los derivados no tienen`);
   }
 });
+
+const TIER_AGENTS = {
+  worker_fast: 'haiku', worker_balanced: 'sonnet', reviewer_frontier: 'opus',
+  security_reviewer: 'opus', a11y_seo_auditor: 'sonnet', mentor: 'sonnet',
+};
+const READ_ONLY = ['reviewer_frontier', 'security_reviewer', 'a11y_seo_auditor', 'mentor'];
+const agentFile = (name) => fs.readFileSync(path.join(REPO, '.claude', 'agents', `${name}.md`), 'utf8').replace(/\r\n/g, '\n');
+
+test('los agentes de nivel y los especialistas fijan su modelo y su front matter es válido', () => {
+  for (const [name, model] of Object.entries(TIER_AGENTS)) {
+    const m = /^---\n([\s\S]*?)\n---\n/.exec(agentFile(name));
+    assert.ok(m, `${name}: sin front matter`);
+    const meta = {};
+    for (const line of m[1].split('\n')) {
+      const kv = /^([A-Za-z]+):\s*(.*)$/.exec(line);
+      assert.ok(kv, `${name}: no es "clave: valor": ${line}`);
+      assert.ok(/^["']/.test(kv[2]) || !/: | #/.test(kv[2]), `${name}.${kv[1]}: valor sin comillas con ": " o " #" (YAML inválido)`);
+      meta[kv[1]] = kv[2];
+    }
+    assert.equal(meta.name, name);
+    assert.equal(meta.model, model, `${name}: model`);
+    assert.ok(meta.description && meta.tools, `${name}: description y tools`);
+    if (READ_ONLY.includes(name)) assert.doesNotMatch(meta.tools, /Write|Edit/, `${name}: es de solo lectura`);
+  }
+});
+
+test('los agentes de nivel no dependen del pipeline que se retira y los ejecutores declaran su alcance', () => {
+  for (const name of ['worker_fast', 'worker_balanced', 'reviewer_frontier']) {
+    assert.doesNotMatch(agentFile(name), /feature_list|progress\/|\.feature\b|craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b/, name);
+  }
+  for (const name of ['worker_fast', 'worker_balanced']) assert.match(/^description:.*$/m.exec(agentFile(name))[0], /pipeline/, name);
+});
+
+test('docs/modelos.md recoge, en una misma línea, cada agente y su modelo', () => {
+  const lines = fs.readFileSync(path.join(REPO, 'docs', 'modelos.md'), 'utf8').split('\n');
+  for (const [name, model] of Object.entries(TIER_AGENTS)) {
+    assert.ok(lines.some((l) => l.includes(`\`${name}\``) && l.includes(`\`${model}\``)), `${name} → ${model}`);
+  }
+});
