@@ -1,11 +1,13 @@
-# Instrucciones de usuario compartidas por todos tus repos
+# Instrucciones y palancas de usuario (fuera del repo)
 
 > Consultado el **2026-10-17**. Son preferencias de la persona, no del proyecto: van en el fichero personal de cada
-> herramienta, fuera del repo; lo del proyecto vive en `AGENTS.md`. Esta página guarda la plantilla y dice dónde se
-> instala; **no instala nada**.
+> herramienta, fuera del repo; lo del proyecto vive en `AGENTS.md`. Esta página guarda la plantilla de instrucciones,
+> dice dónde se instala y, al final, recoge las palancas de coste que también viven fuera del repo; **no instala
+> nada**.
 >
 > Procedencia: **[R]** leído en la documentación oficial (URL en *Fuentes*) · **[O]** observado en una sesión real,
-> no documentado · **sin verificar** = no hay dato fiable y no se inventa uno.
+> no documentado · **[M]** medición local sobre transcripciones de una persona (jul–oct 2026; no reproducible desde el
+> repo) · **sin verificar** = no hay dato fiable y no se inventa uno.
 
 ## Qué va dónde
 
@@ -75,8 +77,32 @@ Una tarea, una sesión: el traspaso es el issue y el PR, no el chat. Si lo que t
 - Para cambiar tus preferencias, edita el bloque en la plantilla, no en un derivado, y vuelve a copiarlo en cada herramienta; no lo retoques a mano en cada máquina.
 - Para comprobar que Claude Code la cargó, ejecuta `/context` en una sesión nueva y mira la lista de *Memory files* [R].
 
+## Palancas de coste fuera del repo
+
+Lo que más pesa en la factura de tokens no está en este repo: la plantilla solo puede recortar su parte. Estas palancas
+son de la persona y viven en la configuración de su herramienta (`~/.claude` en Claude Code). **El repo no las toca ni
+las instala**: solo las documenta. Las cifras [M] salen de 659 transcripciones de una sola persona (jul–oct 2026, octubre
+parcial): son un orden de magnitud, mide las tuyas.
+
+| Palanca | Qué mueve | Cómo actuar |
+| --- | --- | --- |
+| Modelo | Opus fue ≈ 70 % de la salida medida [M]. | Reserva el modelo más capaz para planificar y lo crítico; el proyecto ya fija `opusplan` (`docs/modelos.md`). Si cambias de modelo con `/model`, hazlo al empezar: cada modelo tiene su propia caché y el primer mensaje tras el cambio relee toda la conversación sin caché [R]. |
+| Longitud de la sesión | ~445 K tokens de contexto por llamada en la sesión principal [M]; cada llamada vuelve a leer lo acumulado. | Una tarea, una sesión (paso 7 de la plantilla); delega las búsquedas amplias en subagentes; cierra o reinicia las sesiones que acumulan varias tareas. |
+| Línea base | Lo que ya pesa una sesión recién abierta: instrucciones de usuario y de proyecto, plugins, skills, herramientas. Lo que aporta el arranque de este repo ronda 4,3 K tokens [M]. | Mídela con `/context` en una sesión nueva, antes y después de tocar nada [R]. |
+| Plugins globales | Sus descripciones entran en cada sesión, uses o no el plugin. | Deja activados solo los que usa el proyecto: el ajuste `enabledPlugins` activa o desactiva cada plugin por ámbito (usuario, proyecto o local) [R]; su formato exacto, en la página de ajustes. |
+
+### Hoy no es palanca: el esfuerzo de usuario
+
+El `effortLevel` de `~/.claude/settings.json` solo rige en Opus 5, Fable 5.1 y modelos anteriores; Opus 5.5 y los
+posteriores lo **ignoran** y arrancan en su propio defecto hasta que guardes un nivel para ellos con `/effort` (que lo
+guarda por modelo) [R]. Se había contado como palanca de coste y es una corrección: con los modelos actuales no lo
+es. En la configuración de proyecto o local, en cambio, `effortLevel` aplica a todos los modelos, y por eso la plantilla
+no lo fija.
+
 ## Fuentes
 
+- Ajustes, precedencia, `model`, `effortLevel` y `enabledPlugins`: https://code.claude.com/docs/en/settings · https://code.claude.com/docs/en/settings-reference
+- Ventana de contexto y `/context`: https://code.claude.com/docs/en/context-window
 - Claude Code: https://code.claude.com/docs/en/memory (sin fecha visible)
 - Codex: https://learn.chatgpt.com/docs/agent-configuration/agents-md (sin fecha visible)
 - Copilot en VS Code: https://code.visualstudio.com/docs/agent-customization/custom-instructions (página fechada 2026-10-14)
