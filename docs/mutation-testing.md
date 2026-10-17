@@ -52,11 +52,11 @@ proyecto. Cada stack declara la suya en `commands.mutate`; los adaptadores de
   en el plan.
 - Para que llegue a la herramienta, el motor ofrece dos tokens opcionales en
   cualquier `commands.*`: `{{threshold}}` (`0.8`) y `{{threshold_pct}}` (`80`,
-  entero redondeado), porque unas herramientas lo esperan en 0–1 y otras en
-  0–100. Ejemplo con PIT:
+  entero más próximo; usa umbrales de dos decimales como máximo), porque unas
+  herramientas lo esperan en 0–1 y otras en 0–100. Ejemplo con PIT:
 
   ```json
-  "mutate": "mvn test-compile org.pitest:pitest-maven:mutationCoverage -DmutationThreshold={{threshold_pct}} -DtargetClasses=\"{{target}}\""
+  { "commands": { "mutate": "mvn test-compile org.pitest:pitest-maven:mutationCoverage -DmutationThreshold={{threshold_pct}} -DtargetClasses=\"{{target}}\"" } }
   ```
 
 - Si el comando no usa los tokens, manda el umbral que tenga la propia
