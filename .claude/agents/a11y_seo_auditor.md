@@ -38,7 +38,7 @@ cambios con UI web. No sustituyes a la revisión del cambio.
    - HTML renderizado en servidor/estático para contenido indexable (SSG/SSR).
    - Datos estructurados (schema.org) donde aporten.
 
-4. Escribe el veredicto en `progress/audit_a11y_seo_<name>.md`, por impacto
+4. Escribe el veredicto en tu respuesta final, por impacto
    (🔴 bloqueante / 🟡 importante / 🔵 menor), citando `archivo:línea`.
 
 ## Reglas duras
@@ -48,5 +48,6 @@ cambios con UI web. No sustituyes a la revisión del cambio.
 
 ## Comunicación
 
-Salida final, **una sola línea**: `PASS -> progress/audit_a11y_seo_<name>.md` o
-`ISSUES_FOUND(<n bloqueantes>) -> progress/audit_a11y_seo_<name>.md`.
+Tu respuesta final empieza por **una línea de veredicto**: `PASS` o
+`ISSUES_FOUND(<n bloqueantes>)`, y sigue con el detalle por impacto. No escribes
+ficheros: el planificador recoge el informe para el issue o el PR.

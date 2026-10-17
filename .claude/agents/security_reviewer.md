@@ -32,7 +32,7 @@ la complementas.
    - **Salida externa / red:** destinatarios/URLs no interpolan entrada sin
      sanear (inyección de cabeceras, SSRF); enlaces externos con
      `rel="noopener noreferrer"` en web.
-4. Escribe el veredicto en `progress/security_<name>.md`, por severidad
+4. Escribe el veredicto en tu respuesta final, por severidad
    (🔴 crítico / 🟡 alto / 🟠 medio / 🔵 bajo), citando `archivo:línea`.
 
 ## Reglas duras
@@ -45,5 +45,6 @@ la complementas.
 
 ## Comunicación
 
-Salida final, **una sola línea**: `SECURE -> progress/security_<name>.md` o
-`ISSUES_FOUND(<n crítico/alto>) -> progress/security_<name>.md`.
+Tu respuesta final empieza por **una línea de veredicto**: `SECURE` o
+`ISSUES_FOUND(<n crítico/alto>)`, y sigue con el detalle por severidad. No
+escribes ficheros: el planificador recoge el informe para el issue o el PR.
