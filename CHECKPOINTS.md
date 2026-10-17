@@ -51,16 +51,20 @@
 - [ ] No hay código de producción que ningún test rojo haya pedido
       (disciplina TDD, ver `docs/tdd.md`).
 
-## C7 — Prueba de mutación
+## C7 — Prueba de mutación (solo nivel crítico)
 
-- [ ] La tarea terminada superó la prueba de mutación
-      (`bin/harness mutate`) con la puntuación por encima del umbral de
-      `harness.config.json` (`mutation.threshold`).
+Solo aplica si el plan clasificó la tarea como **crítica**; en los demás
+niveles no se corre (política en `docs/verification.md`).
+
+- [ ] La tarea crítica superó la prueba de mutación
+      (`bin/harness mutate <módulo>`) sobre los módulos que fija el plan, con
+      la puntuación por encima del umbral de `harness.config.json`
+      (`mutation.threshold`, 0,8 por defecto).
 - [ ] Cualquier mutante sobreviviente queda documentado en el issue o en
       el PR (matado con un test nuevo, o justificado como equivalente).
 
 ---
 
 **Cómo usar este archivo:** quien revisa el trabajo
-recorre C1-C6 y `bin/harness mutate` valida C7. Se rechaza el cierre de
-sesión si quedan boxes vacíos.
+recorre C1-C6 y, si la tarea es crítica, C7 (`bin/harness mutate <módulo>`).
+Se rechaza el cierre de sesión si quedan boxes vacíos.

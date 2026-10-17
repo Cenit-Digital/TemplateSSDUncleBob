@@ -48,31 +48,32 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 ### Tokens en `commands`
 
 - `{{py}}` → el intérprete de Python disponible (`python3` o `python`).
-- `{{target}}` → en `commands.mutate`, el módulo a mutar. Con `bin/harness mutate <target>`, ese único módulo; sin argumento (o con `bin/harness verify`) el motor **itera `mutation.targets`** y solo da verde si todos superan el umbral. Con `mutation.targets` vacía se ejecuta el comando tal cual (mutadores que cubren todo el proyecto, p. ej. Stryker).
+- `{{target}}` → en `commands.mutate`, el módulo a mutar. Con `bin/harness mutate <target>`, ese único módulo; sin argumento (o con `bin/harness verify`) el motor **itera `mutation.targets`** y solo da verde si todos superan el umbral. Con `mutation.targets` vacía se ejecuta el comando una sola vez, sin `{{target}}` (herramientas cuyo alcance se fija en su configuración, p. ej. Cosmic Ray).
+- `{{threshold}}` y `{{threshold_pct}}` → `mutation.threshold` en 0–1 (`0.8`) y en 0–100, entero (`80`), para pasárselo a la herramienta de mutación por línea de comandos. Son opcionales: el motor no mide ni aplica el umbral, solo mira el código de salida de `commands.mutate`. Si tu herramienta lo admite por línea de comandos, usa el token; si no (p. ej. Stryker, que lo lee de su fichero de configuración), mantén su valor alineado a mano con `mutation.threshold`. Detalle por herramienta en `docs/mutation-testing.md`.
 
 ## Recetas por stack
 
-Los adaptadores por lenguaje están en `.harness/adapters/` (`python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`); algunos aún mencionan mutadores propios de unos ejemplos que ya no existen: usa la herramienta estándar de tu stack. Las de referencia:
+Los adaptadores por lenguaje están en `.harness/adapters/` (`python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`): cada uno trae la herramienta de mutación estándar de su stack y cómo le llega el umbral. Las de referencia:
 
 ```json
 // Node / TypeScript (Vitest + Stryker + ESLint)
 "commands": { "install": "pnpm install", "lint": "eslint . && tsc --noEmit",
-              "test": "vitest run", "mutate": "stryker run", "build": "vite build" }
+              "test": "vitest run", "mutate": "stryker run --mutate \"{{target}}\"", "build": "vite build" }
 
 // Go
 "commands": { "lint": "go vet ./...", "test": "go test ./...",
-              "mutate": "gremlins unleash {{target}} --dry-run=false" }
+              "mutate": "gremlins unleash --threshold-efficacy {{threshold_pct}}" }
 
 // Rust
 "commands": { "lint": "cargo clippy -- -D warnings", "test": "cargo test",
-              "mutate": "cargo mutants --file {{target}}" }
+              "mutate": "cargo mutants -f {{target}}" }
 
 // Java
 "commands": { "lint": "mvn -q checkstyle:check", "test": "mvn -q test",
-              "mutate": "mvn -q org.pitest:pitest-maven:mutationCoverage -DtargetClasses={{target}}" }
+              "mutate": "mvn test-compile org.pitest:pitest-maven:mutationCoverage -DmutationThreshold={{threshold_pct}} -DtargetClasses=\"{{target}}\"" }
 ```
 
-Para Python, una herramienta de mutación de tu elección (por ejemplo `mutmut` o `cosmic-ray`); `python.md` y `node.md` explican cómo declarar `test` para cada stack.
+Para Python, [Cosmic Ray](https://cosmic-ray.readthedocs.io/en/latest/reference/cli.html) es la herramienta que puede hacer de puerta por sí sola; `mutmut` no. `python.md` tiene el comando completo.
 
 ## Portar a un stack nuevo
 

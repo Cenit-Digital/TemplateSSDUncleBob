@@ -49,8 +49,9 @@
 ## 3. Reglas duras (no negociables)
 
 - **Una sola feature a la vez.**
-- **No declares `done`** sin tests verdes **y** umbral de mutación superado
-  (`bin/harness test` y `bin/harness mutate`).
+- **No declares `done`** sin `bin/harness test` e `init` en verde. En nivel
+  **crítico**, además, mutación sobre los módulos que fija el plan
+  (`bin/harness mutate <módulo>`) por encima de `mutation.threshold` (0,8 por defecto).
 - **No saltes la puerta humana:** plan aprobado antes de implementar y diff
   revisado en local antes de cualquier `git push` (ver «Política de trabajo»).
 - **Un test por criterio**; TDD estricto (un test a la vez, `docs/tdd.md`) en
@@ -68,8 +69,10 @@ pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
 
 ## 5. Cierre de sesión (lifecycle)
 
-1. `./init.sh` (o `bin/harness verify`) — todo verde.
-2. Mutación sobre lo tocado — por encima del umbral.
+1. `./init.sh` (o `bin/harness init`) y `bin/harness test` — todo verde.
+2. Solo nivel crítico: `bin/harness mutate <módulo>` sobre los módulos del plan,
+   por encima del umbral (0,8 por defecto). `bin/harness verify` (init + mutación
+   completa) solo antes de una entrega.
 3. Si la tarea acabó: marca las casillas del plan y rellena «Resultados de la ejecución» en su issue (o, sin issue, en el PR).
 4. No dejes archivos temporales, ni logs de debug, ni TODOs sin contexto.
 
@@ -92,7 +95,7 @@ pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
 - **trivial:** cambio local y evidente. Un solo contexto, sin subagentes obligatorios.
 - **pequeño:** acotado a pocos ficheros y sin decisiones de diseño. Se planifica con `frontier` y se implementa con `balanced`, en la misma sesión.
 - **estándar:** varias piezas o un comportamiento nuevo. Mismo mecanismo; el plan fija los artefactos que exige.
-- **crítico:** seguridad, datos, dinero o un contrato público. El planificador sigue como orquestador y revisor: delega, puede reasignar y revisa.
+- **crítico:** seguridad, datos, dinero o un contrato público. El planificador sigue como orquestador y revisor: delega, puede reasignar y revisa. Exige además TDD estricto y mutación sobre los módulos que fija el plan (`docs/verification.md`); en los demás niveles no se corre mutación.
 
 **Puerta humana (dos puntos, todos los niveles).** 1) La persona aprueba el plan antes de implementar (en trivial basta uno de 1-2 líneas con el nivel y el motivo). 2) La persona revisa el diff en local antes de cualquier `git push`; un agente interactivo no empuja sin esa revisión.
 

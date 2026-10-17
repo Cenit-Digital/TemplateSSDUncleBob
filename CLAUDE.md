@@ -31,7 +31,7 @@ siempre a través del motor agnóstico (no los hardcodees):
 - `bin/harness init` — verificación completa del entorno y el arnés.
 - `bin/harness test` — la suite de tests.
 - `bin/harness mutate [target]` — la prueba de mutación.
-- `bin/harness verify` — init + mutación (puerta de cierre de sesión).
+- `bin/harness verify` — init + mutación completa (solo antes de una entrega; el cierre ordinario es `init` + `test`).
 - `bin/harness status` — resumen de `feature_list.json`, si el proyecto lo conserva.
 
 En Windows usa `bin\harness.ps1 <comando>`.
