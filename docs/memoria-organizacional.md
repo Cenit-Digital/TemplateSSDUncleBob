@@ -1,26 +1,28 @@
 # Memoria organizacional — patrones validados entre proyectos
 
-> El arnés aprende dentro de cada repo (`progress/history.md`, bitácora
-> append-only). La memoria organizacional hace que lo aprendido **cruce de un
-> proyecto a los demás**: patrones ya validados, sincronizados al arrancar
-> cada sesión (paso **2bis** del Protocolo de arranque de `CLAUDE.md`).
+> Cada repo aprende por su cuenta (issues y PR). La memoria organizacional hace
+> que lo aprendido **cruce de un proyecto a los demás**: patrones ya validados,
+> sincronizados al arrancar cada sesión (paso **2bis** del Protocolo de arranque
+> de `CLAUDE.md`).
+>
+> **Estado: en pausa.** El bot que la alimenta tiene su cron retirado; los
+> patrones ya validados siguen disponibles.
 
 ## De dónde sale la memoria
 
 Vive en `Cenit-Digital/SistemaDeMemoriaUncleBob` — repo **privado** a
 propósito, porque destila conocimiento de proyectos de cliente reales. Un bot
-diario (mismo linaje que el de `docs/autonomous.md`) descubre por la API
+diario (mismo linaje que el de `docs/autonomous.md`) descubría por la API
 todos los repos de la organización — los actuales y cualquiera futuro, sin
-listas que mantener —, lee su `progress/history.md` y `CHECKPOINTS.md`, y
-propone como Pull Request **1-2 patrones máximo** con origen verificable.
+listas que mantener —, leía su `progress/history.md` y `CHECKPOINTS.md`, y
+proponía como Pull Request **1-2 patrones máximo** con origen verificable.
 Nada entra en la memoria sin revisión y fusión humanas; cero patrones
 inventados es la regla número uno de su mandato
 (`SistemaDeMemoriaUncleBob/.github/MEMORIA-AUTONOMA.md`).
 
 ## Cómo se consume (el paso 2bis)
 
-Al recibir la primera tarea de una sesión, tras leer `feature_list.json` y
-`progress/current.md`:
+Al recibir la primera tarea de una sesión:
 
 ```bash
 scripts/sync-memoria.sh        # POSIX / macOS / Linux
@@ -41,13 +43,12 @@ igual. La memoria es una ventaja, nunca un punto único de fallo. Si no la
 quieres en tu proyecto, borra los dos scripts y el paso 2bis de `CLAUDE.md` —
 nada más depende de ellos.
 
-## El camino de vuelta no cuesta nada
+## El camino de vuelta (en pausa)
 
-No hay que "reportar" nada a la memoria: basta con seguir escribiendo
-`progress/history.md` rico y concreto — qué problema apareció, qué se decidió,
-qué verificación lo respaldó — que es exactamente lo que el arnés ya exige al
-cerrar cada sesión. Esa bitácora ES la materia prima que el bot destila. Un `history.md` telegráfico produce memoria pobre; uno bien escrito,
-patrones reutilizables.
+El bot destilaba el `progress/history.md` y el `CHECKPOINTS.md` de cada repo. La
+plantilla ya no exige `progress/*`, así que mientras el bot siga en pausa no
+entra nada nuevo en la memoria; lo ya validado sigue disponible. Su futuro está
+por decidir.
 
 ## Esquema de un patrón (resumen)
 
