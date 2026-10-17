@@ -27,7 +27,8 @@ mutación usa [cargo-mutants](https://mutants.rs/ci.html) (27.1.0). Ver también
 
 cargo-mutants **no tiene umbral porcentual** (no figura en su book ni en su
 `NEWS.md`; la inexistencia se deduce de esa ausencia). Es una puerta binaria:
-equivale a `threshold: 1.0`, y por eso el JSON lo declara así. Otro valor de
+equivale a `threshold: 1.0`, y por eso el JSON lo declara así: es la excepción
+(de la herramienta, no del proyecto) a la regla general de 0,8. Otro valor de
 `mutation.threshold` no llega a la herramienta.
 
 Códigos de salida oficiales (https://mutants.rs/exit-codes.html): 0 todos los

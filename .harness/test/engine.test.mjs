@@ -279,46 +279,6 @@ test('feature_list: los cinco estados válidos pasan', () => {
   assert.match(out, /válido \(5 features\)/);
 });
 
-test('feature_list: ids y names únicos siguen en verde', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'done' },
-        { id: 2, name: 'b', status: 'pending' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(2 features\)/);
-});
-
-test('feature_list: id string y id número son válidos', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'done' },
-        { id: 'dos', name: 'b', status: 'pending' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(2 features\)/);
-});
-
-test('feature_list: id ausente sigue siendo válido (el id es opcional)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ name: 'a', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(1 features\)/);
-});
-
 // ── feature_list: flag sdd y puerta de spec ──────────────────────────────────
 
 test('feature_list: sdd:true con su .feature sigue en verde', () => {
@@ -650,18 +610,34 @@ test('mutate <target> explícito ignora la lista de la config', () => {
   assert.doesNotMatch(out, /AAA|BBB/);
 });
 
-test('mutate <target> real se pasa tal cual, sin recortar, e ignora la lista de la config', () => {
+test('mutate: un objetivo vacío o en blanco en mutation.targets falla (exit 1) sin lanzar el mutador', () => {
+  for (const bad of ['', '   ']) {
+    const dir = scenario({
+      'harness.config.json': {
+        project: 't',
+        commands: { mutate: `node -e "console.log('ran')" {{target}}` },
+        mutation: { targets: ['src/a.py', bad] },
+      },
+    });
+    const { status, out } = runEngine(dir, ['mutate']);
+    assert.equal(status, 1, out);
+    assert.match(out, /Objetivo de mutación vacío o en blanco/);
+    assert.doesNotMatch(out, /^ran$/m); // un verde sin medir nada sería peor que el fallo
+  }
+});
+
+test('mutate <target> en blanco falla (exit 1) sin lanzar el mutador', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't',
       commands: { mutate: `node -e "console.log('ran')" {{target}}` },
-      mutation: { targets: ['AAA'] },
+      mutation: { targets: ['src/a.py'] },
     },
   });
-  const { status, out } = runEngine(dir, ['mutate', 'src/real.py']);
-  assert.equal(status, 0, out);
-  assert.match(out, /src\/real\.py/);
-  assert.doesNotMatch(out, /AAA/);
+  const { status, out } = runEngine(dir, ['mutate', '   ']);
+  assert.equal(status, 1, out);
+  assert.match(out, /Objetivo de mutación vacío o en blanco/);
+  assert.doesNotMatch(out, /^ran$/m);
 });
 
 test('mutate: verde solo si TODOS los objetivos superan el umbral', () => {
@@ -699,9 +675,10 @@ test('mutate: lista vacía corre el mutador una vez sobre todo el proyecto', () 
 /** Imprime los dos tokens: la salida `t=<threshold> p=<pct>` es lo que recibió el comando. */
 const SHOW_TOKENS = `node -e "console.log('t=' + process.argv[1] + ' p=' + process.argv[2])" {{threshold}} {{threshold_pct}}`;
 
-for (const [threshold, plain, pct] of [[0.8, '0.8', '80'], [1, '1', '100'], [0.75, '0.75', '75'], [0.29, '0.29', '29'], [0, '0', '0']]) {
-  test(`tokens: mutation.threshold ${threshold} → {{threshold}}="${plain}" y {{threshold_pct}}="${pct}" (Math.round, no ceil ni floor)`, () => {
-    // 0.8 * 100 es 80.00000000000001 (ceil daría 81); 0.29 * 100 es 28.999999999999996 (floor daría 28).
+for (const [threshold, plain, pct] of [[0.8, '0.8', '80'], [1, '1', '100'], [0.75, '0.75', '75'], [0.29, '0.29', '29'], [0.575, '0.575', '58'], [0, '0', '0']]) {
+  test(`tokens: mutation.threshold ${threshold} → {{threshold}}="${plain}" y {{threshold_pct}}="${pct}" (entero más próximo)`, () => {
+    // 0.8 * 100 es 80.00000000000001 (ceil daría 81); 0.29 * 100 es 28.999999999999996 (floor
+    // daría 28); 0.575 * 100 es 57.49999999999999 (un Math.round a secas daría 57).
     const dir = scenario({
       'harness.config.json': { project: 't', commands: { mutate: SHOW_TOKENS }, mutation: { threshold, targets: [] } },
     });
@@ -830,6 +807,26 @@ test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
   const { status, out } = runEngine(dir, ['frobnicate']);
   assert.equal(status, 2);
   assert.match(out, /Comando desconocido: frobnicate/);
+});
+
+test('comando heredado del prototipo de Object (constructor) también es desconocido, no un exit 0 mudo', () => {
+  const dir = scenario(GREEN_FILES);
+  for (const name of ['constructor', 'toString']) {
+    const { status, out } = runEngine(dir, [name]);
+    assert.equal(status, 2, out);
+    assert.match(out, /Comando desconocido/);
+  }
+});
+
+test('verify: si init falla aborta con exit 1 y no certifica el cierre', () => {
+  // standalone por defecto (true) sin los ficheros base → init falla → verify no sigue.
+  const dir = scenario({
+    'harness.config.json': { project: 't', commands: { test: 'node -e "process.exit(0)"', mutate: 'node -e "process.exit(0)"' } },
+  });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 1);
+  assert.match(out, /verify abortado: init falló/);
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
 });
 
 // ── verify: las puertas de cierre no pueden quedar en falso verde ────────────

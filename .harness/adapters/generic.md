@@ -23,6 +23,8 @@ dobles, nunca simples. Sin scripts envoltorio.
 
 | Stack   | test           | mutación: comando con umbral | El umbral viaja por | ¿Puerta por sí sola? |
 | ------- | -------------- | ---------------------------- | ------------------- | -------------------- |
+| Node/TS | `vitest run`   | StrykerJS: `stryker run --mutate "{{target}}"` | fichero de config (`thresholds.break`), no por token | sí (exit 1); ver `node.md` |
+| Python  | `pytest -q`    | Cosmic Ray: `cr-rate --fail-over <100 − umbral>` (3 pasos, ver `python.md`) | a mano (máximo de supervivencia) | sí (exit 1); mutmut 3.x no: ver `python.md` |
 | Go      | `go test ./...` | gremlins: `gremlins unleash --threshold-efficacy {{threshold_pct}}` | token (flag) | sí (exit 10 u 11); ver `go.md` |
 | Rust    | `cargo test`   | cargo-mutants: `cargo mutants -f {{target}}` | ninguna: binaria, equivale a umbral 1.0 | sí; ver `rust.md` |
 | Java    | `mvn test`     | PIT: `-DmutationThreshold={{threshold_pct}}` (comando completo en `java.md`) | token (Maven); fichero (Gradle) | sí; exit code NO VERIFICADO |

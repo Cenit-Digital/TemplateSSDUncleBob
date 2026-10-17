@@ -23,7 +23,10 @@ los tests.
   nivel lo fija el plan. En trivial, pequeño y estándar no se corre: un test por
   criterio y, en un bugfix, el test de regresión primero.
 - **Sobre los módulos que fija el plan:** `bin/harness mutate <módulo>` por cada
-  uno. Basta mientras se trabaja y es lo barato.
+  uno. Basta mientras se trabaja y es lo barato donde la herramienta acota por
+  módulo (StrykerJS, cargo-mutants, PIT con Maven). En gremlins, Cosmic Ray y PIT
+  con Gradle el alcance se fija en su configuración y `mutate <módulo>` no acota
+  nada: ver el adaptador.
 - **Completa, solo antes de una entrega:** `bin/harness mutate` sin módulo
   recorre `mutation.targets` (o el proyecto entero si la lista está vacía).
   `bin/harness verify` también la lanza mientras `rules.require_mutation_to_close`
@@ -72,7 +75,7 @@ detalle, las URL y lo que no se pudo verificar están en cada adaptador.
 | ----- | ----------- | -------------------- | --------- |
 | Node/TS | [StrykerJS](https://stryker-mutator.io/docs/stryker-js/configuration/) | `thresholds.break` en su config (0–100); sin flag de línea de comandos | exit 1 |
 | JVM | [PIT](https://pitest.org/quickstart/maven/) | `-DmutationThreshold` (0–100, entero) | falla la build (código exacto sin verificar) |
-| Go | [gremlins](https://gremlins.dev/latest/usage/commands/unleash/) | `--threshold-efficacy` | exit 10 |
+| Go | [gremlins](https://gremlins.dev/latest/usage/commands/unleash/) | `--threshold-efficacy` | exit 10 (11 si falla el mínimo de cobertura de mutantes) |
 | Rust | [cargo-mutants](https://mutants.rs/exit-codes.html) | sin porcentaje: binaria, equivale a umbral 1,0 | exit 2 si queda un mutante sin detectar |
 | Python | [Cosmic Ray](https://cosmic-ray.readthedocs.io/en/latest/reference/cli.html) | `cr-rate --fail-over`: máximo de supervivencia en % (100 − umbral) | exit 1 |
 

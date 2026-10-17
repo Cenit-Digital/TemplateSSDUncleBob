@@ -93,8 +93,12 @@ function loadConfig() {
     cfg.commands[key] = cfg.commands[key].trim();
   }
   cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation);
-  // Tokens de todos los comandos. Math.round, no ceil: 0.8 * 100 es 80.00000000000001.
-  cfg.tokens = { threshold: String(cfg.mutation.threshold), threshold_pct: String(Math.round(cfg.mutation.threshold * 100)) };
+  // Tokens de todos los comandos. Entero más próximo y con toFixed antes: 0.8 * 100 es
+  // 80.00000000000001 (un ceil daría 81) y 0.575 * 100 es 57.49999999999999 (daría 57).
+  cfg.tokens = {
+    threshold: String(cfg.mutation.threshold),
+    threshold_pct: String(Math.round(Number((cfg.mutation.threshold * 100).toFixed(6)))),
+  };
   cfg.standalone ??= true;
   cfg.rules = Object.assign(
     {
@@ -263,6 +267,10 @@ function cmdTest() {
  */
 function runMutation(cfg, explicitTarget = '') {
   const targets = explicitTarget ? [explicitTarget] : cfg.mutation.targets;
+  if (targets.some((t) => !t.trim())) {
+    fail('Objetivo de mutación vacío o en blanco: usa rutas reales en mutation.targets o en `mutate <módulo>`.');
+    return false;
+  }
   const list = targets.length ? targets : [''];
   const failures = [];
   for (const t of list) {
@@ -363,7 +371,7 @@ function help() {
 const cmd = (process.argv[2] || 'help').toLowerCase();
 const COMMANDS = { init: cmdInit, test: cmdTest, mutate: cmdMutate, verify: cmdVerify, status: cmdStatus, help };
 try {
-  if (!COMMANDS[cmd]) {
+  if (!Object.hasOwn(COMMANDS, cmd)) {
     fail(`Comando desconocido: ${cmd}`);
     help();
     process.exit(2);

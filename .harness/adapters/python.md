@@ -19,12 +19,12 @@ Mapea el arnés a un proyecto Python. El runner de tests puede ser la stdlib o
 - `{{py}}` lo resuelve el motor a `python3` o `python`.
 - `mutate` usa [Cosmic Ray](https://cosmic-ray.readthedocs.io/en/latest/reference/cli.html) (8.7.0), la única
   herramienta Python de este adaptador que puede ser puerta por sí sola.
-- `cr-rate --fail-over N` sale con 1 si se supera **N = máximo de supervivencia
-  en %**: con un 80 % de mutantes muertos, `--fail-over 20`. Ese valor es
+- `cr-rate --fail-over N` sale con 1 cuando el porcentaje de **supervivencia**
+  supera N: con un 80 % de mutantes muertos, `--fail-over 20`. Ese valor es
   `100 − umbral·100` y **no puede viajar por token** (`{{threshold_pct}}` daría
   80, no 20): se calcula a mano y debe mantenerse alineado con
-  `mutation.threshold`. `--fail-over 0` nunca falla, así que un umbral de 1.0 no
-  se puede expresar con `cr-rate`.
+  `mutation.threshold`. Excepción, según su código fuente: con N = 0 no comprueba
+  nada, así que un umbral de 1.0 no se puede expresar con `cr-rate`.
 - El alcance se fija con `module-path` en el TOML; por línea de comandos, NO
   VERIFICADO. Por eso el comando no usa `{{target}}`, `targets` va vacío y
   `mutate <módulo>` no acota nada. Qué hace `cosmic-ray init` si el `.sqlite` ya
