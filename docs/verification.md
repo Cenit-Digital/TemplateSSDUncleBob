@@ -1,104 +1,42 @@
-# Verificación — Cómo demostrar que el trabajo funciona
+# Verificación — cómo demostrar que el trabajo funciona
 
-> Regla de oro: **el agente no dice "funciona", lo demuestra.** Toda feature
-> termina con evidencia ejecutable, no con afirmaciones. Los comandos
-> concretos salen de `harness.config.json`; aquí van los niveles.
+> El agente no dice «funciona»: lo demuestra con evidencia ejecutable. Los comandos salen de `harness.config.json`; aquí, qué evidencia exige cada nivel de tarea (la política está en la «Política de trabajo» de `AGENTS.md`).
 
-## Niveles de verificación
+## Definición de hecho
 
-### Nivel 1 — Tests unitarios (obligatorio)
+En todos los niveles: `bin/harness test` en verde y `bin/harness init` en verde antes de cerrar.
 
-Toda función pública en `src/` tiene al menos un test que (1) cubre el camino
-feliz y (2) cubre al menos un camino de error si la función puede fallar.
+| Nivel | Evidencia que se añade |
+| --- | --- |
+| trivial | Nada más. |
+| pequeño y estándar | Un test por criterio de aceptación; en un bugfix, el test de regresión escrito primero y visto fallar. |
+| crítico | TDD estricto (`docs/tdd.md`) y mutación sobre los módulos que fija el plan. |
 
-```bash
-bin/harness test
-```
+## Qué se prueba
 
-### Nivel 2 — Test de integración de la interfaz (obligatorio para features de UI/CLI)
+1. **Unitarios (siempre).** Toda función pública nueva tiene un test del camino feliz y, si puede fallar, de un camino de error. Deben comprobar el resultado concreto, no solo que no lance.
+2. **Integración de la interfaz (features de UI/CLI).** Se ejecuta la interfaz real contra un entorno aislado (directorio temporal, base de datos efímera…), nunca con mocks del sistema de ficheros.
+3. **Smoke manual (recomendado).** Antes de cerrar, un flujo de punta a punta con datos desechables, y límpialo.
 
-Las features que añaden comandos/pantallas se verifican ejecutando la interfaz
-real contra un entorno aislado (directorio temporal, base de datos efímera…),
-nunca con mocks del sistema de ficheros.
+## Trazabilidad criterio → test
 
-### Nivel 3 — Smoke test manual (recomendado)
+Cada criterio de aceptación tiene al menos un test cuyo nombre lo cita. El PR lo declara en «Cómo se probó», con los comandos y los resultados reales; quien revisa rechaza si falta uno.
 
-Antes de cerrar, ejecuta un flujo end-to-end con datos desechables y límpialo.
+## Mutación (nivel crítico)
 
-### Nivel 4 — Trazabilidad de escenarios (obligatorio para features `"sdd": true`)
+Una suite verde no basta: hay que demostrar que los tests **muerden**. Se corre `bin/harness mutate <módulo>` sobre los módulos que fija el plan; la mutación completa (`bin/harness verify`) solo antes de una entrega.
 
-Cada escenario `@s` de `features/<name>.feature` mapea a al menos un test
-concreto. Quien revisa rechaza si falta cobertura. El mapa vive en
-`progress/tdd_<name>.md`:
+- Umbral **0,8** por defecto (`mutation.threshold`); 1,0 solo por excepción justificada y registrada.
+- Un mutante superviviente se mata con un test nuevo o se justifica como equivalente en el issue o el PR; tope de 2 iteraciones.
+- Principios y adaptadores por stack: `docs/mutation-testing.md` y `.harness/adapters/`.
 
-```markdown
-## Trazabilidad
-- @s1 (archivo vacío → 0) → test_count_archivo_vacio
-- @s2 (varias notas → 3)  → test_count_varias_notas
-- @s3 (no muta el archivo) → test_count_no_muta_archivo
-```
+## Anti-patrones
 
-### Nivel 5 — Prueba de mutación (obligatorio para cerrar una feature sdd)
+- ❌ «He añadido el comando, debería funcionar.» → falta test ejecutable.
+- ❌ Un test que solo comprueba que la función no lanza.
+- ❌ Mockear el sistema de ficheros en vez de aislarlo de verdad.
+- ❌ Dar la tarea por hecha sin pasar `bin/harness init`.
 
-Una suite verde no basta: hay que demostrar que los tests **muerden**.
+## El motor del arnés
 
-```bash
-bin/harness mutate
-```
-
-Todo mutante sobreviviente se mata con un test nuevo o se justifica como
-equivalente en `progress/mutation_<name>.md`.
-
-## Anti-patrones (no hacer)
-
-- ❌ "He añadido el comando, debería funcionar." → falta test ejecutable.
-- ❌ Test que solo verifica que la función no lanza excepción. → debe
-  comprobar el resultado concreto.
-- ❌ Mock del filesystem. → usa aislamiento real (directorio temporal).
-- ❌ Marcar la feature como `done` sin pasar `bin/harness init`.
-
-## Verificación final antes de cerrar
-
-```bash
-bin/harness verify     # init (entorno + tests) + prueba de mutación
-```
-
-Si `verify` está rojo o sobreviven mutantes sin justificar, **no** marques
-nada como `done`. Anota el bloqueo en `progress/current.md` con estado
-`blocked` en `feature_list.json`.
-
-## El propio motor del arnés se testea
-
-El motor `.harness/harness.mjs` es toda la cadena de verificación, así que
-también tiene su propia red de seguridad: `.harness/test/engine.test.mjs` fija
-por regresión sus conductas críticas (los guardianes de forma de config, la
-tolerancia a BOM, la forma de `mutation.targets`, la sustitución literal del
-token `{{target}}`, el gate de tests-en-`src/`…). Se corre sin dependencias
-npm, solo con la stdlib de Node (`node:test`):
-
-```bash
-node --test .harness/test/engine.test.mjs
-```
-
-> Ruta de fichero explícita (no directorio ni glob) a propósito: funciona en
-> Node 18+, el mínimo del arnés, y es la única forma fiable en Node 22 —la forma
-> de directorio (`node --test .harness/test/`) intenta cargar la carpeta como
-> módulo y revienta con `MODULE_NOT_FOUND`—.
-
-Para que una regresión del motor ponga la CI en rojo (y no en falso verde),
-añade este job a `.github/workflows/harness-ci.yml`, junto a `root-harness`:
-
-```yaml
-  engine-tests:
-    name: Motor del arnés (red de regresión)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-      - run: node --test .harness/test/engine.test.mjs
-```
-
-Si tocas el motor, este suite debe seguir verde: es la evidencia de que un
-cambio en el verificador no rompe en silencio la propia puerta que protege.
+`.harness/harness.mjs` se mantiene en la plantilla (sus pruebas, `.harness/test/`, no se propagan): un derivado no lo edita; un fallo se reporta en la plantilla.
