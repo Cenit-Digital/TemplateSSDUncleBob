@@ -1,170 +1,65 @@
-# TemplateSSDUncleBob — Arnés SDD estilo Uncle Bob (agnóstico al lenguaje)
+# TemplateSSDUncleBob — plantilla de arnés SSD para trabajar con agentes de IA
 
-Plantilla **reutilizable para cualquier proyecto** que aplica el flujo de
-desarrollo con IA de **Robert C. Martin (Uncle Bob)**, popularizado por
-[BettaTech](https://github.com/betta-tech/harness-sdd):
+Plantilla **agnóstica al lenguaje** para desarrollar con agentes de IA (Claude Code, Codex, GitHub Copilot, OpenCode…) de forma proporcional al riesgo, verificable y barata. Adapta el método que divulga [BettaTech](https://github.com/betta-tech/harness-sdd) (basado en el trabajo de Robert C. Martin, «Uncle Bob») y las prácticas del vídeo [«7 pasos para programar mejor con coding agents»](https://youtu.be/dhkiC4Iq1eM).
 
-> **conversar la spec → destilarla en Gherkin → tallar con TDD estricto →
-> podar con juicio (review) → validar con prueba de mutación.**
+Lo que fija la plantilla es **cómo se trabaja**, no tu aplicación: planificar, aprobar el plan, implementar con el modelo justo, revisar el diff en local y abrir un PR pequeño. Lo único que cambia por proyecto son los comandos de tu stack, en `harness.config.json`.
 
-Lo importante no es la app: es **cómo se estructura el trabajo para que un
-agente de IA desarrolle de forma autónoma y verificable**, con una sola puerta
-de aprobación humana en el plan antes de implementar y en la revisión del diff antes de empujar.
+## La política en cuatro líneas
 
-> 📚 Documentación viva y ampliada: **https://cenit-digital.github.io/DocsTemplateSSDUncleBob/**
+Texto completo: la «Política de trabajo» del final de `AGENTS.md`.
 
-## Qué la hace distinta: es agnóstica al lenguaje
+- **Niveles:** trivial, pequeño, estándar y crítico. Quien planifica los clasifica por juicio y escribe el nivel y su motivo en el plan; la persona lo corrige al aprobarlo.
+- **Puerta humana, en dos puntos:** la persona aprueba el plan antes de implementar y revisa el diff en local antes de cualquier `git push`.
+- **Delegación por capacidad, no por proveedor:** `frontier` planifica y revisa, `balanced` implementa, `fast` hace lo mecánico. Qué modelo es cada uno en cada herramienta: `docs/modelos.md` (Claude Code usa `opusplan` por defecto).
+- **Pruebas proporcionales:** un test por criterio de aceptación; TDD estricto y mutación solo en el nivel crítico.
 
-La política de trabajo y los agentes son **fijos**. Lo único que cambia por
-proyecto son los comandos de tu stack, declarados en un `harness.config.json`:
+## Usar la plantilla
 
-```json
-{
-  "commands": {
-    "test":   "…tu comando de tests…",
-    "mutate": "…tu prueba de mutación…"
-  },
-  "mutation": { "threshold": 0.8 }
-}
+1. En GitHub, pulsa **«Use this template»** (o clona el repo). Requisito del arnés: **Node.js ≥ 18**; tu proyecto usa el runtime que quiera.
+2. Edita `harness.config.json` con los comandos de tu stack (`docs/configuration.md`, adaptadores en `.harness/adapters/`).
+3. Verifica el entorno: `./init.sh` (POSIX), `pwsh ./init.ps1` (Windows) o `node .harness/harness.mjs init`.
+4. Abre tu agente en la raíz (`CLAUDE.md` y `GEMINI.md` importan `AGENTS.md`), pide la tarea y aprueba el plan que te proponga.
+
+| Comando | Qué hace |
+| --- | --- |
+| `bin/harness init` | Verifica entorno, ficheros base y tests |
+| `bin/harness test` | La suite de tests declarada |
+| `bin/harness mutate [módulo]` | La prueba de mutación |
+| `bin/harness verify` | `init` + mutación completa (antes de una entrega) |
+
+En Windows: `bin\harness.ps1 <comando>`.
+
+## Cómo se propaga a los derivados
+
+Los repos creados desde la plantilla reciben sus cambios con `scripts/harness-upgrade.mjs` (modelo pull, 0 tokens; requiere Node ≥ 18 y git). `harness.manifest.json` dice qué es de la plantilla (se reemplaza), qué es del proyecto (nunca se toca) y qué se queda solo aquí. La política de `AGENTS.md` viaja en un bloque entre marcadores `harness:begin/end`: se reemplaza ese bloque y el resto del fichero es del proyecto.
+
+Desde la raíz del derivado y en una rama:
+
+```bash
+node scripts/harness-upgrade.mjs --check   # solo lectura: lista la deriva
+node scripts/harness-upgrade.mjs --diff    # lo mismo, y enseña el diff de cada fichero
+node scripts/harness-upgrade.mjs --apply   # reemplaza tras mostrar el diff y pedir confirmación (--yes la omite)
 ```
 
-Un motor de **cero dependencias** (`.harness/harness.mjs`, solo Node ≥ 18) lee
-esa config y ejecuta tus comandos. Así el mismo arnés sirve para Python,
-Node/TS, Go, Rust, Java… Ver `docs/configuration.md` y `.harness/adapters/`.
+Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con error): cada cambio que quieras propagar necesita un tag nuevo. Los JSON mixtos (`harness.config.json`, `.claude/settings.json`) solo se reemplazan si los nombras con `--replace-json <ruta>`, y `--apply` rechaza pisar ediciones sin confirmar. El diseño y sus porqués: `docs/decisiones/0001-rediseno-arnes.md`, que solo vive en la plantilla.
 
-## El pipeline
+## Mapa del repo
 
-> **Legado:** este flujo está retirado; la política vigente es la «Política de
-> trabajo» de `AGENTS.md`. Se conserva hasta que se reescriba la documentación.
+| Dónde | Qué hay |
+| --- | --- |
+| `AGENTS.md` | Mapa de navegación y política de trabajo, para cualquier agente |
+| `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; `CLAUDE.md` añade el arranque propio de Claude Code |
+| `harness.config.json` · `harness.schema.json` | El único punto que depende del stack |
+| `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje y comprobador del PR |
+| `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
+| `docs/` | Guías cortas: TDD, criterios en Gherkin, verificación, arquitectura, convenciones, configuración, modelos y palancas de usuario |
+| `.github/` | Plantillas de issue y de PR (cuatro bloques y «Impacto en tareas anteriores»), CI y guardián de rutas sensibles |
 
-```
-pending
-  → [spec_partner]    CONVERSACIÓN  → project-spec.md
-  → [gherkin_author]  DESTILACIÓN   → features/<name>.feature   (spec_ready)
-  → ⏸  PUERTA HUMANA: el humano aprueba los escenarios
-  → in_progress
-  → [tdd_craftsman]   ROJO → VERDE → REFACTOR  → src/ + tests/
-  → [judge]           REVIEW ("el review es el juego entero")
-  → [mutation_tester] MUTACIÓN (valida que los tests muerden)
-  → done
-```
+## Opcional, hoy en pausa
 
-Una sola feature a la vez. Estado en disco (no en el chat): `project-spec.md`,
-`features/`, `progress/` sobreviven a reinicios y ventanas de contexto.
-
-## Arranque rápido
-
-### Usar como plantilla
-
-1. En GitHub, pulsa **«Use this template»** (o clona el repo).
-2. Requisito único del arnés: **Node.js ≥ 18** (para el motor). Tu proyecto
-   usa el runtime que quieras.
-3. Edita `harness.config.json` con los comandos de tu stack
-   (ver `docs/configuration.md` o copia un ejemplo de `examples/`).
-4. Verifica el entorno:
-
-   ```bash
-   ./init.sh                 # POSIX / macOS / Linux
-   pwsh ./init.ps1           # Windows / PowerShell
-   # o, en cualquier plataforma:
-   node .harness/harness.mjs init
-   ```
-
-5. Abre Claude Code en la raíz: `CLAUDE.md` importa `AGENTS.md` y su «Política
-   de trabajo» (niveles, plan aprobado, diff revisado en local). Pide la tarea
-   y el planificador te propondrá el plan.
-
-### Comandos del arnés
-
-| Comando                    | Qué hace                                            |
-| -------------------------- | --------------------------------------------------- |
-| `bin/harness init`         | Verifica entorno, ficheros base, feature_list, tests |
-| `bin/harness test`         | La suite de tests declarada                          |
-| `bin/harness mutate [t]`   | La prueba de mutación                                |
-| `bin/harness verify`       | init + mutación (puerta de cierre)                  |
-| `bin/harness status`       | Resumen de `feature_list.json`                      |
-
-(En Windows: `bin\harness.ps1 <comando>`.)
-
-## Ejemplos ejecutables (verificados al 100%)
-
-Cuatro arneses completos, listos para inspeccionar o copiar como punto de partida:
-
-| Ejemplo                     | Stack                    | Tests | Mutación |
-| --------------------------- | ------------------------ | ----- | -------- |
-| `examples/python-notes-cli` | Python (stdlib)          | 47    | 100%     |
-| `examples/node-notes-cli`   | Node/JS (cero deps)      | 29    | 100%     |
-| `examples/go-notes-cli`     | Go (stdlib)              | 35    | 100%     |
-| `examples/rust-notes-cli`   | Rust (cero deps)         | 58    | 100%     |
-
-Los cuatro demuestran el flujo Uncle Bob de punta a punta con un mutador propio
-sin dependencias. Para producción en TS, el adaptador Node usa Vitest +
-StrykerJS; para Go, el adaptador usa gremlins; para Rust, cargo-mutants.
-
-## Los agentes (`.claude/agents/`)
-
-**De nivel (3):** `worker_fast`, `worker_balanced` y `reviewer_frontier` (ver
-`docs/modelos.md`).
-
-**Especialistas, opcionales (3):** `security_reviewer`, `a11y_seo_auditor` (UI
-web) y `mentor`. Bórralos si tu proyecto no los necesita.
-
-## Estructura
-
-```
-.
-├── CLAUDE.md · AGENTS.md · CHECKPOINTS.md   # gobernanza del arnés
-├── harness.config.json · harness.schema.json # ⭐ el punto agnóstico
-├── init.sh · init.ps1 · bin/harness(.ps1)    # lanzadores multiplataforma
-├── scripts/sync-memoria.(sh|ps1)             # memoria organizacional (paso 2bis)
-├── .harness/
-│   ├── harness.mjs                           # motor agnóstico (cero deps)
-│   └── adapters/                             # python.md · node.md · go.md · rust.md · java.md · generic.md
-├── docs/                                     # workflow · tdd · gherkin · mutation
-│   │                                         #   architecture · conventions · verification
-│   └── configuration · tooling · autonomous · memoria-organizacional
-├── .claude/agents/                           # 3 de nivel + 3 especialistas (+ 6 legado)
-├── feature_list.json · project-spec.md       # alcance y spec
-├── features/ · progress/ · src/ · tests/     # contrato, estado y código
-├── examples/{python,node}-notes-cli/         # arneses completos de referencia
-└── .github/
-    ├── workflows/harness-ci.yml              # CI: init + mutación de los ejemplos
-    ├── workflows/autonomous-evolve.yml       # bot diario de auto-mejora (solo PR)
-    ├── workflows/guard-sensitive-paths.yml   # marca PRs que tocan rutas sensibles
-    ├── AUTONOMOUS.md                          # mandato del bot (ver docs/autonomous.md)
-    └── CODEOWNERS                             # revisión obligatoria del dueño (sensibles)
-```
-
-## Evolución autónoma (opcional)
-
-Un workflow programado puede mejorar el propio arnés de forma acotada: una vez
-por semana elige una tarea de un backlog, la completa con verificación real y
-**abre un Pull Request que un humano revisa y fusiona a mano** (nunca auto-merge).
-
-- Disparador: `.github/workflows/autonomous-evolve.yml`
-- Mandato y límites duros: `.github/AUTONOMOUS.md`
-- Guardián + propietarios: `.github/workflows/guard-sensitive-paths.yml` · `.github/CODEOWNERS`
-- Puesta en marcha, coste y **protección de rama obligatoria**: **`docs/autonomous.md`**
-
-La política "solo abre PR" se respalda mecánicamente con protección de rama sobre
-`main` (paso obligatorio de la checklist en `docs/autonomous.md`). Solo corre en el
-repositorio canónico; quien use la plantilla opta explícitamente con la variable de
-repo `ENABLE_AUTONOMOUS_EVOLVE=true`, o borra esos ficheros si no lo quiere.
-
-## Memoria organizacional (opcional)
-
-Los proyectos de Cénit Digital comparten patrones ya validados a través de un
-repo privado de memoria (`SistemaDeMemoriaUncleBob`). Esta plantilla nace
-conectada: el paso 2bis del Protocolo de arranque (`CLAUDE.md`) sincroniza esos
-patrones en `.memoria-cache/` con `scripts/sync-memoria.(sh|ps1)` y los consulta
-antes de diseñar desde cero. El paso es **no bloqueante**: sin acceso a ese repo
-(p. ej. usando la plantilla desde fuera de la organización), el arranque sigue
-exactamente igual — y puedes borrar los dos scripts y el paso 2bis si no lo
-quieres. Detalles: `docs/memoria-organizacional.md`.
+- **Evolución autónoma:** un workflow (`.github/workflows/autonomous-evolve.yml`) puede mejorar el propio arnés abriendo PR que una persona revisa. Su cron está retirado; solo se lanza a mano. Mandato en `.github/AUTONOMOUS.md`, puesta en marcha en `docs/autonomous.md`.
+- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso 2bis de `CLAUDE.md`, no bloqueante). El bot que la alimenta está en pausa. Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 
-Método de **Robert C. Martin (Uncle Bob)**, destilado por **BettaTech**
-([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2),
-[repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)).
-Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT.
+Método de **Robert C. Martin (Uncle Bob)**, destilado por **BettaTech** ([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2), [repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)). Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT.
