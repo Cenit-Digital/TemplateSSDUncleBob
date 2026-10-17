@@ -3,7 +3,8 @@
   "description": "Qué ficheros son de la plantilla y cuáles del proyecto (ADR 0001, D9). Lo lee scripts/harness-upgrade.mjs de la plantilla descargada. Cada fichero cae en exactamente una categoría; una entrada que acaba en '/' es un directorio. template: se propaga tal cual. executable: subconjunto de template que debe llevar el bit ejecutable. mixedBlock: contiene un bloque gestionado entre marcadores; blockSource es el fichero de la plantilla que lo define (marcadores incluidos) y el script lo compara y lo reemplaza. mixedJson: JSON mixto, solo se informa de la deriva. project: del proyecto, nunca se toca. excluded: solo de la plantilla, no se propaga.",
   "template": [
     ".claude/agents/", ".github/ISSUE_TEMPLATE/", ".github/pull_request_template.md",
-    ".harness/adapters/", ".harness/harness.mjs", "CHECKPOINTS.md",
+    ".github/workflows/pr-body.yml", ".harness/adapters/", ".harness/harness.mjs", ".harness/pr-body.mjs",
+    "CHECKPOINTS.md",
     "bin/harness", "bin/harness.ps1", "GEMINI.md", "harness.manifest.json", "harness.schema.json",
     "init.ps1", "init.sh", "scripts/harness-upgrade.mjs",
     "docs/architecture.md", "docs/configuration.md", "docs/conventions.md", "docs/gherkin.md",
