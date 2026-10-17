@@ -312,3 +312,20 @@ test('CLAUDE.md y GEMINI.md importan AGENTS.md', () => {
   assert.ok(lines('CLAUDE.md').includes('@AGENTS.md'), 'CLAUDE.md necesita la línea @AGENTS.md');
   assert.ok(lines('GEMINI.md').includes('@./AGENTS.md'), 'GEMINI.md necesita la línea @./AGENTS.md');
 });
+
+// Sin parser de YAML en el repo: reglas de escalares planos (un ": " sin comillas rompe el YAML y GitHub ignora la plantilla en silencio).
+test('la plantilla de issue tiene un front matter con name y about que GitHub puede leer', () => {
+  const text = fs.readFileSync(path.join(REPO, '.github', 'ISSUE_TEMPLATE', 'tarea.md'), 'utf8').replace(/\r\n/g, '\n');
+  const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  assert.ok(m, 'sin front matter entre ---');
+  const keys = {};
+  for (const line of m[1].split('\n')) {
+    const kv = /^([A-Za-z_]+):\s*(.*)$/.exec(line);
+    assert.ok(kv, `no es "clave: valor": ${line}`);
+    const [, key, v] = kv;
+    if (/^["']/.test(v)) assert.ok(v.length > 1 && v.endsWith(v[0]), `${key}: comillas sin cerrar`);
+    else assert.ok(!/: | #/.test(v), `${key}: un valor sin comillas no puede llevar ": " ni " #" (YAML inválido)`);
+    keys[key] = v;
+  }
+  for (const k of ['name', 'about']) assert.ok(keys[k] && !/^(""|'')$/.test(keys[k]), `falta ${k}`);
+});

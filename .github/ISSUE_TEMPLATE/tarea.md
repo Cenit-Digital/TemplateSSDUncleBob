@@ -1,8 +1,6 @@
 ---
 name: Tarea
-about: Una tarea del arnés SSD: objetivo, nivel, criterios, plan y resultados
-title: ""
-labels: []
+about: "Una tarea del arnés SSD: objetivo, nivel, criterios, plan y resultados"
 ---
 
 ## Objetivo
