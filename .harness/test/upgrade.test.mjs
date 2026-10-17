@@ -378,3 +378,23 @@ test('docs/modelos.md recoge, en una misma línea, cada agente y su modelo', () 
     assert.ok(lines.some((l) => l.includes(`\`${name}\``) && l.includes(`\`${model}\``)), `${name} → ${model}`);
   }
 });
+
+const USER_INSTRUCTIONS_SOURCES = { 'Claude Code': 'code.claude.com', Codex: 'learn.chatgpt.com', Copilot: 'code.visualstudio.com', OpenCode: 'opencode.ai', 'Gemini CLI': 'geminicli.com' };
+
+test('docs/instrucciones-de-usuario.md: la plantilla trae los siete pasos y cada herramienta cita ruta y fuente o dice «sin verificar»', () => {
+  const doc = fs.readFileSync(path.join(REPO, 'docs', 'instrucciones-de-usuario.md'), 'utf8').replace(/\r\n/g, '\n');
+  const fence = /^```markdown\n([\s\S]*?)\n```$/m.exec(doc);
+  assert.ok(fence, 'falta el bloque ```markdown con la plantilla');
+  for (let n = 1; n <= 7; n++) assert.match(fence[1], new RegExp(`^## ${n}\\. `, 'm'), `falta el paso ${n}`);
+  assert.match(fence[1], /^## Complementos$/m);
+  assert.match(fence[1], /si chocan, gana el del repo/); // manda el AGENTS.md del repo
+  assert.match(fence[1], /sesión nueva con un título/); // avisar si la petición se sale del objetivo
+  assert.match(doc, /^> Consultado el \*\*\d{4}-\d{2}-\d{2}\*\*/m);
+  const sources = doc.split(/^## Fuentes$/m)[1] ?? '';
+  for (const [tool, host] of Object.entries(USER_INSTRUCTIONS_SOURCES)) {
+    const row = doc.split('\n').find((l) => l.startsWith(`| ${tool}`));
+    assert.ok(row, `${tool}: sin fila en la tabla de instalación`);
+    assert.match(row.split('|')[2], /`~\/[^`]+`/, `${tool}: sin ruta del fichero personal en su celda`);
+    assert.ok(/\[R\]/.test(row) ? sources.includes(`https://${host}/`) : /sin verificar/.test(row), `${tool}: ni fuente ([R] y https://${host}/ en «Fuentes») ni «sin verificar»`);
+  }
+});
