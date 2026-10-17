@@ -8,12 +8,12 @@
 //   node .harness/harness.mjs <comando>
 //
 // Comandos:
-//   init     Verifica entorno, ficheros base, feature_list.json y corre los tests.
+//   init     Verifica entorno, ficheros base, feature_list.json (opcional) y corre los tests.
 //   test     Ejecuta el comando de tests declarado en config.commands.test.
 //   mutate   Ejecuta la prueba de mutación (config.commands.mutate). Sin target
 //            explícito itera config.mutation.targets; con target, solo ese módulo.
 //   verify   init + lint + mutate: la verificación completa (puerta de cierre).
-//   status   Resume el estado de feature_list.json.
+//   status   Resume el estado de feature_list.json (opcional).
 //   help     Muestra esta ayuda.
 //
 // Requisito único del arnés: Node.js >= 18 (sin dependencias npm; solo stdlib).
@@ -363,12 +363,16 @@ function dirHasFiles(dir) {
   }
 }
 
-/** Valida feature_list.json y devuelve {ok, features}. */
+/**
+ * Valida feature_list.json y devuelve {ok, features, absent?}. El fichero es
+ * OPCIONAL: si no existe no hay nada que validar ({ok: true, absent: true}). Si
+ * existe se valida entero, y un fichero corrupto sigue siendo [FAIL].
+ */
 function validateFeatureList(cfg) {
   const p = path.join(CWD, cfg.paths.feature_list);
   if (!fs.existsSync(p)) {
-    fail(`Falta ${cfg.paths.feature_list}`);
-    return { ok: false, features: [] };
+    ok(`${cfg.paths.feature_list} ausente (opcional): se omite la validación de features`);
+    return { ok: true, features: [], absent: true };
   }
   let data;
   try {
@@ -595,12 +599,15 @@ function cmdInit() {
   if (cfg.standalone === false) {
     warn('standalone:false — este proyecto hereda el arnés raíz; se omite la comprobación de ficheros base.');
   } else {
+    // [ruta, opcional]. feature_list.json y progress/current.md son opcionales:
+    // si existen se comprueban como siempre; si faltan, se avisa sin fallar.
     const base = [
-      'AGENTS.md', 'CLAUDE.md', 'CHECKPOINTS.md', 'docs/workflow.md',
-      cfg.paths.feature_list, path.join(cfg.paths.progress, 'current.md'),
+      ['AGENTS.md', false], ['CLAUDE.md', false], ['CHECKPOINTS.md', false], ['docs/workflow.md', false],
+      [cfg.paths.feature_list, true], [path.join(cfg.paths.progress, 'current.md'), true],
     ];
-    for (const f of base) {
+    for (const [f, optional] of base) {
       if (fs.existsSync(path.join(CWD, f))) ok(`Existe ${f}`);
+      else if (optional) ok(`Opcional y ausente: ${f} (se omite)`);
       else {
         fail(`Falta archivo base: ${f}`);
         exit = 1;
@@ -848,7 +855,9 @@ function cmdStatus() {
   // `feature_list.json` está corrupto (features no-array), validateFeatureList
   // dejó v.features en [] tras imprimir su [FAIL]: mostrar aquí "sin features"
   // contradiría ese fallo (la lista no está vacía, está mal formada).
-  if (v.ok && !v.features.length) {
+  if (v.absent) {
+    console.log(`  (sin ${cfg.paths.feature_list}: es opcional; nada que resumir)`);
+  } else if (v.ok && !v.features.length) {
     console.log('  (sin features definidas todavía)');
   } else {
     for (const f of v.features) {
@@ -877,11 +886,11 @@ function help() {
 
   node .harness/harness.mjs <comando>
 
-  ${bold('init')}     Verifica entorno, ficheros base, feature_list.json, lint y tests.
+  ${bold('init')}     Verifica entorno, ficheros base, feature_list.json (opcional), lint y tests.
   ${bold('test')}     Ejecuta config.commands.test.
   ${bold('mutate')}   Ejecuta la prueba de mutación (config.commands.mutate [target]).
   ${bold('verify')}   init + mutación (puerta de cierre de sesión).
-  ${bold('status')}   Resume feature_list.json.
+  ${bold('status')}   Resume feature_list.json (opcional).
   ${bold('help')}     Esta ayuda.
 
   Configuración: ${CONFIG_NAME} (declara paths, commands, mutation, rules).
