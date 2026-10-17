@@ -42,7 +42,7 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 }
 ```
 
-- `feature_list.json` y `progress/` ya **no son obligatorios**: si faltan, `init` los omite; si existen, se validan.
+- `feature_list.json` y `progress/` ya **no son obligatorios**: si faltan, `init` los omite; `feature_list.json`, si existe, se valida.
 - Las dos primeras `rules` actúan sobre las features de `feature_list.json` (sin él no hacen nada). `require_tests_to_close` y `require_mutation_to_close` rigen `verify`: con `true` y el comando vacío, `verify` aborta; pon `require_mutation_to_close` a `false` si tu proyecto no cierra por mutación.
 
 ### Tokens en `commands`
@@ -52,7 +52,7 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 
 ## Recetas por stack
 
-Los adaptadores completos están en `.harness/adapters/`: `python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`. Las herramientas de mutación de referencia:
+Los adaptadores por lenguaje están en `.harness/adapters/` (`python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`); algunos aún mencionan mutadores propios de un directorio `examples/` que no se propaga: usa la herramienta estándar de tu stack. Las de referencia:
 
 ```json
 // Node / TypeScript (Vitest + Stryker + ESLint)
@@ -72,7 +72,7 @@ Los adaptadores completos están en `.harness/adapters/`: `python.md`, `node.md`
               "mutate": "mvn -q org.pitest:pitest-maven:mutationCoverage -DtargetClasses={{target}}" }
 ```
 
-Python y Node/JS sin dependencias externas: ver `python.md` y `node.md`.
+Para Python, una herramienta de mutación de tu elección (por ejemplo `mutmut` o `cosmic-ray`); `python.md` y `node.md` explican cómo declarar `test` para cada stack.
 
 ## Portar a un stack nuevo
 

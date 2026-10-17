@@ -4,13 +4,7 @@
 
 ## Definición de hecho
 
-En todos los niveles: `bin/harness test` en verde y `bin/harness init` en verde antes de cerrar.
-
-| Nivel | Evidencia que se añade |
-| --- | --- |
-| trivial | Nada más. |
-| pequeño y estándar | Un test por criterio de aceptación; en un bugfix, el test de regresión escrito primero y visto fallar. |
-| crítico | TDD estricto (`docs/tdd.md`) y mutación sobre los módulos que fija el plan. |
+En todos los niveles: `bin/harness test` y `bin/harness init` en verde antes de cerrar, **un test por criterio de aceptación** y, en un bugfix, el test de regresión escrito primero y visto fallar. El nivel **crítico** añade TDD estricto (`docs/tdd.md`) y mutación sobre los módulos que fija el plan.
 
 ## Qué se prueba
 
@@ -20,13 +14,14 @@ En todos los niveles: `bin/harness test` en verde y `bin/harness init` en verde 
 
 ## Trazabilidad criterio → test
 
-Cada criterio de aceptación tiene al menos un test cuyo nombre lo cita. El PR lo declara en «Cómo se probó», con los comandos y los resultados reales; quien revisa rechaza si falta uno.
+Cada criterio de aceptación tiene al menos un test cuyo nombre lo refleja. El PR declara en «Cómo se probó» qué test cubre cada criterio, con los comandos y los resultados reales; quien revisa rechaza si falta uno.
 
 ## Mutación (nivel crítico)
 
 Una suite verde no basta: hay que demostrar que los tests **muerden**. Se corre `bin/harness mutate <módulo>` sobre los módulos que fija el plan; la mutación completa (`bin/harness verify`) solo antes de una entrega.
 
-- Umbral **0,8** por defecto (`mutation.threshold`); 1,0 solo por excepción justificada y registrada.
+- Umbral: se declara en `mutation.threshold` (**0,8** por defecto; 1,0 solo por excepción justificada y registrada) y lo aplica el comando `commands.mutate`: el motor solo mira su código de salida.
+- `bin/harness verify` aborta si `commands.mutate` está vacío mientras `rules.require_mutation_to_close` sea `true`: si tu proyecto no corre mutación, ponla a `false` (`docs/configuration.md`).
 - Un mutante superviviente se mata con un test nuevo o se justifica como equivalente en el issue o el PR; tope de 2 iteraciones.
 - Principios y adaptadores por stack: `docs/mutation-testing.md` y `.harness/adapters/`.
 

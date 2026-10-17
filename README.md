@@ -27,7 +27,7 @@ Texto completo: la «Política de trabajo» del final de `AGENTS.md`.
 | `bin/harness mutate [módulo]` | La prueba de mutación |
 | `bin/harness verify` | `init` + mutación completa (antes de una entrega) |
 
-En Windows: `bin\harness.ps1 <comando>`.
+En Windows: `bin\harness.ps1 <comando>`. `verify` aborta si `commands.mutate` está vacío mientras `rules.require_mutation_to_close` sea `true` (`docs/configuration.md`).
 
 ## Cómo se propaga a los derivados
 
@@ -58,7 +58,7 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 ## Opcional, hoy en pausa
 
 - **Evolución autónoma:** un workflow (`.github/workflows/autonomous-evolve.yml`) puede mejorar el propio arnés abriendo PR que una persona revisa. Su cron está retirado; solo se lanza a mano. Mandato en `.github/AUTONOMOUS.md`, puesta en marcha en `docs/autonomous.md`.
-- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso 2bis de `CLAUDE.md`, no bloqueante). El bot que la alimenta está en pausa. Detalles: `docs/memoria-organizacional.md`.
+- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso 2bis de `CLAUDE.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 

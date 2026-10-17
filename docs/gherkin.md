@@ -5,7 +5,7 @@
 ## Dónde viven
 
 - **En el issue o el plan:** un criterio = un test. Cada `Then` afirma algo medible.
-- **Spec viva (opcional):** un fichero por capacidad, `features/<capacidad>.feature`. El mismo PR que cambia el comportamiento lo actualiza en su diff, así no deriva. No se ejecuta con ningún runner BDD (ver abajo).
+- **Spec viva (opcional):** un fichero por capacidad, `features/<capacidad>.feature`. El mismo PR que cambia el comportamiento lo actualiza en su diff, así no deriva. No se ejecuta con ningún runner BDD (ver abajo). Si tu proyecto conserva `feature_list.json`, una feature con `sdd: true` sí exige su `features/<name>.feature` (lo comprueba `init`).
 
 ## Estructura
 
@@ -23,7 +23,7 @@ Feature: <propósito en una frase>
 ## Reglas
 
 - **Un `Scenario` por comportamiento observable**, incluidos los caminos de error (id inexistente, entrada inválida, estado vacío).
-- **Tags estables** `@s1`, `@s2`… en los `.feature`: son el identificador que citan los tests.
+- **Tags estables** `@s1`, `@s2`… en los `.feature`: sirven para referirse a un escenario desde el PR o desde un comentario del test.
 - **Cada `Then` afirma algo medible.** Prohibido «el sistema funciona». Se vale: «Then la salida es exactamente `3`», «Then el código de salida es distinto de 0».
 - **Un solo `When` por escenario.** Si necesitas dos acciones, son dos escenarios.
 - **Sin detalles de implementación:** comportamiento, no funciones ni variables.
@@ -50,4 +50,4 @@ Feature: Contar notas
 
 ## De Gherkin a test
 
-No se usa runner BDD (behave, pytest-bdd, cucumber-js): no añade dependencias ni acopla el contrato a un framework. Cada criterio se traduce **a mano** a un test cuyo nombre lo cita (`@s1` → `test_count_archivo_vacio`), y el PR lo declara en «Cómo se probó». Así el texto sigue siendo la fuente legible por la persona, sin pagar un framework.
+No se usa runner BDD (behave, pytest-bdd, cucumber-js): no añade dependencias ni acopla el contrato a un framework. Cada criterio se traduce **a mano** a un test cuyo nombre lo refleja («Almacén vacío imprime 0» → `test_count_almacen_vacio`), y el PR declara en «Cómo se probó» qué test cubre cada criterio. Así el texto sigue siendo la fuente legible por la persona, sin pagar un framework.

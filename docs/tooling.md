@@ -29,7 +29,7 @@ Revisan y reportan; no editan `src/`. Bórralos si tu proyecto no los necesita (
 Dos verificaciones que **ejecuta el arnés, no el agente**, así que no se pueden saltar:
 
 - **PostToolUse (Edit|Write)** → corre `node .harness/harness.mjs test` y muestra el resumen: feedback inmediato tras cada cambio de código.
-- **Stop** → corre `node .harness/harness.mjs init` antes de cerrar la sesión y avisa si algo quedó rojo.
+- **Stop** → corre `node .harness/harness.mjs init` cuando el agente termina de responder y avisa si algo quedó rojo.
 
 Usan el motor agnóstico: los comandos concretos salen de `harness.config.json`.
 

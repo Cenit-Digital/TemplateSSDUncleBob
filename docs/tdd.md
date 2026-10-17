@@ -27,7 +27,7 @@ Un criterio con varias aristas («lista vacía imprime 0», «tres notas imprime
 
 ## Trazabilidad
 
-Al cerrar, cada criterio está cubierto por al menos un test concreto cuyo nombre lo cita (`test_count_archivo_vacio`). El PR lo cuenta en «Cómo se probó». Quien revisa rechaza si un criterio queda sin test.
+Al cerrar, cada criterio está cubierto por al menos un test concreto cuyo nombre lo refleja (`test_count_archivo_vacio`). El PR lo cuenta en «Cómo se probó». Quien revisa rechaza si un criterio queda sin test.
 
 ## Olores que busca quien revisa
 
