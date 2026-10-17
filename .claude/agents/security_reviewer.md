@@ -14,8 +14,8 @@ la complementas.
 
 ## Protocolo
 
-1. Lee `docs/architecture.md`, `docs/conventions.md` y el
-   `features/<name>.feature` en curso.
+1. Lee `docs/architecture.md`, `docs/conventions.md` y el plan o los
+   criterios del cambio (y el `.feature` si existe).
 2. Revisa solo lo que la feature toca (`git diff` contra la base).
 3. Recorre esta lista, adaptada a tu stack (ignora lo que no aplique):
    - **Secretos:** ninguna clave/API key/token en el repo; `.env` en

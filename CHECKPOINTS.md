@@ -63,6 +63,6 @@
 
 ---
 
-**Cómo usar este archivo:** quien revisa el trabajo (p. ej. `reviewer_frontier`)
+**Cómo usar este archivo:** quien revisa el trabajo
 recorre C1-C6 y `bin/harness mutate` valida C7. Se rechaza el cierre de
 sesión si quedan boxes vacíos.

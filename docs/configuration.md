@@ -1,7 +1,7 @@
 # Configuración — cómo adaptar el arnés a cualquier stack
 
-> El proceso Uncle Bob (spec → Gherkin → TDD → judge → mutación), los agentes
-> y las puertas son **fijos**. Lo único que cambia por proyecto son los
+> La política de trabajo (`AGENTS.md`: niveles, puerta humana, delegación) y los
+> agentes son **fijos**. Lo único que cambia por proyecto son los
 > comandos de tu stack, declarados en `harness.config.json`. Eso es lo que
 > hace a esta plantilla agnóstica al lenguaje.
 

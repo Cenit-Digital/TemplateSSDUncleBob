@@ -27,8 +27,8 @@ entender una decisión, un patrón o un trade-off.
 
 - "¿Por qué TDD estricto y mutación, y no solo tests?"
 - "¿Por qué la spec se debate y no se dicta?"
-- "¿Por qué los agentes se pasan el trabajo por ficheros y no por chat?"
-- "¿Por qué la puerta humana va sobre el Gherkin y no sobre el código?"
+- "¿Por qué el plan lleva una tabla «Delegación» y se aprueba antes de implementar?"
+- "¿Por qué la puerta humana está en el plan y en el diff local, y no en cada paso?"
 
 ## Formato de respuesta
 

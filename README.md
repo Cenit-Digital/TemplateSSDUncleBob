@@ -9,13 +9,13 @@ desarrollo con IA de **Robert C. Martin (Uncle Bob)**, popularizado por
 
 Lo importante no es la app: es **cómo se estructura el trabajo para que un
 agente de IA desarrolle de forma autónoma y verificable**, con una sola puerta
-de aprobación humana en el punto de máximo apalancamiento (el contrato Gherkin).
+de aprobación humana en el plan antes de implementar y en la revisión del diff antes de empujar.
 
 > 📚 Documentación viva y ampliada: **https://cenit-digital.github.io/DocsTemplateSSDUncleBob/**
 
 ## Qué la hace distinta: es agnóstica al lenguaje
 
-El proceso, los agentes y las puertas son **fijos**. Lo único que cambia por
+La política de trabajo y los agentes son **fijos**. Lo único que cambia por
 proyecto son los comandos de tu stack, declarados en un `harness.config.json`:
 
 ```json
@@ -123,7 +123,7 @@ web) y `mentor`. Bórralos si tu proyecto no los necesita.
 ├── docs/                                     # workflow · tdd · gherkin · mutation
 │   │                                         #   architecture · conventions · verification
 │   └── configuration · tooling · autonomous · memoria-organizacional
-├── .claude/agents/                           # 6 del pipeline + 3 de apoyo
+├── .claude/agents/                           # 3 de nivel + 3 especialistas (+ 6 legado)
 ├── feature_list.json · project-spec.md       # alcance y spec
 ├── features/ · progress/ · src/ · tests/     # contrato, estado y código
 ├── examples/{python,node}-notes-cli/         # arneses completos de referencia

@@ -14,7 +14,7 @@
 1. Ejecuta `./init.sh` (o `bin/harness init`). Si falla, **para** y resuelve
    el entorno antes de tocar código.
 2. Lee `progress/current.md` (estado de la última sesión).
-3. Lee `feature_list.json` (el motor sigue validándolo).
+3. Lee `feature_list.json` (el motor lo valida; con `"sdd": true` exige `features/<name>.feature`).
 4. Lee la «Política de trabajo» (final de este fichero) antes de planificar.
 
 ## 2. Mapa del repositorio
@@ -26,8 +26,8 @@
 | `progress/current.md`      | Estado de la sesión actual                                                | Siempre                           |
 | `progress/history.md`      | Bitácora append-only                                                      | Si necesitas contexto             |
 | `project-spec.md`          | Spec conversada por feature                                               | Antes de Gherkin o de implementar |
-| `features/<name>.feature`  | Escenarios Gherkin (contrato aprobado por el humano)                      | Antes del ciclo TDD               |
-| `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado                          | Solo como referencia              |
+| `features/<name>.feature`  | Escenarios Gherkin de una feature `"sdd": true` (el motor los exige)      | Antes de implementar esa feature  |
+| `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado (`init` lo exige)        | Solo como referencia              |
 | `docs/tdd.md`              | Las Tres Leyes; Rojo-Verde-Refactor                                       | Antes de escribir código          |
 | `docs/gherkin.md`          | Cómo escribir `.feature`; de Gherkin a test                               | Antes de redactar escenarios      |
 | `docs/mutation-testing.md` | Por qué y cómo; umbral; mutación por stack                                | Antes de validar la suite         |

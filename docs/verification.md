@@ -28,7 +28,7 @@ Antes de cerrar, ejecuta un flujo end-to-end con datos desechables y límpialo.
 ### Nivel 4 — Trazabilidad de escenarios (obligatorio para features `"sdd": true`)
 
 Cada escenario `@s` de `features/<name>.feature` mapea a al menos un test
-concreto. El `judge` rechaza si falta cobertura. El mapa vive en
+concreto. Quien revisa rechaza si falta cobertura. El mapa vive en
 `progress/tdd_<name>.md`:
 
 ```markdown
