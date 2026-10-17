@@ -4,4 +4,18 @@
 - Entorno y arnés: `bin/harness init` · tests: `bin/harness test` · mutación: `bin/harness mutate [target]`.
 - ¿Al día con la plantilla? `node scripts/harness-upgrade.mjs --check` (solo lectura); `--diff` enseña los cambios.
 - Qué es de la plantilla y qué del proyecto: `harness.manifest.json`.
+
+### Política de trabajo (ADR 0001)
+
+**Transición.** Mientras el proyecto conserve el rol `craftsman_lead` (hasta los incrementos 5-6 del ADR), las tareas que tocan `src/` o los tests siguen ese rol, el pipeline y sus reglas duras, incluida su tabla de esfuerzo y la aprobación de los `.feature`; los niveles fijan el ceremonial del resto (arnés, docs, configuración). La puerta humana y la tabla «Delegación» se suman a todo.
+
+**Niveles.** El planificador clasifica cada tarea por juicio (las pistas no son exhaustivas; ante la duda, el nivel superior) y escribe el nivel y su motivo en el plan; la persona lo corrige al aprobarlo.
+- **trivial:** cambio local y evidente. Un solo contexto, sin subagentes obligatorios.
+- **pequeño:** acotado a pocos ficheros y sin decisiones de diseño. Se planifica con `frontier` y se implementa con `balanced`, en la misma sesión.
+- **estándar:** varias piezas o un comportamiento nuevo. Mismo mecanismo; el plan fija los artefactos que exige.
+- **crítico:** seguridad, datos, dinero o un contrato público. El planificador sigue como orquestador y revisor: delega, puede reasignar y revisa.
+
+**Puerta humana (dos puntos, todos los niveles).** 1) La persona aprueba el plan antes de implementar (en trivial basta uno de 1-2 líneas con el nivel y el motivo). 2) La persona revisa el diff en local antes de cualquier `git push`; un agente interactivo no empuja sin esa revisión.
+
+**Delegación.** Por capacidad, no por proveedor: `frontier` (planificar, revisar, lo crítico), `balanced` (implementar), `fast` (tareas mecánicas y exploración). Salvo en trivial, el plan lleva una tabla «Delegación»: ejecutor, nivel, esfuerzo, motivo, «escalar si…» y verificación automática. Qué modelo es cada nivel en cada herramienta: `docs/modelos.md`.
 <!-- harness:end -->
