@@ -52,7 +52,7 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
 
 ## Recetas por stack
 
-Los adaptadores por lenguaje están en `.harness/adapters/` (`python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`); algunos aún mencionan mutadores propios de un directorio `examples/` que no se propaga: usa la herramienta estándar de tu stack. Las de referencia:
+Los adaptadores por lenguaje están en `.harness/adapters/` (`python.md`, `node.md`, `go.md`, `rust.md`, `java.md` y el genérico `generic.md`); algunos aún mencionan mutadores propios de unos ejemplos que ya no existen: usa la herramienta estándar de tu stack. Las de referencia:
 
 ```json
 // Node / TypeScript (Vitest + Stryker + ESLint)
