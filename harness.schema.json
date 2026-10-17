@@ -42,9 +42,17 @@
         "src": { "type": "string", "default": "src" },
         "tests": { "type": "string", "default": "tests" },
         "features": { "type": "string", "default": "features" },
-        "progress": { "type": "string", "default": "progress" },
+        "progress": {
+          "type": "string",
+          "default": "progress",
+          "description": "Carpeta de seguimiento de la sesión. Opcional: si no existe progress/current.md, init lo omite."
+        },
         "spec": { "type": "string", "default": "project-spec.md" },
-        "feature_list": { "type": "string", "default": "feature_list.json" }
+        "feature_list": {
+          "type": "string",
+          "default": "feature_list.json",
+          "description": "Lista de features. Opcional: si el fichero no existe, init y status lo omiten; si existe, se valida."
+        }
       }
     },
     "mutation": {

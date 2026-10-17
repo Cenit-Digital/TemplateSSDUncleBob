@@ -17,7 +17,7 @@
 // (no `node --test .harness/test/`: en Node 22 la forma de directorio intenta
 // cargar la carpeta como módulo y revienta con MODULE_NOT_FOUND; la ruta de
 // fichero explícita funciona en Node 18+, el mínimo del arnés). El job
-// `engine-tests` recomendado en docs/verification.md corre este mismo comando.
+// `Motor (tests)` de .github/workflows/harness-ci.yml corre este mismo comando.
 //
 // El motor llama a `process.exit()` y escribe con console.log, así que cada caso
 // lo lanza como SUBPROCESO en un directorio temporal y comprueba el código de
@@ -1350,6 +1350,108 @@ test('verify: require_tests_to_close:true con commands.test declarado pasa la pu
     },
     'feature_list.json': { features: [] },
   });
+  const { status, out } = runEngine(dir, ['verify']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Puedes cerrar la sesión/);
+});
+
+// ── feature_list.json y progress/current.md: ficheros base opcionales ────────
+// Son los dos únicos ficheros base que el motor no exige. Si existen, todo se
+// comporta como siempre; si faltan, `init` y `status` lo dicen en un [OK] y no
+// fallan. El resto de ficheros base sigue siendo obligatorio. Las aserciones
+// sobre rutas usan [\\/]: el motor imprime `progress\current.md` en Windows.
+
+const BASE_REQUIRED = ['AGENTS.md', 'CLAUDE.md', 'CHECKPOINTS.md', 'docs/workflow.md'];
+/** Proyecto autónomo (standalone por defecto) con solo los ficheros base obligatorios. */
+const baseFiles = (extra = {}) => ({
+  'harness.config.json': { project: 't', commands: {} },
+  ...Object.fromEntries(BASE_REQUIRED.map((f) => [f, '# base\n'])),
+  ...extra,
+});
+
+test('init: sin feature_list.json termina en verde y avisa de que es opcional', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {} } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /\[OK\]\s+feature_list\.json ausente \(opcional\)/);
+  assert.doesNotMatch(out, /\[FAIL\]/);
+});
+
+test('init: standalone:true sin feature_list.json ni progress/current.md termina en verde', () => {
+  const dir = scenario(baseFiles());
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /Falta archivo base/);
+  assert.match(out, /Opcional y ausente: feature_list\.json/);
+  assert.match(out, /Opcional y ausente: progress[\\/]current\.md/);
+  assert.match(out, /Entorno listo/);
+});
+
+test('init: con feature_list.json y progress/current.md presentes los comprueba y valida como siempre', () => {
+  const dir = scenario(baseFiles({
+    'feature_list.json': { features: [] },
+    'progress/current.md': '# sesión\n',
+  }));
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Existe feature_list\.json/);
+  assert.match(out, /Existe progress[\\/]current\.md/);
+  assert.match(out, /feature_list\.json válido \(0 features\)/);
+  assert.doesNotMatch(out, /Opcional y ausente|ausente \(opcional\)/);
+});
+
+test('init: que esos dos sean opcionales no relaja el resto de ficheros base', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', commands: {} } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Falta archivo base: AGENTS\.md/);
+  assert.match(out, /Falta archivo base: CLAUDE\.md/);
+  assert.match(out, /Falta archivo base: CHECKPOINTS\.md/);
+  assert.match(out, /Falta archivo base: docs[\\/]workflow\.md/);
+  assert.doesNotMatch(out, /Falta archivo base: (feature_list|progress)/);
+});
+
+test('status: sin feature_list.json sale en verde y explica que es opcional', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {} } });
+  const { status, out } = runEngine(dir, ['status']);
+  assert.equal(status, 0, out);
+  assert.match(out, /sin feature_list\.json: es opcional/);
+  assert.doesNotMatch(out, /\[FAIL\]/);
+});
+
+test('init: feature_list.json presente con JSON inválido sigue fallando (opcional no es tolerante)', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': '{ "features": [',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /feature_list\.json inválido/);
+  assert.doesNotMatch(out, /ausente/);
+});
+
+test('init: paths.feature_list y paths.progress personalizados y ausentes también son opcionales', () => {
+  const dir = scenario(baseFiles({
+    'harness.config.json': {
+      project: 't', commands: {},
+      paths: { feature_list: 'tareas/lista.json', progress: 'seguimiento' },
+    },
+  }));
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /Opcional y ausente: tareas[\\/]lista\.json/);
+  assert.match(out, /Opcional y ausente: seguimiento[\\/]current\.md/);
+  assert.match(out, /tareas[\\/]lista\.json ausente \(opcional\)/);
+});
+
+test('verify: sin feature_list.json ni progress/current.md certifica el cierre igual', () => {
+  const dir = scenario(baseFiles({
+    'harness.config.json': {
+      project: 't',
+      commands: { test: 'node -e "process.exit(0)"' },
+      rules: { require_tests_to_close: true, require_mutation_to_close: false },
+    },
+  }));
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
   assert.match(out, /Puedes cerrar la sesión/);

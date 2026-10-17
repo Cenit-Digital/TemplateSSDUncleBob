@@ -25,6 +25,16 @@ jobs:
       - name: Tests del script de propagación, del manifiesto y del comprobador del PR
         run: node --test .harness/test/upgrade.test.mjs .harness/test/pr-body.test.mjs
 
+  engine-tests:
+    name: Motor (tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: node --test .harness/test/engine.test.mjs
+
   python-example:
     name: Ejemplo Python (init + mutación 100%)
     runs-on: ubuntu-latest
