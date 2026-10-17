@@ -329,3 +329,13 @@ test('la plantilla de issue tiene un front matter con name y about que GitHub pu
   }
   for (const k of ['name', 'about']) assert.ok(keys[k] && !/^(""|'')$/.test(keys[k]), `falta ${k}`);
 });
+
+test('lo que se propaga a los derivados no cita el ADR ni sus números de decisión (no tienen docs/decisiones/)', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
+  const tracked = git(REPO, 'ls-files', '-z').split('\0').filter(Boolean);
+  for (const f of tracked.filter((t) => [...m.template, m.blockSource].some((e) => covers(e, t)))) {
+    const hit = /\bADR\b|\bD\d{1,2}\b/.exec(fs.readFileSync(path.join(REPO, f), 'utf8'));
+    assert.equal(hit, null, `${f}: cita «${hit?.[0]}», que los derivados no tienen`);
+  }
+});

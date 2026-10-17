@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// harness-upgrade.mjs — Compara y actualiza un proyecto derivado con la plantilla SSD (ADR 0001, D9).
+// harness-upgrade.mjs — Compara y actualiza un proyecto derivado con la plantilla SSD.
 //
 //   node scripts/harness-upgrade.mjs --check | --diff | --apply [--yes] [--replace-json <ruta>]...
 //                                    [--ref <tag|rama>] [--repo <url|ruta>]

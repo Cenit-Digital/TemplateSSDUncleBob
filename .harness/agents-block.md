@@ -5,9 +5,9 @@
 - ¿Al día con la plantilla? `node scripts/harness-upgrade.mjs --check` (solo lectura); `--diff` enseña los cambios.
 - Qué es de la plantilla y qué del proyecto: `harness.manifest.json`.
 
-### Política de trabajo (ADR 0001)
+### Política de trabajo
 
-**Transición.** Mientras el proyecto conserve el rol `craftsman_lead` (hasta los incrementos 5-6 del ADR), las tareas que tocan `src/` o los tests siguen ese rol, el pipeline y sus reglas duras, incluida su tabla de esfuerzo y la aprobación de los `.feature`; los niveles fijan el ceremonial del resto (arnés, docs, configuración). La puerta humana y la tabla «Delegación» se suman a todo.
+**Transición.** Mientras el proyecto conserve el rol `craftsman_lead` (hasta que la plantilla lo retire), las tareas que tocan `src/` o los tests siguen ese rol, el pipeline y sus reglas duras, incluida su tabla de esfuerzo y la aprobación de los `.feature`; los niveles fijan el ceremonial del resto (arnés, docs, configuración). La puerta humana y la tabla «Delegación» se suman a todo.
 
 **Niveles.** El planificador clasifica cada tarea por juicio (las pistas no son exhaustivas; ante la duda, el nivel superior) y escribe el nivel y su motivo en el plan; la persona lo corrige al aprobarlo.
 - **trivial:** cambio local y evidente. Un solo contexto, sin subagentes obligatorios.
