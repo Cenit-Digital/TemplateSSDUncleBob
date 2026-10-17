@@ -6,6 +6,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Write-Host '[FAIL] node no está instalado (requerido por el arnés)'
   exit 1
 }
-$engine = Join-Path $PSScriptRoot '..' '.harness' 'harness.mjs'
+# Join-Path anidado: Windows PowerShell 5.1 solo admite dos segmentos por llamada.
+$engine = Join-Path (Join-Path (Join-Path $PSScriptRoot '..') '.harness') 'harness.mjs'
 & node $engine @args
 exit $LASTEXITCODE

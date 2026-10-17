@@ -418,3 +418,75 @@ test('docs/instrucciones-de-usuario.md: la plantilla trae los siete pasos y cada
     assert.ok(/\[R\]/.test(row) ? sources.includes(`https://${host}/`) : /sin verificar/.test(row), `${tool}: ni fuente ([R] y https://${host}/ en «Fuentes») ni «sin verificar»`);
   }
 });
+
+/**
+ * Cada `Join-Path` de un script PowerShell: su línea, cuántos segmentos pasa y si usa -AdditionalChildPath.
+ * Windows PowerShell 5.1 solo admite dos (Path y ChildPath); `Join-Path a b c` es de PowerShell 6+.
+ */
+function joinPathCalls(src) {
+  const code = src.replace(/<#[\s\S]*?#>/g, (c) => c.replace(/[^\n]/g, ' '));
+  const calls = [];
+  for (const m of code.matchAll(/\bJoin-Path\b/gi)) {
+    const lineStart = code.lastIndexOf('\n', m.index) + 1;
+    if (code.slice(lineStart, m.index).replace(/'[^']*'|"[^"]*"/g, '').includes('#')) continue; // comentario
+    const tokens = [];
+    let tok = '';
+    let depth = 0;
+    const flush = () => { if (tok) tokens.push(tok); tok = ''; };
+    for (let i = m.index + m[0].length; i < code.length; i++) {
+      const c = code[i];
+      if (c === "'" || c === '"') { // cadena: un solo token, aunque lleve espacios
+        let j = i + 1;
+        while (j < code.length && code[j] !== c) j += c === '"' && code[j] === '`' ? 2 : 1;
+        tok += code.slice(i, j + 1);
+        i = j;
+        continue;
+      }
+      if (/[([{]/.test(c)) depth++;
+      else if (/[)\]}]/.test(c)) { if (!depth) break; depth--; } // cierra la llamada que envuelve a esta
+      else if (!depth && (c === ';' || c === '|' || c === '\n' || c === '\r' || (c === '#' && !tok))) break;
+      else if (!depth && /\s/.test(c)) { flush(); continue; }
+      tok += c;
+    }
+    flush();
+    let segments = 0;
+    let additional = false;
+    for (let k = 0; k < tokens.length; k++) {
+      if (!/^-[A-Za-z]+$/.test(tokens[k])) { segments++; continue; }
+      const name = tokens[k].slice(1).toLowerCase();
+      if (name === 'resolve') continue; // interruptor: sin valor
+      k++; // el valor del parámetro con nombre
+      if (name === 'additionalchildpath') additional = true;
+      else if (name === 'path' || name === 'childpath') segments++;
+    }
+    calls.push({ line: code.slice(0, m.index).split('\n').length, segments, additional });
+  }
+  return calls;
+}
+
+test('el detector de Join-Path cuenta los segmentos que Windows PowerShell 5.1 admite', () => {
+  const seen = (s) => joinPathCalls(s).map((c) => (c.additional ? 'adicional' : c.segments));
+  assert.deepEqual(seen("Join-Path $r '..' '.harness' 'harness.mjs'"), [4]);
+  assert.deepEqual(seen("Join-Path (Join-Path (Join-Path $r '..') '.harness') 'harness.mjs'"), [2, 2, 2]);
+  assert.deepEqual(seen("$x = Join-Path -Path $r -ChildPath 'a b' -Resolve"), [2]);
+  assert.deepEqual(seen("Join-Path -Path $r 'a' 'b'"), [3]);
+  assert.deepEqual(seen("Join-Path $r 'a' -AdditionalChildPath 'b'"), ['adicional']);
+  assert.deepEqual(seen('"$(Join-Path $r \'a\' \'b\')"'), [3]);
+  assert.deepEqual(seen("$p = (Join-Path $r 'a b') | Out-Null"), [2]);
+  assert.deepEqual(seen("# Join-Path $r 'a' 'b'\nJoin-Path $r 'a' # y 'b' 'c'\n<# Join-Path a b c #>"), [2]);
+});
+
+test('los .ps1 que se propagan no usan Join-Path con más de dos segmentos (Windows PowerShell 5.1 no lo admite)', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
+  const scripts = git(REPO, 'ls-files', '-z').split('\0').filter((f) => f.endsWith('.ps1') && m.template.some((e) => covers(e, f)));
+  assert.ok(scripts.includes('bin/harness.ps1') && scripts.includes('init.ps1'), `faltan los lanzadores en ${scripts}`);
+  let total = 0;
+  for (const f of scripts) {
+    for (const c of joinPathCalls(fs.readFileSync(path.join(REPO, f), 'utf8'))) {
+      total++;
+      assert.ok(c.segments <= 2 && !c.additional, `${f}:${c.line}: Join-Path con más de dos segmentos; Windows PowerShell 5.1 solo admite dos (anida las llamadas)`);
+    }
+  }
+  assert.ok(total >= 2, 'el detector no encontró ningún Join-Path: la comprobación no vale');
+});
