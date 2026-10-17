@@ -8,6 +8,7 @@
     "bin/harness", "bin/harness.ps1", "GEMINI.md", "harness.manifest.json", "harness.schema.json",
     "init.ps1", "init.sh", "scripts/harness-upgrade.mjs",
     "docs/architecture.md", "docs/configuration.md", "docs/conventions.md", "docs/gherkin.md",
+    "docs/instrucciones-de-usuario.md",
     "docs/modelos.md", "docs/mutation-testing.md", "docs/tdd.md", "docs/tooling.md", "docs/verification.md",
     "docs/workflow.md"
   ],

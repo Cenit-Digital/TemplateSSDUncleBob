@@ -36,6 +36,7 @@
 | `docs/configuration.md`    | Cómo adaptar `harness.config.json` a cualquier stack                      | Al portar a un nuevo lenguaje     |
 | `docs/tooling.md`          | Agentes de apoyo y hooks                                                  | Para entender el tooling          |
 | `docs/modelos.md`          | Qué modelo es `frontier`/`balanced`/`fast` en cada herramienta (con fecha y fuentes) | Al delegar o cambiar de modelo |
+| `docs/instrucciones-de-usuario.md` | Plantilla de las instrucciones de usuario compartidas por todos tus repos (los siete pasos) y dónde instalarla en cada herramienta | Al configurar una máquina o una herramienta nueva |
 | `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` conserva el rol `craftsman_lead`   | Si usas Claude Code o Gemini CLI  |
 | `.github/ISSUE_TEMPLATE/` · `.github/pull_request_template.md` | Plantillas de issue de tarea y de PR (cuatro bloques + impacto en tareas anteriores) | Al abrir un issue o un PR |
 | `.harness/pr-body.mjs` · `.github/workflows/pr-body.yml` | Comprobador de la descripción del PR (sin LLM) y su workflow; no es check requerido | Si un PR falla «Cuerpo del PR» |
