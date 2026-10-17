@@ -1,27 +1,24 @@
-// engine.test.mjs — Tests de caracterización y regresión del motor del arnés.
+// engine.test.mjs — Tests de caracterización del motor del arnés (.harness/harness.mjs).
 //
-// El motor `.harness/harness.mjs` es TODA la cadena de verificación de la
-// plantilla (init / test / mutate / verify) y ha acumulado ~10 PRs de
-// endurecimiento (guardianes de forma de config, tolerancia a BOM, forma de
-// mutation.targets, forma de las entradas de features, token {{target}} con `$`
-// literal, gate de tests-en-src). Hasta ahora no tenía NINGÚN test propio: una
-// laguna real en un repo cuya tesis entera es TDD + mutación. Cada caso de aquí
-// fija una de esas conductas contra futuras regresiones y cita el PR que la
-// introdujo.
+// El motor es TODA la cadena de verificación de la plantilla (init / test / mutate /
+// verify / status). Cada caso fija una conducta con una configuración VÁLIDA (la que
+// acepta harness.schema.json) contra futuras regresiones. El motor no valida la forma
+// de lo que lee: ante un fichero mal formado solo se exige que termine con un [FAIL]
+// legible y el exit 2 de la red de seguridad, sin traza (ver el último bloque).
 //
-// Sin dependencias npm: usa `node:test` (estable desde Node 18, el único
-// requisito del arnés). Se corre con la RUTA DE FICHERO explícita:
+// Sin dependencias npm: usa `node:test` (estable desde Node 18, el único requisito del
+// arnés). Se corre con la RUTA DE FICHERO explícita:
 //
 //   node --test .harness/test/engine.test.mjs
 //
-// (no `node --test .harness/test/`: en Node 22 la forma de directorio intenta
-// cargar la carpeta como módulo y revienta con MODULE_NOT_FOUND; la ruta de
-// fichero explícita funciona en Node 18+, el mínimo del arnés). El job
-// `Motor (tests)` de .github/workflows/harness-ci.yml corre este mismo comando.
+// (no `node --test .harness/test/`: en Node 22 la forma de directorio intenta cargar la
+// carpeta como módulo y revienta con MODULE_NOT_FOUND; la ruta de fichero explícita
+// funciona en Node 18+, el mínimo del arnés). El job `Motor (tests)` de
+// .github/workflows/harness-ci.yml corre este mismo comando.
 //
-// El motor llama a `process.exit()` y escribe con console.log, así que cada caso
-// lo lanza como SUBPROCESO en un directorio temporal y comprueba el código de
-// salida y la salida combinada (stdout+stderr). NO_COLOR=1 evita códigos ANSI.
+// El motor llama a `process.exit()` y escribe con console.log, así que cada caso lo
+// lanza como SUBPROCESO en un directorio temporal y comprueba el código de salida y la
+// salida combinada (stdout+stderr). NO_COLOR=1 evita códigos ANSI.
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,11 +101,11 @@ test('init: sin harness.config.json falla con exit 2 y mensaje claro', () => {
   assert.match(out, /No se encontró harness\.config\.json/);
 });
 
-test('init: config que no es objeto JSON falla con exit 2', () => {
-  const dir = scenario({ 'harness.config.json': '[]' });
+test('init: harness.config.json con JSON roto falla con exit 2 y mensaje claro', () => {
+  const dir = scenario({ 'harness.config.json': '{ "project": ' });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 2);
-  assert.match(out, /debe ser un objeto JSON/);
+  assert.match(out, /harness\.config\.json no es JSON válido/);
 });
 
 test('init: standalone:true con ficheros base ausentes falla (exit 1)', () => {
@@ -122,92 +119,9 @@ test('init: standalone:true con ficheros base ausentes falla (exit 1)', () => {
   assert.match(out, /Falta archivo base/);
 });
 
-// ── loadConfig: guardianes de forma (PRs #12, #15, #16, #18) ─────────────────
+// ── config: valores por defecto y valores límite válidos ─────────────────────
 
-test('loadConfig: "commands" no-objeto falla legible, no en falso verde (#18)', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', commands: 'go test' } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"commands" debe ser un objeto/);
-});
-
-test('loadConfig: valor de "paths" no-string falla legible (#15)', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', paths: { src: 5 } } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"paths\.src" debe ser un string/);
-});
-
-test('loadConfig: "mutation" no-objeto falla legible (#16)', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', mutation: 'src/x.py' } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"mutation" debe ser un objeto/);
-});
-
-test('loadConfig: "mutation.threshold" string ("0.9") falla legible, no en coerción muda', () => {
-  // Entrecomillar el número (el mismo desliz que #26/#30 para los booleanos) es un
-  // string, no un número. El motor lo aceptaba EN SILENCIO pese a que el schema lo
-  // declara "type": "number" y el mutation_tester lee el valor para la puerta de
-  // cierre. Debe ser un [FAIL] como los guardianes hermanos, no un descarte mudo.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      mutation: { threshold: '0.9', targets: [] },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: string\)/);
-  assert.doesNotMatch(out, /Entorno listo/); // no certifica un umbral coaccionado
-});
-
-test('loadConfig: "mutation.threshold" fuera de [0,1] (90, porcentaje) falla nombrando el rango', () => {
-  // Confundir proporción con porcentaje ("threshold": 90 en vez de 0.9) produciría
-  // una puerta imposible (el 9000% de mutantes muertos). El guardián nombra el rango
-  // y la causa (proporción, no porcentaje), no lo acepta en silencio.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      mutation: { threshold: 90, targets: [] },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: 90, fuera de \[0, 1\]\)/);
-});
-
-test('loadConfig: "mutation.threshold" array falla legible con su tipo', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      mutation: { threshold: [1], targets: [] },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: array\)/);
-});
-
-test('loadConfig: "mutation.threshold" negativo falla nombrando el rango', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      mutation: { threshold: -0.1, targets: [] },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"mutation\.threshold" debe ser un número entre 0 y 1 \(encontrado: -0\.1, fuera de \[0, 1\]\)/);
-});
-
-test('loadConfig: "mutation.threshold" 1.0 (extremo válido del schema) sigue en verde', () => {
-  // El schema declara minimum 0, maximum 1: ambos extremos son válidos. El guardián
-  // no debe rechazar el 1.0 que usan todos los adaptadores (mutación al 100%).
+test('config: "mutation.threshold" 1.0 (extremo válido del schema) sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -220,7 +134,7 @@ test('loadConfig: "mutation.threshold" 1.0 (extremo válido del schema) sigue en
   assert.match(out, /Entorno listo/);
 });
 
-test('loadConfig: "mutation.threshold" 0 (otro extremo válido) sigue en verde', () => {
+test('config: "mutation.threshold" 0 (otro extremo válido) sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -233,9 +147,7 @@ test('loadConfig: "mutation.threshold" 0 (otro extremo válido) sigue en verde',
   assert.match(out, /Entorno listo/);
 });
 
-test('loadConfig: "mutation.threshold" ausente asume el default (0.8), sin exigir el campo', () => {
-  // Omitir threshold es válido: el motor usa 0.8. El guardián valida ANTES del merge,
-  // así que el default no dispara el [FAIL]; solo un valor DECLARADO y equivocado.
+test('config: "mutation.threshold" ausente asume el default (0.8), sin exigir el campo', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -246,23 +158,9 @@ test('loadConfig: "mutation.threshold" ausente asume el default (0.8), sin exigi
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
   assert.match(out, /Entorno listo/);
-  assert.doesNotMatch(out, /"mutation\.threshold"/); // el campo ausente no es un error
 });
 
-test('loadConfig: "rules" no-objeto falla legible, no en descarte mudo', () => {
-  // `rules` es el último de los cuatro contenedores "type": "object" del schema
-  // (commands, paths, mutation, rules) que faltaba por guardar. Un string se
-  // tragaba en silencio (Object.assign deja los defaults en pie) y salía verde sin
-  // avisar de que la config de reglas se ignoró. Debe ser un [FAIL] como sus
-  // hermanos (#16, #18), no un descarte mudo.
-  const dir = scenario({ 'harness.config.json': { project: 't', rules: 'estrictas' } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"rules" debe ser un objeto/);
-});
-
-test('loadConfig: "rules" objeto válido sigue en verde (sin falso positivo)', () => {
-  // El guardián de contenedor no debe rechazar una config de reglas legítima.
+test('config: "rules" objeto válido sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -275,59 +173,7 @@ test('loadConfig: "rules" objeto válido sigue en verde (sin falso positivo)', (
   assert.match(out, /Entorno listo/);
 });
 
-test('loadConfig: flag de "rules" no-booleano (string "false") falla legible, no en coerción muda', () => {
-  // Entrecomillar un booleano en JSON ("require_mutation_to_close": "false") es el
-  // mismo error de mano que #26 cerró para `standalone`, pero en un flag anidado en
-  // `rules`. El string "false" es TRUTHY, así que la regla que el usuario quería
-  // DESACTIVAR seguía activa y `verify` abortaba imprimiendo "require_mutation_to_close
-  // es true..." —contradiciendo lo que el usuario escribió—. Debe ser un [FAIL] que
-  // nombre la regla y su tipo, no una coerción silenciosa.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_mutation_to_close: 'false' },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"rules\.require_mutation_to_close" debe ser true o false \(encontrado: string\)/);
-});
-
-test('loadConfig: flag de "rules" numérico falla legible con su tipo', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { one_feature_at_a_time: 0 },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"rules\.one_feature_at_a_time" debe ser true o false \(encontrado: number\)/);
-});
-
-test('loadConfig: flag de "rules" no-booleano NO cae en el síntoma downstream (verify no contradice)', () => {
-  // Con el bug antiguo, "require_mutation_to_close": "false" (truthy) hacía que
-  // verify abortara diciendo "require_mutation_to_close es true": un mensaje que
-  // contradice lo escrito. El guardián corta antes, ya en la fase init de verify
-  // (que corre init como subproceso y aborta con exit 1 si falla), con la causa real.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_mutation_to_close: 'false' },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['verify']);
-  assert.equal(status, 1);
-  assert.match(out, /"rules\.require_mutation_to_close" debe ser true o false/);
-  assert.doesNotMatch(out, /es true pero commands\.mutate/); // no desorienta con el síntoma
-});
-
-test('loadConfig: flags de "rules" booleanos legítimos siguen en verde (sin falso positivo)', () => {
-  // El guardián no debe rechazar los valores booleanos legítimos: false explícito
-  // para relajar una regla, o una config parcial que hereda los defaults del resto.
+test('config: flags de "rules" booleanos relajan solo su regla; el resto hereda el default', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -346,32 +192,8 @@ test('loadConfig: flags de "rules" booleanos legítimos siguen en verde (sin fal
   assert.doesNotMatch(out, /máximo 1/);
 });
 
-// ── loadConfig: standalone booleano ──────────────────────────────────────────
-
-test('loadConfig: "standalone" no-booleano (string "false") falla legible, no en coerción muda', () => {
-  // Entrecomillar un booleano en JSON ("standalone": "false") es el error de mano
-  // clásico. Antes se coercía EN SILENCIO a true: el sub-proyecto que el usuario
-  // quería marcar como heredero del arnés raíz (standalone:false) acababa
-  // comprobando ficheros base ausentes y fallaba con "Falta archivo base" —un
-  // mensaje que apunta al síntoma, no a la causa—. Debe ser un [FAIL] legible que
-  // nombre `standalone`, como sus hermanos commands/paths/mutation/rules.
-  const dir = scenario({ 'harness.config.json': { project: 't', standalone: 'false', commands: {} } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"standalone" debe ser true o false/);
-  assert.doesNotMatch(out, /Falta archivo base/); // no desorienta con el síntoma
-});
-
-test('loadConfig: "standalone" numérico falla legible con su tipo', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', standalone: 0, commands: {} } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 2);
-  assert.match(out, /"standalone" debe ser true o false \(encontrado: number\)/);
-});
-
-test('loadConfig: "standalone" ausente asume autónomo (comprueba ficheros base)', () => {
-  // Omitir standalone es válido: el motor asume true. Sin ficheros base, init falla
-  // por su ausencia (no por el campo), demostrando que el default sigue en pie.
+test('config: "standalone" ausente asume autónomo (comprueba ficheros base)', () => {
+  // Sin ficheros base, init falla por su ausencia: el default true sigue en pie.
   const dir = scenario({
     'harness.config.json': { project: 't', commands: {} },
     'feature_list.json': { features: [] },
@@ -379,12 +201,9 @@ test('loadConfig: "standalone" ausente asume autónomo (comprueba ficheros base)
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 1);
   assert.match(out, /Falta archivo base/);
-  assert.doesNotMatch(out, /"standalone" debe ser/); // el campo ausente no es un error
 });
 
-test('loadConfig: "standalone" false legítimo omite los ficheros base y sigue en verde', () => {
-  // El guardián no debe rechazar el valor legítimo que toda la suite usa para
-  // heredar el arnés raíz.
+test('config: "standalone" false omite los ficheros base y sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [] },
@@ -395,7 +214,7 @@ test('loadConfig: "standalone" false legítimo omite los ficheros base y sigue e
   assert.match(out, /Entorno listo/);
 });
 
-test('loadConfig: tolera BOM UTF-8 al parsear config (#11)', () => {
+test('config: tolera BOM UTF-8 al parsear harness.config.json', () => {
   const raw = '﻿' + json({ project: 't', standalone: false, commands: {} });
   const dir = scenario({ 'harness.config.json': raw, 'feature_list.json': { features: [] } });
   const { status, out } = runEngine(dir, ['init']);
@@ -403,78 +222,64 @@ test('loadConfig: tolera BOM UTF-8 al parsear config (#11)', () => {
   assert.match(out, /Entorno listo/);
 });
 
-// ── feature_list: forma (PRs #12, #13) ───────────────────────────────────────
+// ── feature_list: estado, una a la vez, ids y names ──────────────────────────
 
-test('feature_list: "features" no-array falla legible (#12)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: {} },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /"features" debe ser un array/);
-});
-
-test('feature_list: entrada no-objeto falla legible, sin stack trace (#13)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [42] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /features\[0\] debe ser un objeto/);
-});
-
-// ── feature_list: unicidad de id/name ────────────────────────────────────────
-
-test('feature_list: id duplicado falla legible, no en falso "válido"', () => {
+test('feature_list: dos features en in_progress fallan (one_feature_at_a_time)', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': {
       features: [
-        { id: 1, name: 'a', status: 'done' },
-        { id: 1, name: 'b', status: 'done' },
+        { id: 1, name: 'a', status: 'in_progress' },
+        { id: 2, name: 'b', status: 'in_progress' },
       ],
     },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 1);
-  assert.match(out, /id duplicado en features: 1/);
+  assert.match(out, /Hay 2 features en in_progress \(máximo 1\)/);
+  assert.doesNotMatch(out, /Entorno listo/);
 });
 
-test('feature_list: name duplicado falla (colisiona su features/<name>.feature)', () => {
-  // Dos features con el mismo name comparten el mismo .feature: el gate de
-  // aprobación humana de una tapa a la otra. Debe ser un [FAIL], no un verde.
+test('feature_list: una sola feature en in_progress es válida', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': {
       features: [
-        { id: 1, name: 'cli_add', status: 'pending' },
-        { id: 2, name: 'cli_add', status: 'pending' },
+        { id: 1, name: 'a', status: 'in_progress' },
+        { id: 2, name: 'b', status: 'pending' },
       ],
     },
   });
   const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /name duplicado en features: "cli_add"/);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(2 features\)/);
 });
 
-test('feature_list: id "1" (string) y 1 (número) colisionan como la misma feature', () => {
+test('feature_list: un estado fuera de la lista falla nombrando la feature y el estado', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'a', status: 'wip' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Estado inválido en feature 1: wip/);
+  assert.doesNotMatch(out, /Entorno listo/);
+});
+
+test('feature_list: los cinco estados válidos pasan', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'done' },
-        { id: '1', name: 'b', status: 'done' },
-      ],
+      features: ['pending', 'spec_ready', 'in_progress', 'done', 'blocked']
+        .map((s, i) => ({ id: i + 1, name: `f${i}`, status: s })),
     },
   });
   const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /id duplicado en features: 1/);
+  assert.equal(status, 0, out);
+  assert.match(out, /válido \(5 features\)/);
 });
 
-test('feature_list: ids y names únicos siguen en verde (sin falso positivo)', () => {
+test('feature_list: ids y names únicos siguen en verde', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': {
@@ -489,116 +294,7 @@ test('feature_list: ids y names únicos siguen en verde (sin falso positivo)', (
   assert.match(out, /válido \(2 features\)/);
 });
 
-// ── feature_list: name debe ser un string no vacío ───────────────────────────
-
-test('feature_list: name numérico duplicado falla, no en falso verde (deriva el mismo .feature)', () => {
-  // Regresión del hueco del guardián de unicidad (#22): filtra typeof name ===
-  // 'string', así que dos names numéricos 123 (olvidar las comillas) lo ESQUIVABAN
-  // y pasaban como "válido" en verde pese a colisionar en features/123.feature.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 123, status: 'done' },
-        { id: 2, name: 123, status: 'done' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /"name" de la feature .* debe ser un string no vacío/);
-  assert.doesNotMatch(out, /feature_list\.json válido/);
-});
-
-test('feature_list: name no-string (boolean) falla legible, sin stack trace', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: true, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: boolean\)/);
-});
-
-test('feature_list: name vacío falla (derivaría features/.feature)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: '   ', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /"name" de la feature 1 debe ser un string no vacío \(encontrado: string vacío\)/);
-});
-
-// ── feature_list: id debe ser un escalar (string o número) ───────────────────
-
-test('feature_list: id no-escalar (objeto) falla legible, sin coerción muda ni stack trace', () => {
-  // `name` ya valida su tipo (#24); `id` —el otro campo-clave, que la unicidad
-  // (#22) coacciona con String(f.id)— quedó sin guardar. Un id objeto se pintaba
-  // como `#[object Object]` en status y se colaba por la coerción. Debe ser un
-  // [FAIL] legible que nombre el tipo.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: {}, name: 'a', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: object\)/);
-  assert.doesNotMatch(out, /\[object Object\]/); // sin la coerción muda en la salida
-});
-
-test('feature_list: id array [1] NO colisiona con id 1 por coerción (evita el falso rojo)', () => {
-  // Con el bug, String([1]) === String(1) === "1": `id:[1]` e `id:1` se reportaban
-  // como "id duplicado" sin serlo. El guardián reporta el id no-escalar como la
-  // causa real y la unicidad ya no lo coacciona, así que NO aparece el falso
-  // "id duplicado: 1".
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: [1], name: 'a', status: 'done' },
-        { id: 1, name: 'b', status: 'done' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: array\)/);
-  assert.doesNotMatch(out, /id duplicado en features: 1/); // no un falso rojo por coerción
-});
-
-test('feature_list: dos ids no-escalares DISTINTOS ({} y []) no pasan como "válido" (evita el falso verde)', () => {
-  // El peor caso (límite 2): "[object Object]" y "" no colisionan, así que la lista
-  // salía "válido (2 features)" en verde con dos features de identidad rota. El
-  // guardián corta ambas con un [FAIL] por id.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: {}, name: 'a', status: 'done' },
-        { id: [], name: 'b', status: 'done' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.doesNotMatch(out, /feature_list\.json válido/); // no certifica identidad rota
-});
-
-test('feature_list: id booleano falla legible con su tipo', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: true, name: 'a', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "id" de una feature.*debe ser un string o un número \(encontrado: boolean\)/);
-});
-
-test('feature_list: id string y id número siguen siendo válidos (sin falso positivo)', () => {
-  // El guardián acepta ambos escalares: el número de todos los ejemplos reales y el
-  // string. La colisión intencionada 1 === "1" (#22) se prueba en su propio caso;
-  // aquí basta con que dos escalares DISTINTOS convivan en verde.
+test('feature_list: id string y id número son válidos', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': {
@@ -614,8 +310,6 @@ test('feature_list: id string y id número siguen siendo válidos (sin falso pos
 });
 
 test('feature_list: id ausente sigue siendo válido (el id es opcional)', () => {
-  // El filtro de unicidad ya trataba undefined/null como "sin id"; el guardián no
-  // debe convertir un id ausente en un error.
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ name: 'a', status: 'done' }] },
@@ -625,50 +319,9 @@ test('feature_list: id ausente sigue siendo válido (el id es opcional)', () => 
   assert.match(out, /válido \(1 features\)/);
 });
 
-// ── feature_list: sdd debe ser un booleano (sibling de standalone #26 / rules #30) ─
+// ── feature_list: flag sdd y puerta de spec ──────────────────────────────────
 
-test('feature_list: sdd:"false" (string truthy) NO mete en el pipeline por coerción; falla nombrando sdd, no el fichero', () => {
-  // El error de mano clásico: entrecomillar el booleano. "false" es TRUTHY, así que
-  // con el bug antiguo (`if (f.sdd && ...)`) una feature marcada como NO-SDD entraba
-  // al pipeline y fallaba con "sin features/<name>.feature" —el síntoma, no la causa,
-  // igual que #26 para standalone—. El guardián reporta `sdd` como la causa y (por el
-  // `=== true`) NO añade el segundo [FAIL] derivado sobre el .feature.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: 'false', status: 'in_progress' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "sdd" de la feature 1 \(cli_add\) debe ser true o false \(encontrado: string\)/);
-  assert.doesNotMatch(out, /sin features\/cli_add\.feature/); // no desorienta con el síntoma ni duplica el [FAIL]
-});
-
-test('feature_list: sdd:"" (falsy) no pasa como "válido" saltando la puerta SDD en silencio', () => {
-  // La dirección de falso verde (límite 2): un sdd falsy no-booleano ("", 0, null)
-  // SALTABA la puerta de aprobación humana en silencio y la lista salía "válido" en
-  // verde. El guardián lo corta con un [FAIL] por tipo.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: '', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "sdd" de la feature 1 \(cli_add\) debe ser true o false \(encontrado: string\)/);
-  assert.doesNotMatch(out, /feature_list\.json válido/); // no certifica una lista que salta la puerta
-});
-
-test('feature_list: sdd numérico (1) falla legible con su tipo', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'a', sdd: 1, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /el "sdd" de la feature 1 \(a\) debe ser true o false \(encontrado: number\)/);
-});
-
-test('feature_list: sdd:true legítimo con su .feature sigue en verde (sin falso positivo)', () => {
-  // El guardián no debe rechazar el valor booleano que usan todos los ejemplos reales.
+test('feature_list: sdd:true con su .feature sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
@@ -679,8 +332,7 @@ test('feature_list: sdd:true legítimo con su .feature sigue en verde (sin falso
   assert.match(out, /Entorno listo/);
 });
 
-test('feature_list: sdd:false legítimo (feature fuera del pipeline SDD) sigue en verde', () => {
-  // false explícito es válido: la feature no recorre el pipeline y no exige .feature.
+test('feature_list: sdd:false (feature fuera del pipeline SDD) no exige .feature', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'chore', sdd: false, status: 'done' }] },
@@ -690,9 +342,7 @@ test('feature_list: sdd:false legítimo (feature fuera del pipeline SDD) sigue e
   assert.match(out, /válido \(1 features\)/);
 });
 
-test('feature_list: sdd ausente se trata como no-SDD (opcional), sin exigir .feature', () => {
-  // Omitir sdd es válido: undefined es falsy → no-SDD. La feature en done sin .feature
-  // no es un error, porque no está en el pipeline.
+test('feature_list: sdd ausente se trata como no-SDD, sin exigir .feature', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'a', status: 'done' }] },
@@ -700,57 +350,29 @@ test('feature_list: sdd ausente se trata como no-SDD (opcional), sin exigir .fea
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
   assert.match(out, /válido \(1 features\)/);
-  assert.doesNotMatch(out, /"sdd" de la feature/); // el campo ausente no es un error
 });
 
-// ── feature_list: feature sdd sin name usable deriva features/<name>.feature ──
-
-test('feature_list: feature sdd en estado con-spec SIN name culpa al name, no a un fichero fantasma', () => {
-  // Una feature sdd en un estado que exige spec (spec_ready/in_progress/done)
-  // DERIVA features/<name>.feature de su name. Sin name, el motor derivaba
-  // features/undefined.feature y fallaba con "sin features/undefined.feature": un
-  // mensaje que manda a crear un fichero fantasma en vez de a la causa (falta el
-  // name). Debe nombrar el name como la causa.
+test('feature_list: feature sdd en PENDING no exige spec (solo spec_ready, in_progress y done)', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'in_progress' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /feature 1 \(sdd\) en in_progress necesita un "name"/);
-  assert.doesNotMatch(out, /undefined\.feature/); // no manda a un fichero fantasma
-});
-
-test('feature_list: feature sdd con name en blanco reporta el name UNA vez, sin doble [FAIL]', () => {
-  // Un name present-pero-en-blanco lo reporta el guardián de name (#24). La rama
-  // sdd NO debe añadir un segundo [FAIL] sobre features/   .feature (doble ruido
-  // por el mismo error): con la derivación guardada, solo queda el mensaje de name.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 7, name: '   ', sdd: true, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /"name" de la feature 7 debe ser un string no vacío/);
-  assert.doesNotMatch(out, /sin features\/.*\.feature/); // sin el segundo [FAIL] derivado
-});
-
-test('feature_list: feature sdd en PENDING sin name no exige spec (no la toca esta puerta)', () => {
-  // REQUIRES_SPEC excluye pending/blocked: una feature sdd aún en pending no deriva
-  // .feature todavía, así que un name ausente aquí no es un error de ESTA puerta
-  // (el name se exigirá al pasar a spec_ready). Sin falso positivo.
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'pending' }] },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'pending' }] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /necesita un "name"/);
+  assert.doesNotMatch(out, /sin features\//);
 });
 
-test('feature_list: feature sdd con name válido pero SIN su .feature sigue fallando por el fichero', () => {
-  // El guardián de name no debe tapar el chequeo real: con un name usable y sin el
-  // features/<name>.feature correspondiente, la puerta sigue exigiendo el contrato.
+test('feature_list: feature sdd en BLOCKED no exige spec', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'blocked' }] },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /sin features\//);
+});
+
+test('feature_list: feature sdd con name válido pero SIN su .feature falla por el fichero', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
@@ -760,7 +382,7 @@ test('feature_list: feature sdd con name válido pero SIN su .feature sigue fall
   assert.match(out, /feature 1 \(cli_since\) en done sin features\/cli_since\.feature/);
 });
 
-test('feature_list: feature sdd con name válido y su .feature presente termina en verde', () => {
+test('feature_list: feature sdd con su .feature presente termina en verde', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
@@ -771,19 +393,9 @@ test('feature_list: feature sdd con name válido y su .feature presente termina 
   assert.match(out, /Entorno listo/);
 });
 
-// ── feature_list: la puerta de spec aprobada respeta require_approved_spec_to_implement ─
-
 test('feature_list: require_approved_spec_to_implement:false omite la puerta de spec (opt-out honrado)', () => {
-  // La comprobación de `features/<name>.feature` ES la enforcement mecánica de
-  // `require_approved_spec_to_implement` (el humano aprueba ese contrato antes de
-  // implementar). Pero corría INCONDICIONALMENTE, ignorando el flag: un usuario que
-  // declaraba el opt-out `false` seguía BLOQUEADO con "sin features/<name>.feature"
-  // —un mensaje que NO delata que su ajuste se ignoró—. Era la ÚLTIMA de las cuatro
-  // reglas sin enforcement real: el comentario de #31 afirmó que require_tests_to_close
-  // era "la única" que el motor declaraba pero no enforzaba, pasando por alto ésta.
-  // Con el opt-out honrado, la feature sdd en in_progress SIN su .feature pasa en
-  // verde. Simétrico a los opt-out de require_tests_to_close / require_mutation_to_close
-  // en verify (#29/#31).
+  // La existencia de features/<name>.feature es la enforcement mecánica de esta regla:
+  // con el opt-out, una feature sdd en in_progress SIN su .feature pasa en verde.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -792,15 +404,12 @@ test('feature_list: require_approved_spec_to_implement:false omite la puerta de 
     'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'in_progress' }] },
   });
   const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out); // el opt-out se respeta: no exige el .feature
+  assert.equal(status, 0, out);
   assert.match(out, /Entorno listo/);
-  assert.doesNotMatch(out, /sin features\/cli_add\.feature/); // no bloquea ignorando el flag
+  assert.doesNotMatch(out, /sin features\/cli_add\.feature/);
 });
 
-test('feature_list: require_approved_spec_to_implement:true (default) sigue exigiendo el .feature', () => {
-  // El opt-out no puede debilitar la puerta por defecto (límite 2 de AUTONOMOUS.md):
-  // con la regla en true —el DEFAULT, y lo que usan todos los ejemplos— una feature
-  // sdd en un estado con-spec SIN su .feature sigue siendo [FAIL], igual que siempre.
+test('feature_list: require_approved_spec_to_implement:true sigue exigiendo el .feature', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -814,8 +423,6 @@ test('feature_list: require_approved_spec_to_implement:true (default) sigue exig
 });
 
 test('feature_list: require_approved_spec_to_implement ausente asume el default (exige el .feature)', () => {
-  // Omitir la regla es válido: el motor asume true (estricto). Sin el .feature, la
-  // puerta sigue firme, demostrando que el default en pie no depende de declararla.
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'done' }] },
@@ -825,11 +432,9 @@ test('feature_list: require_approved_spec_to_implement ausente asume el default 
   assert.match(out, /feature 1 \(cli_add\) en done sin features\/cli_add\.feature/);
 });
 
-test('feature_list: require_approved_spec_to_implement:false + sdd sin name no exige name (puerta apagada)', () => {
-  // Con la puerta de spec apagada no hay `features/<name>.feature` que derivar, así
-  // que un name ausente en una feature sdd en in_progress ya no dispara "necesita un
-  // name del que derivar ...": la rama entera se omite. Los guardianes de tipo y
-  // unicidad de `name` (para names presentes) siguen corriendo aparte.
+test('feature_list: require_approved_spec_to_implement:false no busca ningún .feature', () => {
+  // Con la puerta apagada no se deriva ninguna ruta features/<name>.feature, ni siquiera
+  // para una feature sdd sin name.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -839,11 +444,10 @@ test('feature_list: require_approved_spec_to_implement:false + sdd sin name no e
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /necesita un "name"/);
+  assert.doesNotMatch(out, /\.feature/);
 });
 
 test('feature_list: require_approved_spec_to_implement:false con el .feature presente sigue en verde', () => {
-  // El opt-out no rompe el camino normal: con el contrato presente, verde igual.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -857,9 +461,9 @@ test('feature_list: require_approved_spec_to_implement:false con el .feature pre
   assert.match(out, /Entorno listo/);
 });
 
-// ── init: gate tests-en-src (#19) ────────────────────────────────────────────
+// ── init: puerta "¿hay código?" para los tests ───────────────────────────────
 
-test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#19)', () => {
+test('init: corre los tests si hay código en src/ aunque tests/ esté vacío', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -873,7 +477,7 @@ test('init: corre los tests si hay código en src/ aunque tests/ esté vacío (#
   assert.match(out, /Hay tests rotos/);
 });
 
-test('init: sin código en src/ ni tests/ avisa pero no falla (#19)', () => {
+test('init: sin código en src/ ni tests/ avisa pero no falla', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -886,14 +490,11 @@ test('init: sin código en src/ ni tests/ avisa pero no falla (#19)', () => {
   assert.match(out, /nada que testear/);
 });
 
-// ── init: gate de lint sobre árbol vacío (simétrico al de tests, #19) ────────
+// ── init: puerta "¿hay código?" para el lint ─────────────────────────────────
 
 test('init: NO corre el lint si src/ y tests/ están vacíos (clon limpio, avisa sin fallar)', () => {
-  // Simétrico al gate de tests (#19): un clon recién hecho trae src/ y tests/
-  // vacíos; correr el linter ahí no tiene sentido y muchos linters salen NO-CERO
-  // cuando su patrón no casa nada, rompiendo `init` en la primera experiencia
-  // (límite 5 de AUTONOMOUS.md). El comando de lint aquí SIEMPRE falla: si corriera,
-  // init saldría 1. Debe SALTARSE con un WARN y quedarse en verde.
+  // Muchos linters salen distinto de 0 cuando su patrón no casa ningún fichero. El
+  // comando de aquí SIEMPRE falla: si corriera, init saldría 1.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -908,8 +509,6 @@ test('init: NO corre el lint si src/ y tests/ están vacíos (clon limpio, avisa
 });
 
 test('init: corre el lint si hay código en src/ aunque tests/ esté vacío', () => {
-  // Con código presente el gate deja pasar y un fallo real de lint sigue siendo
-  // [FAIL]: el gate no debilita la puerta (límite 2), solo evita el árbol vacío.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -938,15 +537,11 @@ test('init: lint que pasa con código presente termina en verde', () => {
   assert.match(out, /Entorno listo/);
 });
 
-// ── loadConfig: comando solo-espacios == sin comando (no falso verde) ─────────
+// ── comando solo-espacios == sin comando (no falso verde) ────────────────────
 
-test('loadConfig: commands.mutate solo-espacios == vacío → mutate falla con exit 2, no en falso verde', () => {
-  // "   " NO es un comando, es la ausencia de comando con un desliz de tecla. Con
-  // el bug antiguo, `!cfg.commands.mutate` daba false (el string es truthy) → se
-  // corría `run()`, que trata el comando en blanco-tras-trim como SKIP (status 0),
-  // y `mutate` imprimía "Prueba de mutación superada" SIN lanzar mutador: un falso
-  // verde en la puerta de mutación (peor que un fallo, límite 2). Al recortar en
-  // loadConfig, "   " se unifica con "" y toma la MISMA rama que el vacío: [FAIL].
+test('commands.mutate solo-espacios == vacío → mutate falla con exit 2, no en falso verde', () => {
+  // "   " no es un comando: sin el recorte en loadConfig, se contaría como declarado y
+  // run() lo saltaría con status 0, imprimiendo "Prueba de mutación superada" sin mutador.
   const dir = scenario({
     'harness.config.json': {
       project: 't',
@@ -960,12 +555,8 @@ test('loadConfig: commands.mutate solo-espacios == vacío → mutate falla con e
   assert.doesNotMatch(out, /Prueba de mutación superada/); // no certifica sin mutador
 });
 
-test('loadConfig: commands.test solo-espacios == vacío → init avisa, no "Todos los tests pasan"', () => {
-  // Hermano en `init`: con código presente y "   " como comando de tests, el bug
-  // corría `run()` (SKIP, status 0) e imprimía "Todos los tests pasan" sin ejecutar
-  // suite alguna. Recortado, "   " == "" → WARN "commands.test vacío", igual que el
-  // vacío. Se pone código en src/ para pasar el gate de árbol-vacío (#19) y aislar
-  // que la causa del WARN es el comando en blanco, no la ausencia de código.
+test('commands.test solo-espacios == vacío → init avisa, no "Todos los tests pasan"', () => {
+  // Con código en src/ para aislar que la causa del WARN es el comando en blanco.
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: { test: '   ' } },
     'feature_list.json': { features: [] },
@@ -977,11 +568,8 @@ test('loadConfig: commands.test solo-espacios == vacío → init avisa, no "Todo
   assert.doesNotMatch(out, /Todos los tests pasan/); // no dice que pasan si no corrió nada
 });
 
-test('loadConfig: comando con espacios de borde alrededor de un comando REAL sigue corriendo (sin falso positivo)', () => {
-  // El recorte no puede romper un comando legítimo escrito con espacios de sobra:
-  // "  node -e ... exit(4)  " debe recortarse y EJECUTARSE, no saltarse. Si se
-  // corriera, init falla con exit 1 (el comando sale 4); si se saltara por error,
-  // saldría verde. exit 1 demuestra que el comando real corrió tras el trim.
+test('un comando real con espacios de borde se recorta y SE EJECUTA (no se salta)', () => {
+  // Si corre, init falla con exit 1 (el comando sale 4); si se saltara, saldría verde.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -995,6 +583,22 @@ test('loadConfig: comando con espacios de borde alrededor de un comando REAL sig
   assert.match(out, /Hay tests rotos/); // el comando real corrió y falló (no se saltó)
 });
 
+// ── test ─────────────────────────────────────────────────────────────────────
+
+test('test: propaga el exit code del comando de tests', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', commands: { test: 'node -e "process.exit(7)"' } },
+  });
+  assert.equal(runEngine(dir, ['test']).status, 7);
+});
+
+test('test: commands.test vacío avisa y sale 0', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', commands: {} } });
+  const { status, out } = runEngine(dir, ['test']);
+  assert.equal(status, 0);
+  assert.match(out, /commands\.test vacío/);
+});
+
 // ── mutate: objetivos, umbral y sustitución de tokens ────────────────────────
 
 test('mutate: commands.mutate vacío falla con exit 2', () => {
@@ -1004,23 +608,9 @@ test('mutate: commands.mutate vacío falla con exit 2', () => {
   assert.match(out, /commands\.mutate vacío/);
 });
 
-test('mutate: "mutation.targets" no-array falla legible, no en falso verde (#14)', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't',
-      commands: { mutate: 'node -e "process.exit(0)" {{target}}' },
-      mutation: { targets: 'src/x.py' },
-    },
-  });
-  const { status, out } = runEngine(dir, ['mutate']);
-  assert.equal(status, 1);
-  assert.match(out, /"mutation\.targets" debe ser un array/);
-});
-
-test('mutate: {{target}} con `$` se inserta literal, no vía reemplazo especial (#17)', () => {
-  // Con el bug antiguo (String.replace con valor string), "a$$b" se colapsaba a
-  // "a$b". El motor imprime el comando resuelto ("$ ...") antes de ejecutarlo:
-  // esa línea, pura cadena JS sin shell, debe contener el objetivo literal.
+test('mutate: {{target}} con `$` se inserta literal, no vía reemplazo especial', () => {
+  // Con un reemplazo string, "a$$b" se colapsaba a "a$b". El motor imprime el comando
+  // resuelto ("$ ...") antes de ejecutarlo: esa línea debe contener el objetivo literal.
   const dir = scenario({
     'harness.config.json': {
       project: 't',
@@ -1060,34 +650,7 @@ test('mutate <target> explícito ignora la lista de la config', () => {
   assert.doesNotMatch(out, /AAA|BBB/);
 });
 
-test('mutate <target> solo-espacios NO pasa como verde por la rama explícita (gemelo de #14/#32)', () => {
-  // El guardián de #14 rechaza un blanco DENTRO de `mutation.targets`, pero la
-  // rama del objetivo explícito por CLI (`if (explicitTarget) return ...`) lo
-  // devolvía SIN validar: `bin/harness mutate "   "` corría el mutador con
-  // {{target}} en blanco y, con un mutador que sale 0 sin objetivo, reportaba
-  // "Prueba de mutación superada" (exit 0) sin medir nada —un falso verde sobre la
-  // puerta de mutación (límite 2), y una asimetría con la lista de config que
-  // rechaza ese MISMO "   "—. El comando de abajo FALLA (exit 1) si recibe un
-  // objetivo real y "pasa" (exit 0) si el objetivo va en blanco: sin el guardián,
-  // el objetivo "   " tomaría la rama del exit 0 y colaría el verde.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't',
-      commands: { mutate: `node -e "process.exit(process.argv[1] && process.argv[1].trim() ? 1 : 0)" {{target}}` },
-      mutation: { targets: ['src/real.py'] },
-    },
-  });
-  const { status, out } = runEngine(dir, ['mutate', '   ']);
-  assert.equal(status, 1);
-  assert.match(out, /objetivo de mutación indicado por la línea de comandos debe ser una ruta no vacía/);
-  assert.doesNotMatch(out, /superada/); // no certifica la mutación
-});
-
-test('mutate <target> real (con espacios de borde) sigue corriendo, sin falso positivo del guardián', () => {
-  // El guardián solo caza el objetivo SOLO-ESPACIOS; un objetivo real no se ve
-  // afectado. El motor imprime el comando resuelto ("$ ...") con el objetivo tal
-  // cual antes de ejecutarlo; el objetivo se pasa entero (no se recorta): el
-  // guardián decide con `.trim()` pero no muta el valor.
+test('mutate <target> real se pasa tal cual, sin recortar, e ignora la lista de la config', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't',
@@ -1098,7 +661,7 @@ test('mutate <target> real (con espacios de borde) sigue corriendo, sin falso po
   const { status, out } = runEngine(dir, ['mutate', 'src/real.py']);
   assert.equal(status, 0, out);
   assert.match(out, /src\/real\.py/);
-  assert.doesNotMatch(out, /AAA/); // el explícito sigue ignorando la lista de config
+  assert.doesNotMatch(out, /AAA/);
 });
 
 test('mutate: verde solo si TODOS los objetivos superan el umbral', () => {
@@ -1141,7 +704,7 @@ test('status: renderiza las features declaradas', () => {
   assert.match(out, /done/);
 });
 
-test('status: lista válida vacía sigue en verde (exit 0) sin falso positivo', () => {
+test('status: lista válida vacía sigue en verde (exit 0)', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
     'feature_list.json': { features: [] },
@@ -1151,30 +714,16 @@ test('status: lista válida vacía sigue en verde (exit 0) sin falso positivo', 
   assert.match(out, /sin features definidas/);
 });
 
-test('status: feature_list corrupto (features no-array) sale con exit 1, no en falso verde', () => {
-  // validateFeatureList imprime su [FAIL], pero cmdStatus descartaba v.ok y salía
-  // 0: un falso verde de la misma familia que el resto de guardianes (límite 2).
-  // Además NO debe decir "sin features definidas": la lista no está vacía, está
-  // corrupta.
+test('status: lista con un estado inválido sale con exit 1 pero renderiza las features', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: 42 },
+    'feature_list.json': { features: [{ id: 1, name: 'ok', status: 'done' }, { id: 2, name: 'raro', status: 'wip' }] },
   });
   const { status, out } = runEngine(dir, ['status']);
   assert.equal(status, 1);
-  assert.match(out, /"features" debe ser un array/);
-  assert.doesNotMatch(out, /sin features definidas/);
-});
-
-test('status: entrada corrupta mezclada con una válida sale con exit 1 pero renderiza la válida', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'ok', status: 'done' }, 99] },
-  });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 1);
-  assert.match(out, /features\[1\] debe ser un objeto/);
-  assert.match(out, /ok/); // la entrada válida se sigue mostrando para el humano
+  assert.match(out, /Estado inválido en feature 2: wip/);
+  assert.match(out, /ok/); // las features se siguen mostrando para el humano
+  assert.match(out, /wip\s+raro/);
 });
 
 test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
@@ -1184,21 +733,15 @@ test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
   assert.match(out, /Comando desconocido: frobnicate/);
 });
 
-// ── verify: la puerta de mutación obligatoria no puede quedar en falso verde ──
+// ── verify: las puertas de cierre no pueden quedar en falso verde ────────────
 
 test('verify: require_mutation_to_close:true con commands.mutate VACÍO aborta, no en falso verde', () => {
-  // verify es la puerta de cierre de sesión (docs/verification.md: "Si verify está
-  // rojo... no marques nada como done"). Con la regla obligatoria activa (el
-  // DEFAULT) y sin mutador declarado, la puerta se OMITÍA en silencio y aún así
-  // imprimía "Todo verde. Puedes cerrar la sesión": un falso verde sobre la puerta
-  // de cierre (límite 2). El `mutate` directo ya falla ante commands.mutate vacío;
-  // verify —la misma puerta a nivel de sesión— debe fallar igual, nombrando la causa.
+  // Con la regla obligatoria (el default) y sin mutador declarado, verify no certifica
+  // el cierre. require_tests_to_close:false aísla la puerta de mutación: sin él, la de
+  // tests (default true, commands.test vacío) fallaría primero.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
-      // require_tests_to_close:false aísla la puerta de mutación: sin él, el
-      // guardián hermano de tests (default true, commands.test vacío) fallaría
-      // primero y taparía la conducta de mutación que este caso fija.
       rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
     'feature_list.json': { features: [] },
@@ -1210,12 +753,9 @@ test('verify: require_mutation_to_close:true con commands.mutate VACÍO aborta, 
 });
 
 test('verify: require_mutation_to_close:false con commands.mutate vacío omite la puerta y sigue en verde', () => {
-  // Opt-out legítimo: si el proyecto declara que no cierra por mutación, verify no
-  // debe exigir un mutador. El guardián nuevo no puede romper este caso.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
-      // Ambas puertas opt-out: este caso fija SOLO que verify no exige mutador.
       rules: { require_tests_to_close: false, require_mutation_to_close: false },
     },
     'feature_list.json': { features: [] },
@@ -1226,8 +766,6 @@ test('verify: require_mutation_to_close:false con commands.mutate vacío omite l
 });
 
 test('verify: require_mutation_to_close:true con mutador que pasa termina en verde', () => {
-  // Con un mutador declarado que supera el umbral, la puerta corre de verdad y
-  // verify certifica el cierre: el guardián no debilita la puerta (límite 2).
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -1244,8 +782,6 @@ test('verify: require_mutation_to_close:true con mutador que pasa termina en ver
 });
 
 test('verify: require_mutation_to_close:true con mutador que NO supera el umbral aborta', () => {
-  // La puerta corre y falla: verify no certifica el cierre. Comprobación de que la
-  // rama del guardián (mutate vacío) no tapa la rama real (mutate presente que falla).
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -1261,15 +797,9 @@ test('verify: require_mutation_to_close:true con mutador que NO supera el umbral
   assert.doesNotMatch(out, /Puedes cerrar la sesión/);
 });
 
-// ── verify: la puerta de tests obligatoria no puede quedar en falso verde ─────
-
 test('verify: require_tests_to_close:true con commands.test VACÍO aborta, no en falso verde', () => {
-  // Hermano simétrico del guardián de mutación (#29). `init` corre los tests pero
-  // con commands.test vacío solo AVISA y sale 0; verify aún certificaba "Puedes
-  // cerrar la sesión" pese a require_tests_to_close:true (el DEFAULT): un falso
-  // verde sobre la puerta de cierre (límite 2 de AUTONOMOUS.md). Era, además, la
-  // única de las cuatro reglas que el motor declaraba pero NO enforzaba. Aquí se
-  // apaga la mutación para AISLAR la puerta de tests como la causa del abort.
+  // `init` con commands.test vacío solo AVISA y sale 0; verify, la puerta de cierre, no
+  // certifica sin suite. Se apaga la mutación para aislar la puerta de tests.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -1280,12 +810,10 @@ test('verify: require_tests_to_close:true con commands.test VACÍO aborta, no en
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
 });
 
 test('verify: require_tests_to_close:false con commands.test vacío omite la puerta y sigue en verde', () => {
-  // Opt-out legítimo: si el proyecto declara que no cierra por tests, verify no
-  // debe exigir un comando de tests. El guardián nuevo no puede romper este caso.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
@@ -1298,12 +826,8 @@ test('verify: require_tests_to_close:false con commands.test vacío omite la pue
   assert.match(out, /Puedes cerrar la sesión/);
 });
 
-test('verify: require_mutation_to_close:true con commands.mutate solo-espacios aborta (gemelo de #29)', () => {
-  // El guardián de #29 mira `!cfg.commands.mutate`, al que "   " (truthy) se le
-  // escapaba: verify pasaba el guardián, corría el mutador en blanco (SKIP, status
-  // 0) y certificaba "Puedes cerrar la sesión" sin mutador real —el mismo falso
-  // verde de #29, reabierto por un espacio—. Al recortar en loadConfig, "   " == ""
-  // y el guardián lo caza igual, abortando con la causa.
+test('verify: require_mutation_to_close:true con commands.mutate solo-espacios aborta', () => {
+  // "   " se recorta a "" y toma la misma rama que el vacío.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -1315,14 +839,10 @@ test('verify: require_mutation_to_close:true con commands.mutate solo-espacios a
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_mutation_to_close es true pero commands\.mutate está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
 });
 
-test('verify: require_tests_to_close:true con commands.test solo-espacios aborta (gemelo de #31)', () => {
-  // Igual que arriba, para la puerta de tests (#31): "   " se colaba por truthy y
-  // verify certificaba el cierre sin suite. Recortado, toma la rama del guardián de
-  // commands.test vacío y aborta nombrando la causa. Se apaga la mutación para
-  // aislar la puerta de tests como el motivo del abort.
+test('verify: require_tests_to_close:true con commands.test solo-espacios aborta', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -1334,14 +854,10 @@ test('verify: require_tests_to_close:true con commands.test solo-espacios aborta
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
 });
 
 test('verify: require_tests_to_close:true con commands.test declarado pasa la puerta y certifica', () => {
-  // Con un comando de tests declarado, la puerta de tests se satisface e `init` ya
-  // los corrió (o los avisó si no hay código); verify llega al verde. El guardián
-  // no debilita la puerta (límite 2): solo exige que exista el comando. Se apaga la
-  // mutación para que el único filtro relevante aquí sea la puerta de tests.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
@@ -1455,4 +971,29 @@ test('verify: sin feature_list.json ni progress/current.md certifica el cierre i
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
   assert.match(out, /Puedes cerrar la sesión/);
+});
+
+// ── red de seguridad: un fichero mal formado termina en [FAIL], no en una traza ──
+// El motor no valida la forma de lo que lee. Cualquier excepción inesperada la recoge
+// el despacho y la convierte en un mensaje de una línea con exit 2.
+
+test('un harness.config.json mal formado termina en [FAIL] con exit 2 y sin traza', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: { test: 5 } },
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 2);
+  assert.match(out, /\[FAIL\]\s+Error inesperado: .*harness\.config\.json o feature_list\.json mal formado/);
+  assert.doesNotMatch(out, /\n\s+at /); // sin traza de pila
+});
+
+test('un feature_list.json mal formado termina en [FAIL] con exit 2 y sin traza', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {} },
+    'feature_list.json': 'null',
+  });
+  const { status, out } = runEngine(dir, ['status']);
+  assert.equal(status, 2);
+  assert.match(out, /\[FAIL\]\s+Error inesperado/);
+  assert.doesNotMatch(out, /\n\s+at /);
 });
