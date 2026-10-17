@@ -1,24 +1,15 @@
 #!/usr/bin/env node
 // harness.mjs — Motor AGNÓSTICO del arnés SSD "Uncle Bob".
 //
-// No sabe de tu lenguaje: lee `harness.config.json` del directorio actual y
-// ejecuta los comandos que TÚ declaras (test, mutación, lint...). Así el mismo
-// motor sirve para Python, Node/TS, Go o cualquier stack.
+// No sabe de tu lenguaje: lee `harness.config.json` del directorio actual y ejecuta
+// los comandos que TÚ declaras (test, mutación, lint...). Así el mismo motor sirve
+// para Python, Node/TS, Go o cualquier stack.
 //
-//   node .harness/harness.mjs <comando>
+//   node .harness/harness.mjs <init|test|mutate [target]|verify|status|help>
 //
-// Comandos:
-//   init     Verifica entorno, ficheros base, feature_list.json (opcional) y corre los tests.
-//   test     Ejecuta el comando de tests declarado en config.commands.test.
-//   mutate   Ejecuta la prueba de mutación (config.commands.mutate). Sin target
-//            explícito itera config.mutation.targets; con target, solo ese módulo.
-//   verify   init + lint + mutate: la verificación completa (puerta de cierre).
-//   status   Resume el estado de feature_list.json (opcional).
-//   help     Muestra esta ayuda.
-//
-// Requisito único del arnés: Node.js >= 18 (sin dependencias npm; solo stdlib).
-// Los comandos admiten el token {{py}}, que el motor resuelve al intérprete de
-// Python disponible (python3 o python). Ejecuta el motor desde la raíz de un
+// Requisito único: Node.js >= 18 (solo stdlib). Los comandos admiten los tokens {{py}}
+// (python3 o python, el que haya), {{target}} (el módulo a mutar) y {{threshold}} /
+// {{threshold_pct}} (el umbral de mutación, 0.8 u 80). Ejecútalo desde la raíz de un
 // proyecto que contenga `harness.config.json`.
 
 import fs from 'node:fs';
@@ -42,28 +33,9 @@ const rule = (s) => console.log(`\n── ${s} ${'─'.repeat(Math.max(0, 52 - s
 const CWD = process.cwd();
 const CONFIG_NAME = 'harness.config.json';
 
-/**
- * Elimina un BOM UTF-8 inicial antes de parsear JSON. Editores de Windows
- * (Notepad, algunos flujos de PowerShell `>`/`Out-File`) guardan con BOM por
- * defecto; `JSON.parse` no lo tolera y falla con un "Unexpected token" críptico.
- * Robustez multiplataforma para los ficheros que el usuario edita a mano.
- */
+// Los editores de Windows guardan JSON con BOM y JSON.parse no lo tolera.
 const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
-
-/** Lee un fichero de texto UTF-8 y le quita el BOM inicial si lo tuviera. */
 const readText = (p) => stripBom(fs.readFileSync(p, 'utf8'));
-
-/**
- * true si `v` es un objeto JSON "normal": ni null, ni array. `harness.config.json`
- * y `feature_list.json` deben ser objetos; un `null`, número, string o array son
- * ediciones a mano equivocadas que, sin este guardián, revientan más adelante con
- * un `TypeError` y un stack trace en vez de un `[FAIL]` legible. Misma familia que
- * la tolerancia a BOM: robustez para los ficheros que el usuario edita a mano.
- */
-const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-/** Nombre legible del tipo JSON de `v`, para mensajes de error. */
-const jsonKind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
 const VALID_STATUS = ['pending', 'spec_ready', 'in_progress', 'done', 'blocked'];
 const REQUIRES_SPEC = new Set(['spec_ready', 'in_progress', 'done']);
@@ -80,29 +52,16 @@ function resolvePython() {
 }
 
 /**
- * Sustituye tokens en un comando ({{py}} → intérprete, {{target}} → objetivo).
- *
- * Los reemplazos se pasan como FUNCIÓN, no como string, a propósito: cuando el
- * segundo argumento de String.prototype.replace es un string, las secuencias con
- * `$` tienen significado especial (`$$` → `$`, `$&` → el propio match, `` $` ``,
- * `$'`, `$n`). Un objetivo de mutación con `$` en la ruta —legal en POSIX y
- * Windows, y habitual en artefactos generados de la JVM/Scala tipo
- * `Outer$Inner`— se corrompía en silencio: `src/a$&b.py` acababa como
- * `src/a{{target}}b.py` y el mutador corría sobre una ruta equivocada, pudiendo
- * reportar VERDE sin medir el módulo que el usuario declaró. Un reemplazo por
- * función inserta el valor TAL CUAL, sin interpretar el `$`. Misma familia que
- * los guardianes de config: que el token signifique literalmente el valor, no un
- * falso verde ni una ruta mutada por accidente. resolvePython() memoiza, así que
- * llamarla una vez por match no repite el sondeo del intérprete.
+ * Sustituye tokens en un comando: {{py}} → intérprete de Python, {{target}} → objetivo,
+ * {{threshold}} → umbral de mutación (0.8), {{threshold_pct}} → ese umbral en % (80).
  */
 function resolveCmd(cmd, tokens = {}) {
   if (!cmd) return cmd;
-  return cmd
-    .replace(/\{\{\s*py\s*\}\}/g, () => resolvePython())
-    .replace(/\{\{\s*target\s*\}\}/g, () => tokens.target || '');
+  // Reemplazo por FUNCIÓN: con un string, un `$` en la ruta (`a$&b`) se interpretaría.
+  return cmd.replace(/\{\{\s*(py|target|threshold_pct|threshold)\s*\}\}/g, (_, k) => (k === 'py' ? resolvePython() : tokens[k] ?? ''));
 }
 
-/** Carga y valida harness.config.json con valores por defecto sensatos. */
+/** Carga harness.config.json y le aplica los valores por defecto. */
 function loadConfig() {
   const p = path.join(CWD, CONFIG_NAME);
   if (!fs.existsSync(p)) {
@@ -120,216 +79,27 @@ function loadConfig() {
     fail(`${CONFIG_NAME} no es JSON válido: ${e.message}`);
     process.exit(2);
   }
-  if (!isPlainObject(cfg)) {
-    fail(`${CONFIG_NAME} debe ser un objeto JSON (encontrado: ${jsonKind(cfg)}).`);
-    console.log(
-      `\nLa raíz del fichero tiene que ser un objeto { ... } con "project" y "commands".\n` +
-      `Copia la plantilla de la raíz del template y declara los comandos de tu stack.`,
-    );
-    process.exit(2);
-  }
-  // `paths` y `commands` deben ser objetos { clave: string } o estar ausentes. Un
-  // string o un array (edición a mano equivocada, p. ej. "commands": "go test" o
-  // "commands": ["go test"] en vez de "commands": { "test": "go test" }) NO
-  // revienta: Object.assign ignora los primitivos y esparce los índices de un
-  // array/los caracteres de un string como claves numéricas, así que los defaults
-  // (todos vacíos) SOBREVIVEN y el comando que el usuario creía haber declarado se
-  // descarta en silencio. En `init` eso reporta VERDE con "no hay comando de tests"
-  // pese a que el usuario declaró uno: un falso verde que traiciona la puerta —peor
-  // que un fallo (límite 2)—. La misma familia que el guardián de `mutation` no-objeto,
-  // que solo mira una capa más adentro; y coherente con harness.schema.json, que ya
-  // declara `commands` y `paths` como "type": "object". Convertir la edición
-  // equivocada en un [FAIL] legible, no en un verde engañoso.
-  const CONTAINER_HINT = {
-    commands: '"commands": { "test": "go test ./..." }',
-    paths: '"paths": { "src": "src", "tests": "tests" }',
-  };
-  for (const key of ['paths', 'commands']) {
-    if (cfg[key] !== undefined && !isPlainObject(cfg[key])) {
-      fail(`${CONFIG_NAME}: "${key}" debe ser un objeto { clave: "valor" } (encontrado: ${jsonKind(cfg[key])}).`);
-      console.log(
-        `\n  Declara las claves dentro de un objeto, p. ej.  ${CONTAINER_HINT[key]}.\n` +
-        `  Omitir "${key}" también es válido: el motor usa los valores por defecto.`,
-      );
-      process.exit(2);
-    }
-  }
   cfg.paths = Object.assign(
     {
       src: 'src', tests: 'tests', features: 'features', progress: 'progress',
       spec: 'project-spec.md', feature_list: 'feature_list.json',
     },
-    cfg.paths || {},
+    cfg.paths,
   );
-  cfg.commands = Object.assign(
-    { install: '', test: '', mutate: '', lint: '', build: '' },
-    cfg.commands || {},
-  );
-  // Los valores de `paths` y `commands` deben ser strings: los primeros se pasan
-  // a path.join(...) y los segundos a resolveCmd(...).replace(...). Un número,
-  // booleano, array u objeto (override a mano equivocado, p. ej. "test": 5 o
-  // "feature_list": ["x.json"]) reventaría más abajo con un TypeError y un stack
-  // trace en vez de un [FAIL] legible. Misma familia que la tolerancia a BOM y
-  // los guardianes de objeto de la raíz, de las features y de mutation.targets:
-  // convertir una edición a mano equivocada en un [FAIL] legible.
-  for (const [group, obj] of [['paths', cfg.paths], ['commands', cfg.commands]]) {
-    for (const [key, val] of Object.entries(obj)) {
-      if (typeof val !== 'string') {
-        fail(`${CONFIG_NAME}: "${group}.${key}" debe ser un string (encontrado: ${jsonKind(val)}).`);
-        process.exit(2);
-      }
-    }
-  }
-  // Normaliza los comandos recortando sus espacios de borde: un valor solo-espacios
-  // ("   ") NO es un comando, es la AUSENCIA de comando escrita con un desliz de
-  // tecla. Sin esto, la comprobación "¿hay comando?" de los llamadores
-  // (`if (cfg.commands.test)`, `!cfg.commands.mutate`) usa la VERACIDAD cruda del
-  // string —para la que "   " es truthy → "declarado"—, pero `run()` (más abajo)
-  // trata un comando en blanco-tras-trim como SKIP y devuelve status 0. Las dos
-  // lecturas se contradicen y el resultado es un FALSO VERDE: `mutate` imprime
-  // "Prueba de mutación superada" sin lanzar mutador, `init` "Todos los tests
-  // pasan" sin correr suite, y `verify` certifica "Puedes cerrar la sesión"
-  // esquivando los guardianes de commands.mutate/commands.test vacíos (#29, #31),
-  // que solo miran `!cfg.commands.X` y a los que "   " se les cuela por truthy —el
-  // mismo hueco que cerraron para "", reabierto por un espacio—. Recortar aquí
-  // unifica el solo-espacios con el vacío (""): la MISMA intención —sin comando—
-  // tratada igual en TODOS los llamadores (init, test, mutate, verify, lint), y sin
-  // depender de que cada uno recuerde hacer `.trim()`. Un comando real nunca cuelga
-  // de sus espacios de borde. Misma familia que el string-leaf guard (#15) y la
-  // tolerancia a BOM: convertir el desliz de edición en la conducta honesta, no en
-  // un verde engañoso.
+  cfg.commands = Object.assign({ install: '', test: '', mutate: '', lint: '', build: '' }, cfg.commands);
+  // Un comando solo-espacios es la AUSENCIA de comando: sin el trim, "   " cuenta como
+  // declarado en los `if (cfg.commands.X)` pero run() lo salta con status 0 (falso verde).
   for (const key of Object.keys(cfg.commands)) {
     cfg.commands[key] = cfg.commands[key].trim();
   }
-  // `mutation` debe ser un objeto { threshold, targets } o estar ausente. Un
-  // string, número o array (edición a mano equivocada, p. ej. "mutation":
-  // "src/x.py" en vez de "mutation": { "targets": ["src/x.py"] }) NO revienta:
-  // Object.assign ignora los primitivos y esparce los índices de un array, así
-  // que `targets` se queda en [] y la puerta de mutación corre sobre "todo el
-  // proyecto" con {{target}} vacío reportando VERDE sin medir el objetivo que el
-  // usuario creía haber declarado. Un falso verde que traiciona la puerta de
-  // mutación —peor que un fallo—, la misma familia que el guardián de
-  // mutation.targets, que solo mira una capa más adentro: convertir la edición
-  // equivocada en un [FAIL] legible, no en un verde engañoso ni en un stack trace.
-  if (cfg.mutation !== undefined && !isPlainObject(cfg.mutation)) {
-    fail(`${CONFIG_NAME}: "mutation" debe ser un objeto { threshold, targets } (encontrado: ${jsonKind(cfg.mutation)}).`);
-    console.log(
-      `\n  Declara los módulos dentro de "targets", p. ej.  "mutation": { "targets": ["src/notes.py"] }.\n` +
-      `  Omitir "mutation" también es válido: el motor usa los valores por defecto.`,
-    );
-    process.exit(2);
-  }
-  // `mutation.threshold` PRESENTE debe ser un número en [0, 1]: es la puntuación
-  // mínima de mutación (proporción de mutantes muertos) para cerrar una feature, y
-  // el `mutation_tester` la LEE de aquí para decidir la puerta de cierre (ver
-  // `.claude/agents/mutation_tester.md` y `craftsman_lead.md`). Es el ÚLTIMO campo
-  // que harness.schema.json declara ("threshold": number, minimum 0, maximum 1) y
-  // que el motor aún NO guardaba, mientras que su hermano `targets` del mismo objeto
-  // sí valida forma (#14). Sin guardián, tres ediciones a mano equivocadas se
-  // colaban en silencio:
-  //   • entrecomillar el número (`"threshold": "0.9"`, el mismo desliz que #26/#30
-  //     para los booleanos) → un string, no un número: la comparación de puntuación
-  //     del agente queda a merced de una coerción implícita.
-  //   • confundir proporción con PORCENTAJE (`"threshold": 90` en vez de `0.9`) → el
-  //     agente exigiría "el 9000%" de mutantes muertos: una puerta IMPOSIBLE que
-  //     nada superaría, o —según cómo la lea— un umbral sin sentido.
-  //   • un array/objeto/booleano (`[1]`, `{}`) → ni siquiera es un número.
-  // Como en el guardián de contenedor de `rules` (#25), aquí el default (0.8) es
-  // válido y no se debilita ninguna puerta por el mero descarte; pero el silencio
-  // contradice al propio harness.schema.json y a los agentes que consumen el valor.
-  // Se valida ANTES del merge para que el default 0.8 —cuando el usuario omite el
-  // campo— no dispare el guardián: solo un valor DECLARADO y equivocado falla.
-  // Misma familia que los guardianes de standalone (#26) y de los flags de rules
-  // (#30): convertir la edición a mano equivocada en un [FAIL] legible, no en una
-  // coerción muda que contradice el umbral que el usuario creía haber fijado.
-  if (isPlainObject(cfg.mutation) && cfg.mutation.threshold !== undefined) {
-    const th = cfg.mutation.threshold;
-    if (typeof th !== 'number' || th < 0 || th > 1) {
-      const detail = typeof th === 'number' ? `${th}, fuera de [0, 1]` : jsonKind(th);
-      fail(`${CONFIG_NAME}: "mutation.threshold" debe ser un número entre 0 y 1 (encontrado: ${detail}).`);
-      console.log(
-        `\n  Es una PROPORCIÓN de mutantes muertos, no un porcentaje: 0.9 (no 90), 1.0 = 100%.\n` +
-        `  Un número SIN comillas, p. ej.  "mutation": { "threshold": 1.0, "targets": [...] }.\n` +
-        `  Omitir "threshold" también es válido: el motor usa el valor por defecto (0.8).`,
-      );
-      process.exit(2);
-    }
-  }
-  cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation || {});
-  // `standalone` gobierna si `init` comprueba los ficheros base del arnés
-  // (AGENTS.md, CLAUDE.md, CHECKPOINTS.md, docs/workflow.md, feature_list,
-  // progress/current.md): true → proyecto autónomo con los suyos; false → hereda
-  // el arnés raíz y se OMITE esa comprobación. Ausente → true por defecto. Pero un
-  // valor PRESENTE no-booleano —el error clásico de entrecomillar un booleano en
-  // JSON: `"standalone": "false"`— se coercía EN SILENCIO a true (`typeof ... !==
-  // 'boolean'` → reasignar). El sub-proyecto que el usuario quería marcar como
-  // heredero (standalone:false) acababa comprobando ficheros base que no tiene y
-  // fallaba con una ráfaga de "Falta archivo base" que NO menciona la causa real:
-  // el valor declarado se descartaba sin avisar y el mensaje desorientaba. Es el
-  // ÚNICO campo escalar de config que quedaba con coerción silenciosa; los cuatro
-  // contenedores (commands, paths, mutation, rules) ya fallan legible ante un tipo
-  // equivocado (#16, #18, #25). Misma familia: convertir la edición a mano
-  // equivocada en un [FAIL] legible, no en un descarte mudo ni en un fallo que
-  // apunta al síntoma en vez de a la causa.
-  if (cfg.standalone !== undefined && typeof cfg.standalone !== 'boolean') {
-    fail(`${CONFIG_NAME}: "standalone" debe ser true o false (encontrado: ${jsonKind(cfg.standalone)}).`);
-    console.log(
-      `\n  Es un booleano SIN comillas: "standalone": false (hereda el arnés raíz)\n` +
-      `  o "standalone": true (proyecto autónomo con sus propios ficheros base).\n` +
-      `  Omitir "standalone" también es válido: el motor asume true (autónomo).`,
-    );
-    process.exit(2);
-  }
-  if (cfg.standalone === undefined) cfg.standalone = true;
-  // `rules` debe ser un objeto { one_feature_at_a_time, ... } o estar ausente. Es
-  // el ÚLTIMO de los cuatro contenedores que harness.schema.json declara "type":
-  // "object" (commands, paths, mutation, rules) que aún NO tenía guardián de forma.
-  // Un string, número o array (edición a mano equivocada, p. ej. "rules":
-  // "estrictas" en vez de "rules": { "one_feature_at_a_time": true }) NO revienta,
-  // pero se descarta EN SILENCIO: Object.assign ignora los primitivos y esparce los
-  // índices de un array como claves numéricas, así que los defaults SOBREVIVEN y el
-  // motor sale VERDE sin avisar de que la config de reglas del usuario se ignoró.
-  // A diferencia de commands/paths/mutation —donde el descarte deja la puerta sin
-  // el comando declarado y produce un falso verde—, aquí los defaults son los
-  // ESTRICTOS, así que no se debilita ninguna puerta; pero el silencio contradice a
-  // los guardianes hermanos (#16, #18) y al propio harness.schema.json. Misma
-  // familia: convertir la edición a mano equivocada en un [FAIL] legible, no en un
-  // descarte mudo.
-  if (cfg.rules !== undefined && !isPlainObject(cfg.rules)) {
-    fail(`${CONFIG_NAME}: "rules" debe ser un objeto { one_feature_at_a_time, ... } (encontrado: ${jsonKind(cfg.rules)}).`);
-    console.log(
-      `\n  Declara las banderas dentro de un objeto, p. ej.  "rules": { "one_feature_at_a_time": true }.\n` +
-      `  Omitir "rules" también es válido: el motor usa los valores por defecto (todas estrictas).`,
-    );
-    process.exit(2);
-  }
-  // Cada bandera PRESENTE en `rules` debe ser un booleano. El guardián de arriba
-  // solo asegura que `rules` es un objeto; sus VALORES escalares seguían con
-  // coerción silenciosa —el mismo error de mano que #26 cerró para `standalone`,
-  // que se creía el "único campo escalar" con este problema pero pasó por alto los
-  // flags anidados aquí—. Entrecomillar un booleano en JSON
-  // (`"require_mutation_to_close": "false"`) produce el string "false", que es
-  // TRUTHY: la regla que el usuario quería DESACTIVAR sigue activa, y `verify`
-  // aborta imprimiendo "require_mutation_to_close es true..." —un mensaje que
-  // CONTRADICE lo que el usuario escribió (`"false"`) y lo manda a poner `false`
-  // sin comillas, que es justo lo que creía haber puesto—. Igual con
-  // `one_feature_at_a_time: "false"`, que sigue exigiendo "máximo 1". El schema
-  // declara los cuatro flags como "type": "boolean"; validarlos como tal convierte
-  // la edición equivocada en un [FAIL] legible, no en una coerción muda que apunta
-  // al síntoma en vez de a la causa. Misma familia que el string-leaf de
-  // paths/commands (#15) y el guardián de standalone (#26).
-  if (cfg.rules !== undefined) {
-    for (const [key, val] of Object.entries(cfg.rules)) {
-      if (typeof val !== 'boolean') {
-        fail(`${CONFIG_NAME}: "rules.${key}" debe ser true o false (encontrado: ${jsonKind(val)}).`);
-        console.log(
-          `\n  Son booleanos SIN comillas, p. ej.  "rules": { "${key}": false }.\n` +
-          `  Omitir una regla también es válido: el motor usa su valor por defecto (estricto).`,
-        );
-        process.exit(2);
-      }
-    }
-  }
+  cfg.mutation = Object.assign({ threshold: 0.8, targets: [] }, cfg.mutation);
+  // Tokens de todos los comandos. Entero más próximo y con toFixed antes: 0.8 * 100 es
+  // 80.00000000000001 (un ceil daría 81) y 0.575 * 100 es 57.49999999999999 (daría 57).
+  cfg.tokens = {
+    threshold: String(cfg.mutation.threshold),
+    threshold_pct: String(Math.round(Number((cfg.mutation.threshold * 100).toFixed(6)))),
+  };
+  cfg.standalone ??= true;
   cfg.rules = Object.assign(
     {
       one_feature_at_a_time: true,
@@ -337,36 +107,36 @@ function loadConfig() {
       require_tests_to_close: true,
       require_mutation_to_close: true,
     },
-    cfg.rules || {},
+    cfg.rules,
   );
   return cfg;
 }
 
-/** Ejecuta un comando de shell; devuelve {status, stdout, stderr}. */
-function run(cmd, { capture = false, tokens = {} } = {}) {
+/** Ejecuta un comando de shell y devuelve su código de salida (0 si está vacío). */
+function run(cmd, tokens = {}) {
   const resolved = resolveCmd(cmd, tokens);
-  if (!resolved || !resolved.trim()) return { status: 0, stdout: '', stderr: '', skipped: true };
-  const res = spawnSync(resolved, {
-    cwd: CWD, shell: true, encoding: 'utf8',
-    stdio: capture ? 'pipe' : 'inherit',
-  });
-  return { status: res.status ?? 1, stdout: res.stdout || '', stderr: res.stderr || '', skipped: false };
+  if (!resolved || !resolved.trim()) return 0;
+  const res = spawnSync(resolved, { cwd: CWD, shell: true, encoding: 'utf8', stdio: 'inherit' });
+  return res.status ?? 1;
+}
+
+/** Imprime `$ comando` (ya resuelto) y lo ejecuta; devuelve su código de salida. */
+function runEcho(cmd, tokens) {
+  console.log(`$ ${resolveCmd(cmd, tokens)}\n`);
+  return run(cmd, tokens);
 }
 
 function dirHasFiles(dir) {
-  const p = path.join(CWD, dir);
-  if (!fs.existsSync(p)) return false;
   try {
-    return fs.readdirSync(p).some((f) => !f.startsWith('.') && f !== '.gitkeep' && f !== '__init__.py');
+    return fs.readdirSync(path.join(CWD, dir)).some((f) => !f.startsWith('.') && f !== '__init__.py');
   } catch {
-    return false;
+    return false; // la carpeta no existe
   }
 }
 
 /**
  * Valida feature_list.json y devuelve {ok, features, absent?}. El fichero es
- * OPCIONAL: si no existe no hay nada que validar ({ok: true, absent: true}). Si
- * existe se valida entero, y un fichero corrupto sigue siendo [FAIL].
+ * OPCIONAL: si no existe no hay nada que validar; si existe, se valida entero.
  */
 function validateFeatureList(cfg) {
   const p = path.join(CWD, cfg.paths.feature_list);
@@ -381,196 +151,24 @@ function validateFeatureList(cfg) {
     fail(`${cfg.paths.feature_list} inválido: ${e.message}`);
     return { ok: false, features: [] };
   }
-  if (!isPlainObject(data)) {
-    fail(`${cfg.paths.feature_list} debe ser un objeto JSON con una clave "features" (array). Encontrado: ${jsonKind(data)}.`);
-    return { ok: false, features: [] };
-  }
-  if (data.features !== undefined && !Array.isArray(data.features)) {
-    fail(`${cfg.paths.feature_list}: "features" debe ser un array (encontrado: ${jsonKind(data.features)}).`);
-    return { ok: false, features: [] };
-  }
 
   const features = data.features || [];
   let good = true;
 
-  // Cada entrada de "features" debe ser un objeto. Un null, string, número o
-  // array sueltos (edición a mano equivocada) reventarían más abajo al leer
-  // `f.status` con un TypeError y un stack trace en vez de un [FAIL] legible.
-  // Misma familia que la tolerancia a BOM y el guardián de objeto de la raíz.
-  const wellFormed = [];
-  features.forEach((f, i) => {
-    if (isPlainObject(f)) wellFormed.push(f);
-    else {
-      fail(`${cfg.paths.feature_list}: features[${i}] debe ser un objeto (encontrado: ${jsonKind(f)}).`);
-      good = false;
-    }
-  });
-
-  // Cada `id` PRESENTE debe ser un escalar (string o número): es la CLAVE por la
-  // que los agentes referencian una feature ("trabaja la feature N") y la que el
-  // chequeo de unicidad de abajo normaliza con `String(f.id)`. Esa coerción es
-  // justo el agujero. `name` —el OTRO campo-clave— ya valida su tipo (#24), pero
-  // `id` quedó sin guardar pese a que la unicidad (#22) depende de coaccionarlo, y
-  // un id no-escalar (olvidar que es un identificador y poner un objeto/array/
-  // booleano) NO revienta: se coacciona en silencio y rompe la identidad de dos
-  // formas simétricas.
-  //   • FALSO ROJO: `String([1])` === `String(1)` === "1", así que `id:[1]` e
-  //     `id:1` COLISIONAN como "id duplicado" sin serlo realmente.
-  //   • FALSO VERDE: dos ids no-escalares DISTINTOS (`{}` y `[]`) coaccionan a
-  //     "[object Object]" y "", no colisionan, y la lista pasa como "válido" en
-  //     verde con dos features de identidad rota —peor que un fallo (límite 2 de
-  //     AUTONOMOUS.md)—; `status`, además, las pinta como `#[object Object]`.
-  // `null`/ausente se tratan como "sin id" (igual que el filtro de unicidad de
-  // abajo, que ya excluye `undefined`/`null`), no como error: un id es opcional,
-  // pero si está, debe ser usable. Misma familia que el string-leaf de
-  // paths/commands (#15) y el guardián de name (#24): convertir la edición a mano
-  // equivocada en un [FAIL] legible, no en una coerción muda que rompe la clave.
-  const isScalarId = (v) => typeof v === 'string' || typeof v === 'number';
-  for (const f of wellFormed) {
-    if (f.id !== undefined && f.id !== null && !isScalarId(f.id)) {
-      const label = typeof f.name === 'string' && f.name.trim() ? ` (feature "${f.name}")` : '';
-      fail(`${cfg.paths.feature_list}: el "id" de una feature${label} debe ser un string o un número (encontrado: ${jsonKind(f.id)}); los agentes la referencian por su id, que debe ser único.`);
-      good = false;
-    }
-  }
-
-  // Cada `name` presente debe ser un string NO VACÍO: de él DERIVA el motor
-  // `features/<name>.feature` —el contrato que aprueba el humano— y, por la
-  // convención anti-teléfono-descompuesto del pipeline, `progress/tdd_<name>.md`,
-  // `judge_<name>.md`, `mutation_<name>.md`. El guardián de unicidad de abajo
-  // filtra `typeof f.name === 'string'`, así que un name NO-string (olvidar las
-  // comillas: `"name": 123`, o un `true`) ESCAPABA por completo: dos features con
-  // el mismo name numérico 123 pasaban como "válido" en verde y colisionaban en el
-  // mismo `features/123.feature` —justo el falso verde que la unicidad de name
-  // venía a cerrar—. Un name vacío o en blanco deriva `features/.feature`, igual de
-  // roto. Misma familia que el string-leaf guard de paths/commands y el `!x.trim()`
-  // de mutation.targets: convertir la edición a mano equivocada en un [FAIL]
-  // legible, no en un verde engañoso ni en una ruta de fichero corrupta.
-  for (const f of wellFormed) {
-    if (f.name !== undefined && (typeof f.name !== 'string' || !f.name.trim())) {
-      const found = typeof f.name === 'string' ? 'string vacío' : jsonKind(f.name);
-      fail(`${cfg.paths.feature_list}: el "name" de la feature ${f.id ?? '?'} debe ser un string no vacío (encontrado: ${found}); de él derivan ${cfg.paths.features}/<name>.feature y progress/*_<name>.md.`);
-      good = false;
-    }
-  }
-
-  // Cada `sdd` PRESENTE debe ser un booleano. Es el flag que mete a una feature en
-  // el pipeline SDD (spec → gherkin → TDD → review → mutación) y activa la puerta
-  // de aprobación humana sobre `features/<name>.feature`; el motor lo lee como
-  // truthy CRUDO (`f.sdd === true` abajo, `f.sdd ? ' (sdd)'` en status). Es el
-  // ÚLTIMO flag escalar-booleano con coerción silenciosa: sus hermanos de config
-  // `standalone` (#26) y los de `rules.*` (#30) ya fallan legible ante un tipo
-  // equivocado, pero `sdd` —el MISMO error de mano, un booleano entrecomillado en
-  // JSON— quedó sin guardar en `feature_list.json`, y rompe la identidad de la
-  // feature en dos direcciones:
-  //   • FALSO ROJO: `"sdd": "false"` (string TRUTHY) mete en el pipeline a una
-  //     feature que el usuario marcó como NO-SDD; init falla con "sin
-  //     features/<name>.feature" —un mensaje que apunta al SÍNTOMA (falta el
-  //     fichero) en vez de a la CAUSA (el `sdd` se coaccionó)—, exactamente el
-  //     desvío que #26 cerró para `standalone`.
-  //   • FALSO VERDE: `"sdd": ""`/`0`/`null` (FALSY) SALTA en silencio la puerta de
-  //     aprobación humana de una feature que debía recorrerla; la lista pasa como
-  //     "válido" en verde —peor que un fallo (límite 2 de AUTONOMOUS.md)—.
-  // Ausente se trata como no-SDD (el default de todo el motor: `f.sdd` undefined es
-  // falsy), no como error: `sdd` es opcional, pero si está, debe ser un booleano.
-  // Misma familia que los guardianes de standalone (#26) y de los flags de rules
-  // (#30): convertir la edición a mano equivocada en un [FAIL] legible, no en una
-  // coerción muda que rompe la puerta.
-  for (const f of wellFormed) {
-    if (f.sdd !== undefined && typeof f.sdd !== 'boolean') {
-      const label = typeof f.name === 'string' && f.name.trim() ? ` (${f.name})` : '';
-      fail(`${cfg.paths.feature_list}: el "sdd" de la feature ${f.id ?? '?'}${label} debe ser true o false (encontrado: ${jsonKind(f.sdd)}); es el flag que activa el pipeline SDD y su puerta de aprobación humana.`);
-      good = false;
-    }
-  }
-
-  const inProgress = wellFormed.filter((f) => f.status === 'in_progress');
+  const inProgress = features.filter((f) => f.status === 'in_progress');
   if (cfg.rules.one_feature_at_a_time && inProgress.length > 1) {
     fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
     good = false;
   }
 
-  // Integridad de identidad: `id` y `name` son CLAVES y deben ser únicos entre las
-  // features. Los agentes referencian una feature por su `id` (un id repetido hace
-  // ambigua la orden "trabaja la feature N"); y el motor DERIVA rutas de fichero de
-  // su `name`: `features/<name>.feature` —el contrato que aprueba el humano— y, por
-  // la convención anti-teléfono-descompuesto del pipeline, `progress/tdd_<name>.md`,
-  // `judge_<name>.md`, `mutation_<name>.md`. Dos features con el mismo `name`
-  // comparten el MISMO `.feature`: la puerta de aprobación humana de una tapa a la
-  // otra (fs.existsSync la da por buena) y sus artefactos de progreso se pisan. Sin
-  // este chequeo, esa edición a mano equivocada pasaba como "válido" verde en vez de
-  // un [FAIL] legible —un falso verde sobre una lista que rompe la propia convención
-  // de ficheros del arnés—, la misma familia que los guardianes de forma de config y
-  // de las entradas de features. Se comparan solo los valores presentes; `id` se
-  // normaliza a string para que 1 y "1" (la misma "feature 1") colisionen.
-  const duplicatesOf = (values) => {
-    const seen = new Set();
-    const dups = new Set();
-    for (const v of values) {
-      if (seen.has(v)) dups.add(v);
-      else seen.add(v);
-    }
-    return [...dups];
-  };
-  for (const id of duplicatesOf(
-    wellFormed.filter((f) => isScalarId(f.id)).map((f) => String(f.id)),
-  )) {
-    fail(`id duplicado en features: ${id} (cada feature necesita un id único)`);
-    good = false;
-  }
-  for (const name of duplicatesOf(
-    wellFormed.filter((f) => typeof f.name === 'string').map((f) => f.name),
-  )) {
-    fail(`name duplicado en features: "${name}" (deriva ${cfg.paths.features}/${name}.feature y progress/*_${name}.md; debe ser único)`);
-    good = false;
-  }
-
-  for (const f of wellFormed) {
+  for (const f of features) {
     if (!VALID_STATUS.includes(f.status)) {
       fail(`Estado inválido en feature ${f.id}: ${f.status}`);
       good = false;
     }
-    // La existencia de `features/<name>.feature` ES la enforcement mecánica de
-    // `require_approved_spec_to_implement`: el humano APRUEBA ese contrato antes de
-    // implementar, y exigir que exista para un estado con-spec (spec_ready/in_progress/
-    // done) es justo "requerir la spec aprobada para implementar". Pero la puerta
-    // corría INCONDICIONALMENTE, ignorando el flag: `require_approved_spec_to_implement`
-    // era la ÚLTIMA de las cuatro reglas SIN enforcement real —el comentario de #31
-    // afirmó que `require_tests_to_close` era "la única" que el motor declaraba pero no
-    // enforzaba (one_feature_at_a_time y require_mutation_to_close sí), pasando por alto
-    // ésta—. Un usuario que declaraba el opt-out `false` seguía BLOQUEADO con "sin
-    // features/<name>.feature", un mensaje que NO delata que su ajuste se ignoró: la
-    // misma familia de "el motor contradice en silencio lo que el usuario configuró".
-    // Gatear la puerta en el flag la hace un opt-out real, simétrico a los de
-    // require_tests_to_close (#31) y require_mutation_to_close (#29) en verify. Con la
-    // regla en true —el DEFAULT y lo que usan todos los ejemplos— la conducta es
-    // idéntica a la de siempre: el default no se debilita (límite 2 de AUTONOMOUS.md),
-    // solo se honra el `false` explícito.
-    //
-    // `=== true`, no truthy crudo: un `sdd` no-booleano ya lo reportó el guardián de
-    // arriba con la causa real; tratarlo aquí como truthy (`"sdd": "false"`) añadiría
-    // un segundo [FAIL] derivado sobre `features/<name>.feature` —doble ruido para el
-    // mismo error, justo lo que #27 evitó en la derivación del name—. Solo un booleano
-    // true (todos los ejemplos reales) activa la puerta del contrato.
+    // Un `.feature` por feature sdd es la enforcement mecánica de
+    // `require_approved_spec_to_implement`: el humano aprueba ese contrato antes de implementar.
     if (cfg.rules.require_approved_spec_to_implement && f.sdd === true && REQUIRES_SPEC.has(f.status)) {
-      // El contrato `features/<name>.feature` —el que aprueba el humano— DERIVA de
-      // `f.name`. Sin un name usable no hay contrato que buscar: derivar la ruta con
-      // un name ausente producía `features/undefined.feature` y un [FAIL] que
-      // mandaba al usuario a crear un fichero fantasma en vez de a la causa real
-      // (falta el `name`); con un name present-pero-inválido (no-string/vacío) —que
-      // el guardián de name de arriba YA reportó— añadía un segundo [FAIL] sobre
-      // `features/   .feature`, doble ruido para el mismo error. Guardar la
-      // derivación cierra ambos: si el name falta, un mensaje que nombra la causa;
-      // si es inválido, se calla (ya está reportado) y no deriva la ruta fantasma.
-      // Misma familia que los guardianes de name/unicidad (#22, #24): un [FAIL]
-      // legible que apunta a la causa, no a un síntoma derivado.
-      if (typeof f.name !== 'string' || !f.name.trim()) {
-        if (f.name === undefined) {
-          fail(`feature ${f.id ?? '?'} (sdd) en ${f.status} necesita un "name" del que derivar ${cfg.paths.features}/<name>.feature; falta.`);
-          good = false;
-        }
-        continue; // name inválido: no derivar features/undefined.feature ni un doble [FAIL]
-      }
       const feat = path.join(CWD, cfg.paths.features, `${f.name}.feature`);
       if (!fs.existsSync(feat)) {
         fail(`feature ${f.id} (${f.name}) en ${f.status} sin ${cfg.paths.features}/${f.name}.feature`);
@@ -599,8 +197,7 @@ function cmdInit() {
   if (cfg.standalone === false) {
     warn('standalone:false — este proyecto hereda el arnés raíz; se omite la comprobación de ficheros base.');
   } else {
-    // [ruta, opcional]. feature_list.json y progress/current.md son opcionales:
-    // si existen se comprueban como siempre; si faltan, se avisa sin fallar.
+    // [ruta, opcional]: si un opcional falta, se avisa sin fallar.
     const base = [
       ['AGENTS.md', false], ['CLAUDE.md', false], ['CHECKPOINTS.md', false], ['docs/workflow.md', false],
       [cfg.paths.feature_list, true], [path.join(cfg.paths.progress, 'current.md'), true],
@@ -618,25 +215,16 @@ function cmdInit() {
   rule('3. feature_list.json y escenarios');
   if (!validateFeatureList(cfg).ok) exit = 1;
 
+  // Lint y tests no corren sobre un árbol vacío (clon limpio): muchos linters salen
+  // distinto de 0 sin ficheros. Los tests se buscan en `tests` Y en `src`: Go y Rust
+  // los colocan junto al código.
+  const hasCode = dirHasFiles(cfg.paths.tests) || dirHasFiles(cfg.paths.src);
   if (cfg.commands.lint) {
     rule('4. Lint');
-    // Mismo gate "¿hay código todavía?" que la puerta de tests (#19): no corras un
-    // comando del proyecto sobre un árbol vacío. Un clon recién hecho de la plantilla
-    // trae `src/` y `tests/` vacíos; si declara `commands.lint`, muchos linters
-    // salen NO-CERO cuando su patrón no casa ningún fichero (p. ej. eslint con flat
-    // config: "No files matching the pattern were found"), y `init` FALLABA en la
-    // primera experiencia de quien clona —justo el clon limpio que el límite 5 de
-    // AUTONOMOUS.md exige mantener en verde—. La puerta de tests ya trataba este caso
-    // como WARN-no-FAIL; la de lint se quedó atrás y divergía ante la misma
-    // precondición (src Y tests vacíos). Con código presente, el linter corre de
-    // verdad y un fallo real sigue siendo [FAIL]: el gate no debilita la puerta
-    // (límite 2), solo evita correrla antes de que haya proyecto que lintar.
-    if (!dirHasFiles(cfg.paths.tests) && !dirHasFiles(cfg.paths.src)) {
+    if (!hasCode) {
       warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que lintar)`);
     } else {
-      console.log(`$ ${resolveCmd(cfg.commands.lint)}\n`);
-      const r = run(cfg.commands.lint);
-      if (r.status === 0) ok('Lint sin errores');
+      if (runEcho(cfg.commands.lint, cfg.tokens) === 0) ok('Lint sin errores');
       else {
         fail('Lint con errores');
         exit = 1;
@@ -645,26 +233,12 @@ function cmdInit() {
   }
 
   rule(cfg.commands.lint ? '5. Tests' : '4. Tests');
-  // Corre `commands.test` si hay código donde pueda haber tests: en `paths.tests`
-  // O en `paths.src`. Mirar SOLO `paths.tests` era un falso verde para los stacks
-  // que colocan los tests JUNTO al código, no en un `tests/` aparte: Go (`_test.go`
-  // en el paquete) y los tests unitarios de Rust (`#[cfg(test)]` dentro de cada
-  // `.rs`). Un proyecto Rust que sigue el `paths.tests: "tests"` que recomienda
-  // `.harness/adapters/rust.md` pero solo tiene tests unitarios NO tiene carpeta
-  // `tests/`: `dirHasFiles(tests)` daba false, el motor SALTABA `cargo test` y
-  // reportaba [OK] verde aunque hubiera tests en rojo en `src/`. Un falso verde que
-  // traiciona la puerta —peor que un fallo (límite 2 de AUTONOMOUS.md)—, la misma
-  // familia que los guardianes de config. Con `src/` como segunda señal, esos
-  // stacks corren de verdad; la plantilla recién clonada (src Y tests vacíos) sigue
-  // avisando sin fallar, que es el único caso que este gate debía cubrir.
   if (!cfg.commands.test) {
     warn('No hay comando de tests declarado (commands.test vacío)');
-  } else if (!dirHasFiles(cfg.paths.tests) && !dirHasFiles(cfg.paths.src)) {
+  } else if (!hasCode) {
     warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que testear)`);
   } else {
-    console.log(`$ ${resolveCmd(cfg.commands.test)}\n`);
-    const r = run(cfg.commands.test);
-    if (r.status === 0) ok('Todos los tests pasan');
+    if (runEcho(cfg.commands.test, cfg.tokens) === 0) ok('Todos los tests pasan');
     else {
       fail('Hay tests rotos');
       exit = 1;
@@ -683,89 +257,25 @@ function cmdTest() {
     warn('commands.test vacío');
     process.exit(0);
   }
-  process.exit(run(cfg.commands.test).status);
+  process.exit(run(cfg.commands.test, cfg.tokens));
 }
 
 /**
- * Resuelve la lista de objetivos de mutación a partir de la config.
- *   - `explicitTarget` no vacío → solo ese módulo (`bin/harness mutate <target>`).
- *   - lista vacía [] → `['']`: corre el comando tal cual (mutadores que cubren
- *     todo el proyecto, p. ej. Stryker, que no usan el token {{target}}).
- * Devuelve `{ list }` en caso válido o `{ error }` con un mensaje legible.
- *
- * `mutation.targets` debe ser un array de rutas no vacías. Un string (olvidar los
- * corchetes: `"targets": "src/x.py"` en vez de `["src/x.py"]`), un objeto, o una
- * entrada no-string, son ediciones a mano equivocadas. Sin este guardián se
- * degradaban en silencio a una corrida de "todo el proyecto" con `{{target}}`
- * vacío que puede reportar VERDE sin medir nada: un falso verde que traiciona la
- * puerta de mutación. Misma familia que la tolerancia a BOM y los guardianes de
- * objeto de la raíz y de las entradas de features: convertir una edición a mano
- * equivocada en un [FAIL] legible, no en un verde engañoso ni en un stack trace.
- */
-function resolveMutationTargets(cfg, explicitTarget = '') {
-  if (explicitTarget) {
-    // Un objetivo explícito por CLI (`bin/harness mutate <target>`) debe ser una
-    // ruta NO VACÍA, exactamente igual que las entradas de `mutation.targets`
-    // (#14). El llamador filtra el vacío ("") con `process.argv[3] || ''`, pero un
-    // objetivo SOLO-ESPACIOS ("   ") es truthy y se colaba SIN validar por esta
-    // rama, que devolvía [explicitTarget] tal cual. El mutador corría entonces con
-    // {{target}} en blanco —sin módulo que medir— y podía salir 0, imprimiendo
-    // "Prueba de mutación superada" sin morder nada: un FALSO VERDE sobre la
-    // puerta de mutación (peor que un fallo, límite 2 de AUTONOMOUS.md), y una
-    // ASIMETRÍA con la lista de config, que rechaza ese MISMO "   " (#14). Misma
-    // familia que el guardián de blank-command (#32, "solo-espacios == sin
-    // comando") y el de mutation.targets: convertir el desliz de tecla en un
-    // [FAIL] legible, no en un verde engañoso. Una ruta real nunca cuelga de sus
-    // espacios de borde.
-    if (!explicitTarget.trim()) {
-      return {
-        error:
-          `El objetivo de mutación indicado por la línea de comandos debe ser una ruta no vacía.\n` +
-          `  Un objetivo solo-espacios no apunta a ningún módulo: el mutador correría en blanco\n` +
-          `  y podría reportar VERDE sin medir nada. Pasa una ruta real, p. ej.\n` +
-          `  bin/harness mutate src/notes.py, u OMITE el objetivo para iterar los de\n` +
-          `  "mutation.targets".`,
-      };
-    }
-    return { list: [explicitTarget] };
-  }
-  const t = cfg.mutation.targets;
-  if (!Array.isArray(t)) {
-    return {
-      error:
-        `${CONFIG_NAME}: "mutation.targets" debe ser un array de rutas ` +
-        `(encontrado: ${jsonKind(t)}).\n` +
-        `  Declara los módulos como una lista, p. ej.  "targets": ["src/notes.py"].\n` +
-        `  Una lista vacía [] es válida: corre el mutador sobre todo el proyecto una vez.`,
-    };
-  }
-  const bad = t.findIndex((x) => typeof x !== 'string' || !x.trim());
-  if (bad !== -1) {
-    return {
-      error:
-        `${CONFIG_NAME}: "mutation.targets"[${bad}] debe ser una ruta no vacía ` +
-        `(encontrado: ${jsonKind(t[bad])}).`,
-    };
-  }
-  return { list: t.length ? t : [''] };
-}
-
-/**
- * Ejecuta la prueba de mutación sobre uno o varios objetivos.
- * Verde (return true) solo si TODOS los objetivos superan el umbral.
+ * Ejecuta la prueba de mutación. Un objetivo explícito (`mutate <target>`) manda sobre
+ * `mutation.targets`; una lista vacía corre el comando una vez, sin {{target}}.
+ * Verde (true) solo si TODOS los objetivos superan el umbral.
  */
 function runMutation(cfg, explicitTarget = '') {
-  const { list, error } = resolveMutationTargets(cfg, explicitTarget);
-  if (error) {
-    fail(error);
+  const targets = explicitTarget ? [explicitTarget] : cfg.mutation.targets;
+  if (targets.some((t) => !t.trim())) {
+    fail('Objetivo de mutación vacío o en blanco: usa rutas reales en mutation.targets o en `mutate <módulo>`.');
     return false;
   }
+  const list = targets.length ? targets : [''];
   const failures = [];
   for (const t of list) {
     if (list.length > 1) rule(`Mutación · ${t}`);
-    console.log(`$ ${resolveCmd(cfg.commands.mutate, { target: t })}\n`);
-    const r = run(cfg.commands.mutate, { tokens: { target: t } });
-    if (r.status !== 0) failures.push(t || '(proyecto)');
+    if (runEcho(cfg.commands.mutate, { ...cfg.tokens, target: t }) !== 0) failures.push(t || '(proyecto)');
   }
   if (failures.length) {
     fail(`Mutación por debajo del umbral en: ${failures.join(', ')}`);
@@ -792,22 +302,8 @@ function cmdVerify() {
     process.exit(1);
   }
   const cfg = loadConfig();
-  // `require_tests_to_close:true` (el DEFAULT) exige que los tests corran para
-  // poder cerrar. `init` (arriba) los ejecuta, PERO con `commands.test` vacío solo
-  // AVISA ("No hay comando de tests declarado") y sale 0: la puerta de tests se
-  // OMITE en silencio y verify aún certifica "Todo verde. Puedes cerrar la sesión"
-  // —un FALSO VERDE sobre la puerta de cierre, exactamente el hermano del hueco que
-  // #29 cerró para la mutación—. `require_tests_to_close` era, además, la ÚNICA de
-  // las cuatro reglas que el motor declaraba por defecto pero NO enforzaba en
-  // ningún sitio (one_feature_at_a_time y require_mutation_to_close sí; esta no):
-  // una regla que el usuario podía activar y que el motor ignoraba. El WARN de
-  // `init` sobre `commands.test` vacío es de diseño para el clon limpio de la
-  // plantilla (agnóstica) y NO debe convertirse en [FAIL] —init sigue en verde—;
-  // pero VERIFY es la puerta de cierre de sesión, no la orientación inicial: si
-  // cerrar exige tests y no hay comando que ejecutar, no se certifica el cierre.
-  // `require_tests_to_close:false` sigue omitiéndola sin ruido (opt-out válido).
-  // Se comprueba ANTES que la mutación por el orden natural del pipeline (TDD antes
-  // que mutación); misma familia y misma forma que el guardián de mutación (#29).
+  // `init` solo AVISA si falta el comando de tests; verify, que es la puerta de cierre,
+  // no certifica un cierre sin suite que ejecutar (ni sin mutador, más abajo).
   if (cfg.rules.require_tests_to_close && !cfg.commands.test) {
     fail('verify abortado: require_tests_to_close es true pero commands.test está vacío.');
     console.log(
@@ -819,16 +315,6 @@ function cmdVerify() {
   }
   if (cfg.rules.require_mutation_to_close) {
     rule('Prueba de mutación');
-    // `require_mutation_to_close:true` (el DEFAULT) exige correr la puerta de
-    // mutación para poder cerrar. Con `commands.mutate` vacío no hay mutador que
-    // ejecutar: la puerta se OMITÍA en silencio y verify aún imprimía "Todo verde.
-    // Puedes cerrar la sesión" —un FALSO VERDE sobre la puerta de cierre, que la
-    // doc describe como el último filtro antes de marcar `done` (docs/verification.md):
-    // peor que un fallo (límite 2 de AUTONOMOUS.md)—. El `mutate` directo YA falla
-    // ante `commands.mutate` vacío (exit 2); verify, que es la MISMA puerta a nivel
-    // de sesión, la silenciaba: una asimetría que este chequeo cierra. Si la
-    // mutación es obligatoria y no hay mutador declarado, no se certifica el cierre.
-    // `require_mutation_to_close:false` sigue omitiéndola sin ruido (opt-out válido).
     if (!cfg.commands.mutate) {
       fail('verify abortado: require_mutation_to_close es true pero commands.mutate está vacío.');
       console.log(
@@ -851,33 +337,18 @@ function cmdStatus() {
   const cfg = loadConfig();
   const v = validateFeatureList(cfg);
   rule('Estado de features');
-  // "(sin features definidas)" solo cuando la lista es VÁLIDA y vacía. Si
-  // `feature_list.json` está corrupto (features no-array), validateFeatureList
-  // dejó v.features en [] tras imprimir su [FAIL]: mostrar aquí "sin features"
-  // contradiría ese fallo (la lista no está vacía, está mal formada).
   if (v.absent) {
     console.log(`  (sin ${cfg.paths.feature_list}: es opcional; nada que resumir)`);
   } else if (v.ok && !v.features.length) {
     console.log('  (sin features definidas todavía)');
   } else {
     for (const f of v.features) {
-      if (!isPlainObject(f)) {
-        console.log(`  ${red(`(entrada inválida en features: ${jsonKind(f)})`)}`);
-        continue;
-      }
       const status = typeof f.status === 'string' ? f.status : '(sin estado)';
       const tag = { done: green, in_progress: yellow, blocked: red }[status] || ((s) => s);
       console.log(`  #${String(f.id ?? '?').padStart(2)} ${tag(status.padEnd(12))} ${f.name ?? '(sin nombre)'}${f.sdd ? ' (sdd)' : ''}`);
     }
   }
-  // status es informativo, pero no puede reportar VERDE (exit 0) sobre un
-  // feature_list.json estructuralmente inválido. validateFeatureList ya imprimió
-  // el [FAIL] concreto (features no-array, entradas no-objeto, id/name duplicados,
-  // estado inválido, feature sdd sin .feature...); `init` YA propaga ese fallo a su
-  // exit code, pero `cmdStatus` lo descartaba y salía 0. Un script o un job de CI
-  // que consulte `bin/harness status` veía verde sobre una lista corrupta: un falso
-  // verde de la misma familia que el resto de guardianes del motor —peor que un
-  // fallo (límite 2 de AUTONOMOUS.md)—. Propagar v.ok cierra la incoherencia.
+  // Informativo, pero no verde sobre una lista inválida (el [FAIL] ya se imprimió).
   process.exit(v.ok ? 0 : 1);
 }
 
@@ -898,10 +369,15 @@ function help() {
 }
 
 const cmd = (process.argv[2] || 'help').toLowerCase();
-({
-  init: cmdInit, test: cmdTest, mutate: cmdMutate, verify: cmdVerify, status: cmdStatus, help,
-}[cmd] || (() => {
-  fail(`Comando desconocido: ${cmd}`);
-  help();
+const COMMANDS = { init: cmdInit, test: cmdTest, mutate: cmdMutate, verify: cmdVerify, status: cmdStatus, help };
+try {
+  if (!Object.hasOwn(COMMANDS, cmd)) {
+    fail(`Comando desconocido: ${cmd}`);
+    help();
+    process.exit(2);
+  }
+  COMMANDS[cmd]();
+} catch (e) {
+  fail(`Error inesperado: ${e.message} (¿${CONFIG_NAME} o feature_list.json mal formado?)`);
   process.exit(2);
-}))();
+}

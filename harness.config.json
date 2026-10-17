@@ -2,7 +2,7 @@
   "$schema": "./harness.schema.json",
   "project": "mi-proyecto",
   "language": "generic",
-  "description": "Rellena este archivo con los comandos de TU stack. Es el único punto que hace al arnés dependiente del lenguaje. Ver docs/configuration.md y los ejemplos en examples/.",
+  "description": "Rellena este archivo con los comandos de TU stack. Es el único punto que hace al arnés dependiente del lenguaje. Ver docs/configuration.md y los adaptadores por stack en .harness/adapters/.",
   "commands": {
     "install": "",
     "lint": "",

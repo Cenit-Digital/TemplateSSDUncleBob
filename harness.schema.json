@@ -21,17 +21,17 @@
     "standalone": {
       "type": "boolean",
       "default": true,
-      "description": "true (por defecto): proyecto autónomo; init comprueba sus propios ficheros base (AGENTS.md, CLAUDE.md, ...). false: hereda el arnés raíz y omite esa comprobación (útil para sub-proyectos dentro de examples/). Debe ser un booleano sin comillas."
+      "description": "true (por defecto): proyecto autónomo; init comprueba sus propios ficheros base (AGENTS.md, CLAUDE.md, ...). false: hereda el arnés de un directorio padre y omite esa comprobación (útil para sub-proyectos). Debe ser un booleano sin comillas."
     },
     "commands": {
       "type": "object",
-      "description": "Comandos de shell de tu stack. Admiten el token {{py}} (intérprete de Python) y, en mutate, {{target}}.",
+      "description": "Comandos de shell de tu stack. Admiten los tokens {{py}} (intérprete de Python), {{target}} (módulo a mutar, en mutate), {{threshold}} (mutation.threshold, 0–1) y {{threshold_pct}} (mutation.threshold × 100, entero).",
       "additionalProperties": { "type": "string" },
       "properties": {
         "install": { "type": "string", "description": "Instala dependencias (opcional)." },
         "lint": { "type": "string", "description": "Linter/formato. Vacío para omitir." },
         "test": { "type": "string", "description": "Ejecuta la suite de tests. Debe salir con código 0 si todo pasa." },
-        "mutate": { "type": "string", "description": "Prueba de mutación. Debe salir != 0 si no supera el umbral." },
+        "mutate": { "type": "string", "description": "Prueba de mutación (herramienta estándar de tu stack, ver .harness/adapters/). Debe salir != 0 si no supera el umbral: el umbral lo aplica la herramienta, y puedes pasárselo con {{threshold}} o {{threshold_pct}}." },
         "build": { "type": "string", "description": "Build de producción (opcional)." }
       }
     },
@@ -63,17 +63,18 @@
           "minimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Puntuación mínima de mutación (proporción de mutantes muertos) para cerrar una feature."
+          "description": "Umbral de mutación: proporción de mutantes muertos (0–1; 1.0 solo por excepción justificada). El motor no lo aplica por sí mismo: lo aplica la herramienta de mutación. Donde esta lo admite por línea de comandos, puede recibirlo con los tokens {{threshold}} o {{threshold_pct}} en commands.* (ver .harness/adapters/); en el resto vive en su propia configuración y se alinea a mano."
         },
         "targets": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "Ficheros/módulos sobre los que corre la mutación."
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Módulos sobre los que corre `bin/harness mutate` sin argumento; cada uno llega a commands.mutate como {{target}}. Lista vacía: una sola ejecución sobre todo el proyecto."
         }
       }
     },
     "rules": {
       "type": "object",
+      "additionalProperties": { "type": "boolean" },
       "properties": {
         "one_feature_at_a_time": { "type": "boolean", "default": true },
         "require_approved_spec_to_implement": { "type": "boolean", "default": true },
