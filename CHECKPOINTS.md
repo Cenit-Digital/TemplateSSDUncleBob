@@ -15,6 +15,8 @@
 
 ## C2 — El estado es coherente
 
+- [ ] Si el proyecto conserva `feature_list.json`: como mucho una feature en
+      `in_progress`.
 - [ ] Toda tarea terminada tiene tests asociados que pasan.
 
 ## C3 — El código respeta la arquitectura
@@ -35,7 +37,8 @@
 - [ ] No hay archivos sin trackear sospechosos (temporales, cachés fuera del
       `.gitignore`).
 - [ ] La última tarea trabajada está reflejada en su issue (casillas y
-      «Resultados de la ejecución»).
+      «Resultados de la ejecución») o, si no hay issue, en el PR (y en
+      `feature_list.json` si el proyecto lo conserva).
 
 ## C6 — Contrato Gherkin (BDD)
 
@@ -50,7 +53,7 @@
 
 ## C7 — Prueba de mutación
 
-- [ ] La feature `done` superó la prueba de mutación
+- [ ] La tarea terminada superó la prueba de mutación
       (`bin/harness mutate`) con la puntuación por encima del umbral de
       `harness.config.json` (`mutation.threshold`).
 - [ ] Cualquier mutante sobreviviente queda documentado en el issue o en

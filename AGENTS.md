@@ -21,7 +21,7 @@
 | Archivo / carpeta          | Qué contiene                                                              | Cuándo leerlo                     |
 | -------------------------- | ------------------------------------------------------------------------- | --------------------------------- |
 | `harness.config.json`      | ⭐ Comandos de TU stack (test, mutación, lint…). El único punto no-agnóstico | Antes de tocar el arnés           |
-| `features/<capacidad>.feature` | Spec viva de una capacidad (Given/When/Then); el PR que la cambia la actualiza | Antes de implementar esa capacidad |
+| `features/<capacidad>.feature` | Spec viva de una capacidad (Given/When/Then); el PR que cambia la capacidad actualiza su `.feature` | Antes de implementar esa capacidad |
 | `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado (`init` lo exige)        | Solo como referencia              |
 | `docs/tdd.md`              | Las Tres Leyes; Rojo-Verde-Refactor                                       | Antes de escribir código          |
 | `docs/gherkin.md`          | Cómo escribir `.feature`; de Gherkin a test                               | Antes de redactar escenarios      |
@@ -55,7 +55,7 @@
   revisado en local antes de cualquier `git push` (ver «Política de trabajo»).
 - **Un test por criterio**; TDD estricto (un test a la vez, `docs/tdd.md`) en
   nivel crítico.
-- **Documenta** en el issue de la tarea (casillas y «Resultados de la ejecución») mientras trabajas.
+- **Documenta** en el issue de la tarea (casillas y «Resultados de la ejecución») mientras trabajas; sin issue, en el PR.
 - **Deja el repo limpio** antes de cerrar (sin logs de debug, sin TODOs sin
   contexto).
 - **Si no sabes algo, busca en `docs/`** antes de inventarlo.
@@ -70,7 +70,7 @@ pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
 
 1. `./init.sh` (o `bin/harness verify`) — todo verde.
 2. Mutación sobre lo tocado — por encima del umbral.
-3. Si la tarea acabó: marca las casillas del plan y rellena «Resultados de la ejecución» en su issue.
+3. Si la tarea acabó: marca las casillas del plan y rellena «Resultados de la ejecución» en su issue (o, sin issue, en el PR).
 4. No dejes archivos temporales, ni logs de debug, ni TODOs sin contexto.
 
 ## 6. Si te bloqueas
