@@ -365,11 +365,19 @@ test('los agentes de nivel y los especialistas fijan su modelo y su front matter
   }
 });
 
-test('los agentes de nivel no dependen del pipeline que se retira y los ejecutores declaran su alcance', () => {
-  for (const name of ['worker_fast', 'worker_balanced', 'reviewer_frontier']) {
-    assert.doesNotMatch(agentFile(name), /feature_list|progress\/|\.feature\b|craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b/, name);
+test('ni los agentes de nivel ni los especialistas nombran el pipeline que se retira', () => {
+  for (const name of Object.keys(TIER_AGENTS)) {
+    assert.doesNotMatch(agentFile(name), /craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b/, name);
+    assert.doesNotMatch(/^description:.*$/m.exec(agentFile(name))[0], /pipeline|Transición/, name);
   }
-  for (const name of ['worker_fast', 'worker_balanced']) assert.match(/^description:.*$/m.exec(agentFile(name))[0], /pipeline/, name);
+  for (const name of ['worker_fast', 'worker_balanced', 'reviewer_frontier']) {
+    assert.doesNotMatch(agentFile(name), /feature_list|progress\/|\.feature\b/, name);
+  }
+});
+
+test('el bloque gestionado no conserva la cláusula de transición ni el rol retirado', () => {
+  const block = fs.readFileSync(path.join(REPO, '.harness', 'agents-block.md'), 'utf8');
+  assert.doesNotMatch(block, /Transición|craftsman_lead|pipeline/);
 });
 
 test('docs/modelos.md recoge, en una misma línea, cada agente y su modelo', () => {

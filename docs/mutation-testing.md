@@ -1,5 +1,8 @@
 # Prueba de mutación — validar que los tests muerden
 
+> **Legado parcial:** el agente `mutation_tester` se retira; la mutación se corre
+> con `bin/harness mutate`. Los principios de abajo siguen vigentes.
+
 > "Mutation testing is resource-heavy, but the ROI on code correctness is
 > worth every cycle." / "We are shifting from a bottleneck of human typing
 > speed to a bottleneck of compute-driven validation."

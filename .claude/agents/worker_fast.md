@@ -1,6 +1,6 @@
 ---
 name: worker_fast
-description: Nivel fast. Tareas mecánicas y de exploración con salida comprobable. Fuera de src/ y sus tests mientras rija el pipeline (ver Transición en AGENTS.md).
+description: Nivel fast. Tareas mecánicas y de exploración con salida comprobable.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: haiku
 ---

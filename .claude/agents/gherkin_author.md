@@ -1,6 +1,6 @@
 ---
 name: gherkin_author
-description: Destila project-spec.md en archivos .feature (Gherkin). El contrato ejecutable que el humano aprueba antes del TDD. No escribe código ni tests.
+description: LEGADO (no usar; se retira). Destila project-spec.md en archivos .feature (Gherkin). El contrato ejecutable que el humano aprueba antes del TDD. No escribe código ni tests.
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

@@ -1,5 +1,9 @@
 # TDD estricto — la disciplina del `tdd_craftsman`
 
+> **Legado parcial:** el agente `tdd_craftsman` se retira. El TDD estricto se
+> aplica en nivel crítico y, en los demás, un test por criterio (ver `AGENTS.md`).
+> La técnica de abajo sigue siendo válida.
+
 > "Do you let it write all tests up front, then code or single test followed
 > by code (TDD)?" — La respuesta de este arnés: **single test followed by
 > code**. Un test a la vez. Nunca toda la batería por delante.

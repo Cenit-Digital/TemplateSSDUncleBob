@@ -1,6 +1,6 @@
 ---
 name: worker_balanced
-description: Nivel balanced. Implementa lo que el plan le delega, con un test por criterio. Para harness, docs y configuración; src/ y sus tests siguen el pipeline mientras exista (ver Transición en AGENTS.md).
+description: Nivel balanced. Implementa lo que el plan le delega, con un test por criterio.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---

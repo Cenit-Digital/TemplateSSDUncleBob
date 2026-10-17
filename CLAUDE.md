@@ -1,42 +1,16 @@
 # Instrucciones para Claude — Plantilla SSD "Uncle Bob"
 
 > Este archivo se carga automáticamente al inicio de cada sesión.
-> Proceso de desarrollo: **Harness / SDD estilo Robert C. Martin (Uncle Bob)**
-> — conversación → Gherkin → TDD → review → mutación. Ver `docs/workflow.md`.
->
-> Esta plantilla es **agnóstica al lenguaje**: el proceso, los agentes y las
-> puertas son fijos; lo único que cambia por proyecto son los comandos
-> declarados en `harness.config.json` (ver `docs/configuration.md`).
+> Plantilla **agnóstica al lenguaje**: lo único que cambia por proyecto son los
+> comandos declarados en `harness.config.json` (ver `docs/configuration.md`).
 >
 > La política común a todas las herramientas (niveles, puerta humana, delegación)
-> vive en `AGENTS.md`, importado aquí; este fichero conserva el rol y las reglas
-> del pipeline vigente.
+> vive en `AGENTS.md`, importado aquí; este fichero solo añade el arranque propio
+> de Claude Code.
 
 @AGENTS.md
 
-## Rol obligatorio: craftsman_lead
-
-En este repositorio actúas **siempre** como el subagente `craftsman_lead`
-(`.claude/agents/craftsman_lead.md`). Tu trabajo es **descomponer, coordinar
-y custodiar la disciplina**, nunca implementar a lo loco.
-
-### Reglas duras
-
-- ❌ **No edites** código de `src/` ni los tests directamente cuando
-  orquestas una feature: lo hace el `tdd_craftsman` por TDD.
-- ❌ **No marques** features como `done` en `feature_list.json` sin `judge`
-  aprobado **y** mutación por encima del umbral (`harness.config.json` →
-  `mutation.threshold`).
-- ❌ **No saltes** la conversación de spec ni la destilación Gherkin para
-  features con `"sdd": true`.
-- ❌ **No saltes la puerta de aprobación humana** sobre los
-  `features/<name>.feature`.
-- ✅ Para tareas de código lanza el subagente apropiado vía la herramienta
-  `Agent`: `spec_partner`, `gherkin_author`, `tdd_craftsman`, `judge`,
-  `mutation_tester`. Si hace falta investigar, 2-3 `Explore` en paralelo con
-  preguntas acotadas.
-
-### Protocolo de arranque (al recibir la primera tarea)
+## Protocolo de arranque (al recibir la primera tarea)
 
 1. Lee `AGENTS.md` para orientarte.
 2. Lee `feature_list.json` y `progress/current.md`.
@@ -46,11 +20,10 @@ y custodiar la disciplina**, nunca implementar a lo loco.
    desde cero, respetando su "Cuándo NO aplica". Paso **no bloqueante**: si
    falla (sin red o sin acceso al repo privado), sigue sin memoria y déjalo
    anotado en `progress/current.md`. Ver `docs/memoria-organizacional.md`.
-3. Lee `docs/workflow.md` (el pipeline completo).
-4. Ejecuta `./init.sh` (POSIX) o `pwsh ./init.ps1` (Windows), o
+3. Ejecuta `./init.sh` (POSIX) o `pwsh ./init.ps1` (Windows), o
    `bin/harness init`. Si falla, **paras** y reportas.
 
-### Comandos del proyecto (a través del arnés)
+## Comandos del proyecto (a través del arnés)
 
 Los comandos concretos de tu stack viven en `harness.config.json`. Se invocan
 siempre a través del motor agnóstico (no los hardcodees):
@@ -63,25 +36,8 @@ siempre a través del motor agnóstico (no los hardcodees):
 
 En Windows usa `bin\harness.ps1 <comando>`.
 
-### Regla anti-teléfono-descompuesto
+## Agentes
 
-Cuando lances subagentes, instrúyeles para **escribir resultados en archivos**
-(`project-spec.md`, `features/<name>.feature`, `progress/tdd_<name>.md`,
-`progress/judge_<name>.md`, `progress/mutation_<name>.md`) y devolverte solo
-**una línea** de referencia. El contenido vive en disco, no en el chat: así
-sobrevive a reinicios y a ventanas de contexto reventadas, y cada agente
-trabaja con el contexto mínimo (optimización de tokens).
-
-### Cuándo NO aplica el rol de orquestador
-
-- Preguntas conceptuales o de exploración del repo (lectura pura) →
-  responde tú directamente, sin lanzar subagentes.
-- Cambios fuera de `src/` y de los tests (docs, configuración, `progress/`,
-  `features/` cuando solo corriges formato) → puedes editarlos tú mismo.
-
-## Agentes de apoyo (opcionales)
-
-Además de los 6 del pipeline, hay 3 subagentes de apoyo **de solo lectura**
-que el `craftsman_lead` puede convocar sin sustituir a `judge`/`mutation_tester`:
-`security_reviewer`, `a11y_seo_auditor` (para proyectos con UI web) y `mentor`.
-Ver `.claude/agents/` y `docs/tooling.md`.
+En `.claude/agents/` hay agentes de nivel (`worker_fast`, `worker_balanced`,
+`reviewer_frontier`) y especialistas opt-in de solo lectura (`security_reviewer`,
+`a11y_seo_auditor`, `mentor`). Ver `docs/tooling.md` y `docs/modelos.md`.

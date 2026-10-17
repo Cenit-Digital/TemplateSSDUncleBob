@@ -1,10 +1,9 @@
-# Tooling — agentes de apoyo y hooks
+# Tooling — agentes y hooks
 
-> Estos refuerzan el arnés, no lo reemplazan. Los 6 agentes del pipeline
-> (`craftsman_lead`, `spec_partner`, `gherkin_author`, `tdd_craftsman`,
-> `judge`, `mutation_tester`) son obligatorios. Los de apoyo son **opcionales
-> y de solo lectura**: los convoca el `craftsman_lead` cuando aportan valor, y
-> nunca sustituyen al `judge` ni al `mutation_tester`.
+> Estos refuerzan el arnés, no lo reemplazan. Los agentes de nivel ejecutan y
+> revisan lo que delega el plan; los especialistas son **opcionales y de solo
+> lectura**: los convoca el planificador cuando aportan valor y no sustituyen a
+> la revisión del cambio.
 
 ## Agentes de apoyo (`.claude/agents/`)
 
@@ -28,8 +27,8 @@ está en `AGENTS.md`; el modelo de cada uno, en `docs/modelos.md`):
 | `worker_balanced`   | balanced  | Implementa lo que el plan delega, con un test por criterio    |
 | `reviewer_frontier` | frontier  | Revisión independiente, solo lectura                          |
 
-Mientras siga vigente el pipeline (ver «Transición» en `AGENTS.md`), `worker_balanced` y `worker_fast` se usan en
-harness, docs y configuración; `src/` y sus tests siguen el pipeline.
+`worker_balanced` y `worker_fast` sirven para todo el repositorio, `src/` y sus tests incluidos. El pipeline por
+fases anterior está retirado.
 
 ## Hooks (`.claude/settings.json`)
 
