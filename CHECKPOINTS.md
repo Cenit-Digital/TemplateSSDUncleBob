@@ -8,17 +8,16 @@
 ## C1 — El arnés está completo
 
 - [ ] Existen los ficheros base: `AGENTS.md`, `CLAUDE.md`, `CHECKPOINTS.md`,
-      `harness.config.json`, `feature_list.json`, `progress/current.md`.
+      `harness.config.json`.
 - [ ] Existen los docs: `docs/workflow.md`, `docs/architecture.md`,
       `docs/conventions.md`, `docs/verification.md`.
 - [ ] `bin/harness init` termina con exit code 0.
 
 ## C2 — El estado es coherente
 
-- [ ] Como mucho una feature en `in_progress` en `feature_list.json`.
-- [ ] Toda feature `done` tiene tests asociados que pasan.
-- [ ] `progress/current.md` está vacío o describe la sesión activa
-      (no contiene basura de sesiones anteriores).
+- [ ] Si el proyecto conserva `feature_list.json`: como mucho una feature en
+      `in_progress`.
+- [ ] Toda tarea terminada tiene tests asociados que pasan.
 
 ## C3 — El código respeta la arquitectura
 
@@ -37,29 +36,28 @@
 
 - [ ] No hay archivos sin trackear sospechosos (temporales, cachés fuera del
       `.gitignore`).
-- [ ] `progress/history.md` tiene una entrada por la última sesión.
-- [ ] La última feature trabajada está reflejada en su estado correcto.
+- [ ] La última tarea trabajada está reflejada en su issue (casillas y
+      «Resultados de la ejecución») o, si no hay issue, en el PR (y en
+      `feature_list.json` si el proyecto lo conserva).
 
 ## C6 — Contrato Gherkin (BDD)
 
-- [ ] Toda feature con `"sdd": true` en estado `spec_ready`, `in_progress`
-      o `done` tiene su `features/<name>.feature` y una sección en
-      `project-spec.md`.
+- [ ] Toda capacidad con criterios Given/When/Then tiene su
+      `features/<capacidad>.feature`, actualizado en el mismo PR.
 - [ ] El `.feature` usa Gherkin con escenarios tagueados `@s1`, `@s2`, …
       y cada `Then` afirma algo medible (ver `docs/gherkin.md`).
 - [ ] Cada escenario `@s` está cubierto por al menos un test concreto
-      (mapa `@s → test` en `progress/tdd_<name>.md`).
+      (mapa `@s → test` en el issue o en el PR).
 - [ ] No hay código de producción que ningún test rojo haya pedido
       (disciplina TDD, ver `docs/tdd.md`).
 
 ## C7 — Prueba de mutación
 
-- [ ] La feature `done` superó la prueba de mutación
+- [ ] La tarea terminada superó la prueba de mutación
       (`bin/harness mutate`) con la puntuación por encima del umbral de
       `harness.config.json` (`mutation.threshold`).
-- [ ] Cualquier mutante sobreviviente queda documentado en
-      `progress/mutation_<name>.md` (matado con un test nuevo, o
-      justificado como equivalente).
+- [ ] Cualquier mutante sobreviviente queda documentado en el issue o en
+      el PR (matado con un test nuevo, o justificado como equivalente).
 
 ---
 

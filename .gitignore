@@ -13,11 +13,6 @@ build/
 htmlcov/
 coverage/
 
-# Datos de las apps de ejemplo
-.notes.json
-*.notes.json
-.notes_*.tmp
-
 # Python
 __pycache__/
 *.py[cod]

@@ -13,20 +13,15 @@
 
 1. Ejecuta `./init.sh` (o `bin/harness init`). Si falla, **para** y resuelve
    el entorno antes de tocar código.
-2. Lee `progress/current.md` (estado de la última sesión).
-3. Lee `feature_list.json` (el motor lo valida; con `"sdd": true` exige `features/<name>.feature`).
-4. Lee la «Política de trabajo» (final de este fichero) antes de planificar.
+2. Lee el issue de la tarea (objetivo, criterios y plan); si no hay issue, lo que pida la persona.
+3. Lee la «Política de trabajo» (final de este fichero) antes de planificar.
 
 ## 2. Mapa del repositorio
 
 | Archivo / carpeta          | Qué contiene                                                              | Cuándo leerlo                     |
 | -------------------------- | ------------------------------------------------------------------------- | --------------------------------- |
 | `harness.config.json`      | ⭐ Comandos de TU stack (test, mutación, lint…). El único punto no-agnóstico | Antes de tocar el arnés           |
-| `feature_list.json`        | Tareas con estado (`pending`/`spec_ready`/`in_progress`/`done`/`blocked`) | Siempre                           |
-| `progress/current.md`      | Estado de la sesión actual                                                | Siempre                           |
-| `progress/history.md`      | Bitácora append-only                                                      | Si necesitas contexto             |
-| `project-spec.md`          | Spec conversada por feature                                               | Antes de Gherkin o de implementar |
-| `features/<name>.feature`  | Escenarios Gherkin de una feature `"sdd": true` (el motor los exige)      | Antes de implementar esa feature  |
+| `features/<capacidad>.feature` | Spec viva de una capacidad (Given/When/Then); el PR que cambia la capacidad actualiza su `.feature` | Antes de implementar esa capacidad |
 | `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado (`init` lo exige)        | Solo como referencia              |
 | `docs/tdd.md`              | Las Tres Leyes; Rojo-Verde-Refactor                                       | Antes de escribir código          |
 | `docs/gherkin.md`          | Cómo escribir `.feature`; de Gherkin a test                               | Antes de redactar escenarios      |
@@ -49,7 +44,6 @@
 | `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
 | `.harness/agents-block.md` | Fuente del bloque gestionado del final de este `AGENTS.md` (`harness-upgrade` lo reemplaza en los derivados) | Para cambiar ese bloque |
 | `.claude/agents/`          | 3 de nivel y 3 especialistas opt-in                                       | Si delegas                  |
-| `examples/`                | Arneses completos y ejecutables (Python y Node/JS) de referencia          | Para ver el método en acción      |
 | `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
 
 ## 3. Reglas duras (no negociables)
@@ -61,7 +55,7 @@
   revisado en local antes de cualquier `git push` (ver «Política de trabajo»).
 - **Un test por criterio**; TDD estricto (un test a la vez, `docs/tdd.md`) en
   nivel crítico.
-- **Documenta** en `progress/current.md` mientras trabajas.
+- **Documenta** en el issue de la tarea (casillas y «Resultados de la ejecución») mientras trabajas; sin issue, en el PR.
 - **Deja el repo limpio** antes de cerrar (sin logs de debug, sin TODOs sin
   contexto).
 - **Si no sabes algo, busca en `docs/`** antes de inventarlo.
@@ -76,16 +70,14 @@ pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
 
 1. `./init.sh` (o `bin/harness verify`) — todo verde.
 2. Mutación sobre lo tocado — por encima del umbral.
-3. Si la tarea acabó: `status: "done"` en `feature_list.json`.
-4. Mueve el resumen de `progress/current.md` a `progress/history.md`.
-5. Vacía `progress/current.md` dejando solo la plantilla.
-6. No dejes archivos temporales, ni logs de debug, ni TODOs sin contexto.
+3. Si la tarea acabó: marca las casillas del plan y rellena «Resultados de la ejecución» en su issue (o, sin issue, en el PR).
+4. No dejes archivos temporales, ni logs de debug, ni TODOs sin contexto.
 
 ## 6. Si te bloqueas
 
 - Relee la sección relevante de `docs/`.
 - Si una herramienta no hace lo que esperas, **no inventes un workaround**:
-  documenta el bloqueo en `progress/current.md` y para la sesión.
+  documenta el bloqueo en el issue de la tarea (o en el PR) y para la sesión.
 
 <!-- harness:begin — bloque gestionado por la plantilla: no lo edites aquí; lo reemplaza scripts/harness-upgrade.mjs al aplicar -->
 ## Arnés SSD (gestionado por la plantilla)

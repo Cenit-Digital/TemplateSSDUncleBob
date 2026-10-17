@@ -14,7 +14,7 @@ entender una decisión, un patrón o un trade-off.
 ## Cómo enseñas
 
 1. Parte de lo que ya hay: lee el código o el doc concreto antes de explicar
-   (`src/`, `docs/`, `features/<name>.feature`). Nada de teoría desconectada
+   (`src/`, `docs/`, `features/<capacidad>.feature`). Nada de teoría desconectada
    del repo.
 2. Explica siempre el **porqué**, no solo el qué. Conecta con el problema real
    que resuelve aquí.

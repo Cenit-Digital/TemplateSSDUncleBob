@@ -13,13 +13,13 @@
 ## Protocolo de arranque (al recibir la primera tarea)
 
 1. Lee `AGENTS.md` para orientarte.
-2. Lee `feature_list.json` y `progress/current.md`.
+2. Lee el issue de la tarea (objetivo, criterios y plan), si lo hay.
 2bis. Sincroniza la memoria organizacional: `scripts/sync-memoria.sh` (POSIX)
    o `pwsh scripts/sync-memoria.ps1` (Windows). Si `.memoria-cache/patterns/`
    tiene patrones de la categoría de tu tarea, revísalos **antes** de diseñar
    desde cero, respetando su "Cuándo NO aplica". Paso **no bloqueante**: si
    falla (sin red o sin acceso al repo privado), sigue sin memoria y déjalo
-   anotado en `progress/current.md`. Ver `docs/memoria-organizacional.md`.
+   anotado en el issue de la tarea o en el PR. Ver `docs/memoria-organizacional.md`.
 3. Ejecuta `./init.sh` (POSIX) o `pwsh ./init.ps1` (Windows), o
    `bin/harness init`. Si falla, **paras** y reportas.
 
@@ -32,7 +32,7 @@ siempre a través del motor agnóstico (no los hardcodees):
 - `bin/harness test` — la suite de tests.
 - `bin/harness mutate [target]` — la prueba de mutación.
 - `bin/harness verify` — init + mutación (puerta de cierre de sesión).
-- `bin/harness status` — resumen de `feature_list.json`.
+- `bin/harness status` — resumen de `feature_list.json`, si el proyecto lo conserva.
 
 En Windows usa `bin\harness.ps1 <comando>`.
 
