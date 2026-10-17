@@ -1,58 +1,38 @@
 # Tooling — agentes y hooks
 
-> Estos refuerzan el arnés, no lo reemplazan. Los agentes de nivel ejecutan y
-> revisan lo que delega el plan; los especialistas son **opcionales y de solo
-> lectura**: los convoca el planificador cuando aportan valor y no sustituyen a
-> la revisión del cambio.
-
-## Especialistas (`.claude/agents/`)
-
-| Agente             | Cuándo usarlo                                             | Qué escribe                       |
-| ------------------ | -------------------------------------------------------- | --------------------------------- |
-| `security_reviewer`| Features que tocan entrada de usuario, auth, IO, red     | `progress/security_review.md`     |
-| `a11y_seo_auditor` | Features con UI web (accesibilidad y SEO)                | `progress/audit_a11y_seo.md`      |
-| `mentor`           | Cuando el humano quiere explicación didáctica de un cambio | Responde en chat (no bloquea)   |
-
-Son **de solo lectura**: revisan y reportan, no editan `src/`. Bórralos si tu
-proyecto no los necesita (p. ej. `a11y_seo_auditor` en un proyecto sin UI web).
+> Refuerzan el arnés, no lo reemplazan. Los agentes de nivel ejecutan y revisan lo que delega el plan; los especialistas son **opcionales y de solo lectura**: los convoca el planificador cuando aportan valor y no sustituyen a la revisión del cambio.
 
 ## Agentes de nivel (`.claude/agents/`)
 
-Ejecutores y revisor por capacidad, sin atarse a `feature_list.json` ni a `progress/` (la política de niveles
-está en `AGENTS.md`; el modelo de cada uno, en `docs/modelos.md`):
+La política de niveles está en `AGENTS.md`; el modelo de cada uno, en `docs/modelos.md`.
 
-| Agente              | Nivel     | Para qué                                                      |
-| ------------------- | --------- | ------------------------------------------------------------- |
-| `worker_fast`       | fast      | Tareas mecánicas y de exploración con salida comprobable      |
-| `worker_balanced`   | balanced  | Implementa lo que el plan delega, con un test por criterio    |
-| `reviewer_frontier` | frontier  | Revisión independiente, solo lectura                          |
+| Agente              | Nivel     | Para qué                                                   |
+| ------------------- | --------- | ---------------------------------------------------------- |
+| `worker_fast`       | fast      | Tareas mecánicas y de exploración con salida comprobable   |
+| `worker_balanced`   | balanced  | Implementa lo que el plan delega, con un test por criterio |
+| `reviewer_frontier` | frontier  | Revisión independiente, solo lectura                       |
 
-`worker_balanced` y `worker_fast` sirven para todo el repositorio, `src/` y sus tests incluidos. El pipeline por
-fases anterior está retirado.
+Sirven para todo el repositorio, `src/` y sus tests incluidos.
+
+## Especialistas (opt-in, solo lectura)
+
+| Agente              | Cuándo usarlo                                                        | Qué devuelve                      |
+| ------------------- | -------------------------------------------------------------------- | --------------------------------- |
+| `security_reviewer` | Cambios que tocan entrada de usuario, auth, IO, red o terceros       | Veredicto por severidad           |
+| `a11y_seo_auditor`  | Features con UI web (accesibilidad y SEO)                            | Veredicto por impacto             |
+| `mentor`            | Cuando la persona quiere una explicación didáctica de un cambio      | Responde en el chat, no bloquea   |
+
+Revisan y reportan; no editan `src/`. Bórralos si tu proyecto no los necesita (p. ej. `a11y_seo_auditor` sin UI web).
 
 ## Hooks (`.claude/settings.json`)
 
-El arnés automatiza dos verificaciones que **el harness ejecuta, no el
-agente**, así que no se pueden saltar:
+Dos verificaciones que **ejecuta el arnés, no el agente**, así que no se pueden saltar:
 
-- **PostToolUse (Edit|Write)** → corre `bin/harness test` y muestra el
-  resumen. Feedback inmediato tras cada cambio de código.
-- **Stop** → corre `bin/harness init` antes de cerrar la sesión y avisa si
-  algo quedó rojo.
+- **PostToolUse (Edit|Write)** → corre `node .harness/harness.mjs test` y muestra el resumen: feedback inmediato tras cada cambio de código.
+- **Stop** → corre `node .harness/harness.mjs init` antes de cerrar la sesión y avisa si algo quedó rojo.
 
-Los hooks usan el motor agnóstico, así que funcionan igual en cualquier stack
-(los comandos concretos salen de `harness.config.json`).
+Usan el motor agnóstico: los comandos concretos salen de `harness.config.json`.
 
-## Permisos
+## Permisos y modelo
 
-`.claude/settings.json` incluye una allowlist mínima para que los comandos del
-arnés (`bin/harness …`, `node .harness/harness.mjs …`) no pidan confirmación
-en cada invocación. Amplíala con los comandos de tu stack si lo necesitas.
-
-## Extensiones opcionales del ecosistema
-
-En proyectos reales (como la web corporativa que inspiró esta plantilla) el
-arnés convive con herramientas del stack: skills de Claude Code gestionadas
-con **autoskills** (`skills-lock.json`), un asistente tipo "senior perezoso"
-para escribir lo mínimo que funciona, etc. No son parte del núcleo del arnés;
-añádelas si tu equipo las usa.
+`.claude/settings.json` incluye una allowlist mínima (`bin/harness …`, `node .harness/harness.mjs …`) para que los comandos del arnés no pidan confirmación en cada invocación; amplíala con los de tu stack. También fija `model: opusplan` (ver `docs/modelos.md`).
