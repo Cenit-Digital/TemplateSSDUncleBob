@@ -1,4 +1,4 @@
-# Modelos por nivel de capacidad (capa 1 del ADR 0001)
+# Modelos por nivel de capacidad (capa 1)
 
 > Consultado el **2026-10-17**. La política (capa 0) está en `AGENTS.md` y no nombra modelos: aquí está
 > la única tabla que sí lo hace. Los alias y las versiones cambian; actualiza esta tabla **en la

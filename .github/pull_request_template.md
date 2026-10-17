@@ -7,7 +7,7 @@ Tarea: <!-- Closes #N, o «n/a» si no hay issue -->
 <!-- Qué cambia, en una o dos frases y por ficheros. -->
 
 ## Por qué
-<!-- El problema o la decisión (issue, ADR) que lo motiva. -->
+<!-- El problema o la decisión (issue o decisión de diseño) que lo motiva. -->
 
 ## Cómo se probó
 <!-- Comandos y resultados reales. Si el cambio es visual: imágenes o vídeo de antes y después
