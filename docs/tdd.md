@@ -31,8 +31,8 @@ Al cerrar, cada criterio está cubierto por al menos un test concreto cuyo nombr
 
 ## Olores que busca quien revisa
 
-- Código de producción que ningún test rojo pidió (viola la Ley 1).
-- Tests escritos «a futuro» para criterios que aún no tocan.
+- Código de producción que ningún test rojo pidió (viola la Ley 1; solo en nivel crítico).
+- Tests escritos «a futuro» para criterios que aún no tocan (solo en nivel crítico).
 - Refactors hechos en rojo.
 - Funciones largas o nombres opacos que sobrevivieron al REFACTOR.
 

@@ -18,7 +18,7 @@ Cada criterio de aceptación tiene al menos un test cuyo nombre lo refleja. El P
 
 ## Mutación (nivel crítico)
 
-Una suite verde no basta: hay que demostrar que los tests **muerden**. Se corre `bin/harness mutate <módulo>` sobre los módulos que fija el plan; la mutación completa (`bin/harness verify`) solo antes de una entrega.
+Una suite verde no basta: hay que demostrar que los tests **muerden**. Se corre `bin/harness mutate <módulo>` sobre los módulos que fija el plan; la mutación completa (`bin/harness mutate` sin módulo, o `bin/harness verify`, que añade `init`) solo antes de una entrega.
 
 - Umbral: se declara en `mutation.threshold` (**0,8** por defecto; 1,0 solo por excepción justificada y registrada) y lo aplica el comando `commands.mutate`: el motor solo mira su código de salida.
 - `bin/harness verify` aborta si `commands.mutate` está vacío mientras `rules.require_mutation_to_close` sea `true`: si tu proyecto no corre mutación, ponla a `false` (`docs/configuration.md`).
