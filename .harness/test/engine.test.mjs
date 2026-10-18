@@ -1,7 +1,7 @@
 // engine.test.mjs — Tests de caracterización del motor del arnés (.harness/harness.mjs).
 //
 // El motor es TODA la cadena de verificación de la plantilla (init / test / mutate /
-// verify / status). Cada caso fija una conducta con una configuración VÁLIDA (la que
+// verify). Cada caso fija una conducta con una configuración VÁLIDA (la que
 // acepta harness.schema.json) contra futuras regresiones. El motor no valida la forma
 // de lo que lee: ante un fichero mal formado solo se exige que termine con un [FAIL]
 // legible y el exit 2 de la red de seguridad, sin traza (ver el último bloque).
@@ -52,13 +52,13 @@ function write(dir, rel, content) {
   fs.writeFileSync(p, content);
 }
 
-/** Serializa un objeto de config/feature_list de forma legible. */
+/** Serializa un objeto de config de forma legible. */
 const json = (obj) => JSON.stringify(obj, null, 2);
 
 /**
  * Monta un escenario: escribe harness.config.json (objeto o string crudo) y
  * cualquier fichero extra, y devuelve el directorio.
- *   files: { 'harness.config.json': <obj|string>, 'feature_list.json': <obj>, ... }
+ *   files: { 'harness.config.json': <obj|string>, 'src/foo.txt': <string>, ... }
  */
 function scenario(files) {
   const dir = tmp();
@@ -78,11 +78,9 @@ function runEngine(cwd, args = []) {
 }
 
 // Config mínima que hace pasar `init` en verde: hereda el arnés raíz
-// (standalone:false, se saltan los ficheros base) y declara una lista de
-// features vacía y válida.
+// (standalone:false, se saltan los ficheros base).
 const GREEN_FILES = {
   'harness.config.json': { project: 't', standalone: false, commands: {} },
-  'feature_list.json': { features: [] },
 };
 
 // ── init: entorno y ficheros ────────────────────────────────────────────────
@@ -108,15 +106,65 @@ test('init: harness.config.json con JSON roto falla con exit 2 y mensaje claro',
   assert.match(out, /harness\.config\.json no es JSON válido/);
 });
 
-test('init: standalone:true con ficheros base ausentes falla (exit 1)', () => {
-  // standalone por defecto es true → se comprueban AGENTS.md, CLAUDE.md, etc.
+// ── restos del seguimiento anterior: el motor no los lee ─────────────────────
+
+test('init: standalone:true basta con AGENTS.md, CLAUDE.md y CHECKPOINTS.md; ni docs/workflow.md ni el seguimiento antiguo se miran', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', commands: {} },
-    'feature_list.json': { features: [] },
+    'AGENTS.md': '# base\n', 'CLAUDE.md': '# base\n', 'CHECKPOINTS.md': '# base\n',
+    'feature_list.json': '{ "features": [', // JSON roto: antes habría fallado
+    'progress/current.md': '# sesión\n',
   });
   const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /Falta archivo base/);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /feature_list|progress|Falta archivo base/);
+  assert.match(out, /Entorno listo/);
+});
+
+test('init: ignora feature_list.json, progress/ y las claves viejas de la config aunque incumplan sus reglas antiguas', () => {
+  // Un derivado conserva su historia y su config con las claves viejas. El feature_list.json
+  // de aquí rompería la validación antigua: dos in_progress, un estado inválido y una
+  // feature sdd en curso sin su .feature.
+  const dir = scenario({
+    'harness.config.json': {
+      project: 't', standalone: false, commands: {},
+      paths: { features: 'features', progress: 'progress', spec: 'project-spec.md', feature_list: 'feature_list.json' },
+      rules: { one_feature_at_a_time: true, require_approved_spec_to_implement: true },
+    },
+    'feature_list.json': {
+      features: [
+        { id: 1, name: 'a', status: 'in_progress', sdd: true },
+        { id: 2, name: 'b', status: 'wip' },
+        { id: 3, name: 'c', status: 'in_progress' },
+      ],
+    },
+    'progress/history.md': '# historia\n',
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /feature_list|progress|\.feature/);
+});
+
+test('config: "paths" y "rules" con solo claves heredadas siguen aplicando los defaults', () => {
+  // Una config antigua sin paths.src ni las dos reglas de verify: los defaults siguen mandando.
+  const legacy = { paths: { features: 'specs' }, rules: { one_feature_at_a_time: false } };
+  for (const dir of ['src', 'tests']) { // paths.src y paths.tests por defecto: hay código, los tests corren
+    const failing = scenario({
+      'harness.config.json': { project: 't', standalone: false, commands: { test: 'node -e "process.exit(1)"' }, ...legacy },
+      [`${dir}/foo.txt`]: 'x',
+    });
+    const init = runEngine(failing, ['init']);
+    assert.equal(init.status, 1, init.out);
+    assert.match(init.out, /Hay tests rotos/);
+  }
+
+  // Reglas de verify por defecto (true): sin suite aborta por tests; con suite y sin mutador, por mutación.
+  for (const [commands, abortsOn] of [[{}, 'require_tests_to_close'], [{ test: 'node -e "process.exit(0)"' }, 'require_mutation_to_close']]) {
+    const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands, ...legacy } });
+    const verify = runEngine(dir, ['verify']);
+    assert.equal(verify.status, 1, verify.out);
+    assert.match(verify.out, new RegExp(`${abortsOn} es true`));
+  }
 });
 
 // ── config: valores por defecto y valores límite válidos ─────────────────────
@@ -127,7 +175,6 @@ test('config: "mutation.threshold" 1.0 (extremo válido del schema) sigue en ver
       project: 't', standalone: false, commands: {},
       mutation: { threshold: 1.0, targets: [] },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
@@ -140,7 +187,6 @@ test('config: "mutation.threshold" 0 (otro extremo válido) sigue en verde', () 
       project: 't', standalone: false, commands: {},
       mutation: { threshold: 0, targets: [] },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
@@ -153,60 +199,15 @@ test('config: "mutation.threshold" ausente asume el default (0.8), sin exigir el
       project: 't', standalone: false, commands: {},
       mutation: { targets: [] },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
   assert.match(out, /Entorno listo/);
-});
-
-test('config: "rules" objeto válido sigue en verde', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { one_feature_at_a_time: false },
-    },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Entorno listo/);
-});
-
-test('config: flags de "rules" booleanos relajan solo su regla; el resto hereda el default', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { one_feature_at_a_time: false, require_mutation_to_close: false },
-    },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'in_progress' },
-        { id: 2, name: 'b', status: 'in_progress' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out); // one_feature_at_a_time:false permite 2 en in_progress
-  assert.match(out, /Entorno listo/);
-  assert.doesNotMatch(out, /máximo 1/);
-});
-
-test('config: "standalone" ausente asume autónomo (comprueba ficheros base)', () => {
-  // Sin ficheros base, init falla por su ausencia: el default true sigue en pie.
-  const dir = scenario({
-    'harness.config.json': { project: 't', commands: {} },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /Falta archivo base/);
 });
 
 test('config: "standalone" false omite los ficheros base y sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
@@ -216,206 +217,7 @@ test('config: "standalone" false omite los ficheros base y sigue en verde', () =
 
 test('config: tolera BOM UTF-8 al parsear harness.config.json', () => {
   const raw = '﻿' + json({ project: 't', standalone: false, commands: {} });
-  const dir = scenario({ 'harness.config.json': raw, 'feature_list.json': { features: [] } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Entorno listo/);
-});
-
-// ── feature_list: estado, una a la vez, ids y names ──────────────────────────
-
-test('feature_list: dos features en in_progress fallan (one_feature_at_a_time)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'in_progress' },
-        { id: 2, name: 'b', status: 'in_progress' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /Hay 2 features en in_progress \(máximo 1\)/);
-  assert.doesNotMatch(out, /Entorno listo/);
-});
-
-test('feature_list: una sola feature en in_progress es válida', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: [
-        { id: 1, name: 'a', status: 'in_progress' },
-        { id: 2, name: 'b', status: 'pending' },
-      ],
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(2 features\)/);
-});
-
-test('feature_list: un estado fuera de la lista falla nombrando la feature y el estado', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'a', status: 'wip' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /Estado inválido en feature 1: wip/);
-  assert.doesNotMatch(out, /Entorno listo/);
-});
-
-test('feature_list: los cinco estados válidos pasan', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': {
-      features: ['pending', 'spec_ready', 'in_progress', 'done', 'blocked']
-        .map((s, i) => ({ id: i + 1, name: `f${i}`, status: s })),
-    },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(5 features\)/);
-});
-
-// ── feature_list: flag sdd y puerta de spec ──────────────────────────────────
-
-test('feature_list: sdd:true con su .feature sigue en verde', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
-    'features/cli_since.feature': 'Feature: since\n',
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Entorno listo/);
-});
-
-test('feature_list: sdd:false (feature fuera del pipeline SDD) no exige .feature', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'chore', sdd: false, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(1 features\)/);
-});
-
-test('feature_list: sdd ausente se trata como no-SDD, sin exigir .feature', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'a', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /válido \(1 features\)/);
-});
-
-test('feature_list: feature sdd en PENDING no exige spec (solo spec_ready, in_progress y done)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'pending' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /sin features\//);
-});
-
-test('feature_list: feature sdd en BLOCKED no exige spec', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'blocked' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /sin features\//);
-});
-
-test('feature_list: feature sdd con name válido pero SIN su .feature falla por el fichero', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /feature 1 \(cli_since\) en done sin features\/cli_since\.feature/);
-});
-
-test('feature_list: feature sdd con su .feature presente termina en verde', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_since', sdd: true, status: 'done' }] },
-    'features/cli_since.feature': 'Feature: since\n',
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Entorno listo/);
-});
-
-test('feature_list: require_approved_spec_to_implement:false omite la puerta de spec (opt-out honrado)', () => {
-  // La existencia de features/<name>.feature es la enforcement mecánica de esta regla:
-  // con el opt-out, una feature sdd en in_progress SIN su .feature pasa en verde.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_approved_spec_to_implement: false },
-    },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'in_progress' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Entorno listo/);
-  assert.doesNotMatch(out, /sin features\/cli_add\.feature/);
-});
-
-test('feature_list: require_approved_spec_to_implement:true sigue exigiendo el .feature', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_approved_spec_to_implement: true },
-    },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'in_progress' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /feature 1 \(cli_add\) en in_progress sin features\/cli_add\.feature/);
-});
-
-test('feature_list: require_approved_spec_to_implement ausente asume el default (exige el .feature)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /feature 1 \(cli_add\) en done sin features\/cli_add\.feature/);
-});
-
-test('feature_list: require_approved_spec_to_implement:false no busca ningún .feature', () => {
-  // Con la puerta apagada no se deriva ninguna ruta features/<name>.feature, ni siquiera
-  // para una feature sdd sin name.
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_approved_spec_to_implement: false },
-    },
-    'feature_list.json': { features: [{ id: 1, sdd: true, status: 'in_progress' }] },
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /\.feature/);
-});
-
-test('feature_list: require_approved_spec_to_implement:false con el .feature presente sigue en verde', () => {
-  const dir = scenario({
-    'harness.config.json': {
-      project: 't', standalone: false, commands: {},
-      rules: { require_approved_spec_to_implement: false },
-    },
-    'feature_list.json': { features: [{ id: 1, name: 'cli_add', sdd: true, status: 'done' }] },
-    'features/cli_add.feature': 'Feature: add\n',
-  });
+  const dir = scenario({ 'harness.config.json': raw });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out);
   assert.match(out, /Entorno listo/);
@@ -429,7 +231,6 @@ test('init: corre los tests si hay código en src/ aunque tests/ esté vacío', 
       project: 't', standalone: false,
       commands: { test: 'node -e "process.exit(3)"' },
     },
-    'feature_list.json': { features: [] },
     'src/foo.txt': 'código',
   });
   const { status, out } = runEngine(dir, ['init']);
@@ -443,7 +244,6 @@ test('init: sin código en src/ ni tests/ avisa pero no falla', () => {
       project: 't', standalone: false,
       commands: { test: 'node -e "process.exit(3)"' },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0); // el comando de tests NO corrió: nada que testear
@@ -460,7 +260,6 @@ test('init: NO corre el lint si src/ y tests/ están vacíos (clon limpio, avisa
       project: 't', standalone: false,
       commands: { lint: 'node -e "process.exit(1)"' },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 0, out); // el linter NO corrió: nada que lintar
@@ -474,7 +273,6 @@ test('init: corre el lint si hay código en src/ aunque tests/ esté vacío', ()
       project: 't', standalone: false,
       commands: { lint: 'node -e "process.exit(1)"' },
     },
-    'feature_list.json': { features: [] },
     'src/foo.txt': 'código',
   });
   const { status, out } = runEngine(dir, ['init']);
@@ -488,7 +286,6 @@ test('init: lint que pasa con código presente termina en verde', () => {
       project: 't', standalone: false,
       commands: { lint: 'node -e "process.exit(0)"' },
     },
-    'feature_list.json': { features: [] },
     'src/foo.txt': 'código',
   });
   const { status, out } = runEngine(dir, ['init']);
@@ -519,7 +316,6 @@ test('commands.test solo-espacios == vacío → init avisa, no "Todos los tests 
   // Con código en src/ para aislar que la causa del WARN es el comando en blanco.
   const dir = scenario({
     'harness.config.json': { project: 't', standalone: false, commands: { test: '   ' } },
-    'feature_list.json': { features: [] },
     'src/foo.txt': 'código',
   });
   const { status, out } = runEngine(dir, ['init']);
@@ -535,7 +331,6 @@ test('un comando real con espacios de borde se recorta y SE EJECUTA (no se salta
       project: 't', standalone: false,
       commands: { test: '  node -e "process.exit(4)"  ' },
     },
-    'feature_list.json': { features: [] },
     'src/foo.txt': 'código',
   });
   const { status, out } = runEngine(dir, ['init']);
@@ -767,46 +562,15 @@ test('tokens: init los resuelve en lint y tests, y el eco "$ ..." muestra el com
   assert.match(out, /\$ node .* 75\r?\n/);
 });
 
-// ── status y comando desconocido ─────────────────────────────────────────────
+// ── comando desconocido y verify ─────────────────────────────────────────────
 
-test('status: renderiza las features declaradas', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'saludar', status: 'done' }] },
-  });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 0);
-  assert.match(out, /saludar/);
-  assert.match(out, /done/);
-});
-
-test('status: lista válida vacía sigue en verde (exit 0)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [] },
-  });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 0, out);
-  assert.match(out, /sin features definidas/);
-});
-
-test('status: lista con un estado inválido sale con exit 1 pero renderiza las features', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': { features: [{ id: 1, name: 'ok', status: 'done' }, { id: 2, name: 'raro', status: 'wip' }] },
-  });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 1);
-  assert.match(out, /Estado inválido en feature 2: wip/);
-  assert.match(out, /ok/); // las features se siguen mostrando para el humano
-  assert.match(out, /wip\s+raro/);
-});
-
-test('comando desconocido falla con exit 2 y muestra la ayuda', () => {
+test('comando desconocido (también el retirado `status`) falla con exit 2 y muestra la ayuda', () => {
   const dir = scenario(GREEN_FILES);
-  const { status, out } = runEngine(dir, ['frobnicate']);
-  assert.equal(status, 2);
-  assert.match(out, /Comando desconocido: frobnicate/);
+  for (const name of ['frobnicate', 'status']) {
+    const { status, out } = runEngine(dir, [name]);
+    assert.equal(status, 2, out);
+    assert.match(out, new RegExp(`Comando desconocido: ${name}`));
+  }
 });
 
 test('comando heredado del prototipo de Object (constructor) también es desconocido, no un exit 0 mudo', () => {
@@ -818,7 +582,7 @@ test('comando heredado del prototipo de Object (constructor) también es descono
   }
 });
 
-test('verify: si init falla aborta con exit 1 y no certifica el cierre', () => {
+test('verify: si init falla aborta con exit 1 y no da verde', () => {
   // standalone por defecto (true) sin los ficheros base → init falla → verify no sigue.
   const dir = scenario({
     'harness.config.json': { project: 't', commands: { test: 'node -e "process.exit(0)"', mutate: 'node -e "process.exit(0)"' } },
@@ -826,39 +590,37 @@ test('verify: si init falla aborta con exit 1 y no certifica el cierre', () => {
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /verify abortado: init falló/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+  assert.doesNotMatch(out, /Todo verde/);
 });
 
-// ── verify: las puertas de cierre no pueden quedar en falso verde ────────────
+// ── verify: las comprobaciones no pueden quedar en falso verde ───────────────
 
 test('verify: require_mutation_to_close:true con commands.mutate VACÍO aborta, no en falso verde', () => {
-  // Con la regla obligatoria (el default) y sin mutador declarado, verify no certifica
-  // el cierre. require_tests_to_close:false aísla la puerta de mutación: sin él, la de
+  // Con la regla obligatoria (el default) y sin mutador declarado, verify no da
+  // verde. require_tests_to_close:false aísla la comprobación de mutación: sin él, la de
   // tests (default true, commands.test vacío) fallaría primero.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
       rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_mutation_to_close es true pero commands\.mutate está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/); // no certifica el cierre
+  assert.doesNotMatch(out, /Todo verde/); // no da verde
 });
 
-test('verify: require_mutation_to_close:false con commands.mutate vacío omite la puerta y sigue en verde', () => {
+test('verify: require_mutation_to_close:false con commands.mutate vacío omite la comprobación y sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
       rules: { require_tests_to_close: false, require_mutation_to_close: false },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
-  assert.match(out, /Puedes cerrar la sesión/);
+  assert.match(out, /Todo verde/);
 });
 
 test('verify: require_mutation_to_close:true con mutador que pasa termina en verde', () => {
@@ -869,12 +631,11 @@ test('verify: require_mutation_to_close:true con mutador que pasa termina en ver
       mutation: { targets: [] },
       rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
   assert.match(out, /Prueba de mutación superada/);
-  assert.match(out, /Puedes cerrar la sesión/);
+  assert.match(out, /Todo verde/);
 });
 
 test('verify: require_mutation_to_close:true con mutador que NO supera el umbral aborta', () => {
@@ -885,41 +646,38 @@ test('verify: require_mutation_to_close:true con mutador que NO supera el umbral
       mutation: { targets: [] },
       rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /no supera el umbral/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+  assert.doesNotMatch(out, /Todo verde/);
 });
 
 test('verify: require_tests_to_close:true con commands.test VACÍO aborta, no en falso verde', () => {
-  // `init` con commands.test vacío solo AVISA y sale 0; verify, la puerta de cierre, no
-  // certifica sin suite. Se apaga la mutación para aislar la puerta de tests.
+  // `init` con commands.test vacío solo AVISA y sale 0; verify no da verde sin suite.
+  // Se apaga la mutación para aislar la comprobación de tests.
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
       rules: { require_tests_to_close: true, require_mutation_to_close: false },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+  assert.doesNotMatch(out, /Todo verde/);
 });
 
-test('verify: require_tests_to_close:false con commands.test vacío omite la puerta y sigue en verde', () => {
+test('verify: require_tests_to_close:false con commands.test vacío omite la comprobación y sigue en verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false, commands: {},
       rules: { require_tests_to_close: false, require_mutation_to_close: false },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
-  assert.match(out, /Puedes cerrar la sesión/);
+  assert.match(out, /Todo verde/);
 });
 
 test('verify: require_mutation_to_close:true con commands.mutate solo-espacios aborta', () => {
@@ -930,12 +688,11 @@ test('verify: require_mutation_to_close:true con commands.mutate solo-espacios a
       commands: { mutate: '   ' },
       rules: { require_tests_to_close: false, require_mutation_to_close: true },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_mutation_to_close es true pero commands\.mutate está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+  assert.doesNotMatch(out, /Todo verde/);
 });
 
 test('verify: require_tests_to_close:true con commands.test solo-espacios aborta', () => {
@@ -945,128 +702,35 @@ test('verify: require_tests_to_close:true con commands.test solo-espacios aborta
       commands: { test: '  ' },
       rules: { require_tests_to_close: true, require_mutation_to_close: false },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 1);
   assert.match(out, /require_tests_to_close es true pero commands\.test está vacío/);
-  assert.doesNotMatch(out, /Puedes cerrar la sesión/);
+  assert.doesNotMatch(out, /Todo verde/);
 });
 
-test('verify: require_tests_to_close:true con commands.test declarado pasa la puerta y certifica', () => {
+test('verify: require_tests_to_close:true con commands.test declarado pasa la comprobación y da verde', () => {
   const dir = scenario({
     'harness.config.json': {
       project: 't', standalone: false,
       commands: { test: 'node -e "process.exit(0)"' },
       rules: { require_tests_to_close: true, require_mutation_to_close: false },
     },
-    'feature_list.json': { features: [] },
   });
   const { status, out } = runEngine(dir, ['verify']);
   assert.equal(status, 0, out);
-  assert.match(out, /Puedes cerrar la sesión/);
+  assert.match(out, /Todo verde/);
 });
 
-// ── feature_list.json y progress/current.md: ficheros base opcionales ────────
-// Son los dos únicos ficheros base que el motor no exige. Si existen, todo se
-// comporta como siempre; si faltan, `init` y `status` lo dicen en un [OK] y no
-// fallan. El resto de ficheros base sigue siendo obligatorio. Las aserciones
-// sobre rutas usan [\\/]: el motor imprime `progress\current.md` en Windows.
+// ── standalone:true: ficheros base obligatorios ──────────────────────────────
 
-const BASE_REQUIRED = ['AGENTS.md', 'CLAUDE.md', 'CHECKPOINTS.md', 'docs/workflow.md'];
-/** Proyecto autónomo (standalone por defecto) con solo los ficheros base obligatorios. */
-const baseFiles = (extra = {}) => ({
-  'harness.config.json': { project: 't', commands: {} },
-  ...Object.fromEntries(BASE_REQUIRED.map((f) => [f, '# base\n'])),
-  ...extra,
-});
-
-test('init: sin feature_list.json termina en verde y avisa de que es opcional', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {} } });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /\[OK\]\s+feature_list\.json ausente \(opcional\)/);
-  assert.doesNotMatch(out, /\[FAIL\]/);
-});
-
-test('init: standalone:true sin feature_list.json ni progress/current.md termina en verde', () => {
-  const dir = scenario(baseFiles());
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.doesNotMatch(out, /Falta archivo base/);
-  assert.match(out, /Opcional y ausente: feature_list\.json/);
-  assert.match(out, /Opcional y ausente: progress[\\/]current\.md/);
-  assert.match(out, /Entorno listo/);
-});
-
-test('init: con feature_list.json y progress/current.md presentes los comprueba y valida como siempre', () => {
-  const dir = scenario(baseFiles({
-    'feature_list.json': { features: [] },
-    'progress/current.md': '# sesión\n',
-  }));
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Existe feature_list\.json/);
-  assert.match(out, /Existe progress[\\/]current\.md/);
-  assert.match(out, /feature_list\.json válido \(0 features\)/);
-  assert.doesNotMatch(out, /Opcional y ausente|ausente \(opcional\)/);
-});
-
-test('init: que esos dos sean opcionales no relaja el resto de ficheros base', () => {
+test('init: sin "standalone" (default true) y sin ficheros base falla nombrando cada uno', () => {
   const dir = scenario({ 'harness.config.json': { project: 't', commands: {} } });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 1);
   assert.match(out, /Falta archivo base: AGENTS\.md/);
   assert.match(out, /Falta archivo base: CLAUDE\.md/);
   assert.match(out, /Falta archivo base: CHECKPOINTS\.md/);
-  assert.match(out, /Falta archivo base: docs[\\/]workflow\.md/);
-  assert.doesNotMatch(out, /Falta archivo base: (feature_list|progress)/);
-});
-
-test('status: sin feature_list.json sale en verde y explica que es opcional', () => {
-  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {} } });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 0, out);
-  assert.match(out, /sin feature_list\.json: es opcional/);
-  assert.doesNotMatch(out, /\[FAIL\]/);
-});
-
-test('init: feature_list.json presente con JSON inválido sigue fallando (opcional no es tolerante)', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': '{ "features": [',
-  });
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 1);
-  assert.match(out, /feature_list\.json inválido/);
-  assert.doesNotMatch(out, /ausente/);
-});
-
-test('init: paths.feature_list y paths.progress personalizados y ausentes también son opcionales', () => {
-  const dir = scenario(baseFiles({
-    'harness.config.json': {
-      project: 't', commands: {},
-      paths: { feature_list: 'tareas/lista.json', progress: 'seguimiento' },
-    },
-  }));
-  const { status, out } = runEngine(dir, ['init']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Opcional y ausente: tareas[\\/]lista\.json/);
-  assert.match(out, /Opcional y ausente: seguimiento[\\/]current\.md/);
-  assert.match(out, /tareas[\\/]lista\.json ausente \(opcional\)/);
-});
-
-test('verify: sin feature_list.json ni progress/current.md certifica el cierre igual', () => {
-  const dir = scenario(baseFiles({
-    'harness.config.json': {
-      project: 't',
-      commands: { test: 'node -e "process.exit(0)"' },
-      rules: { require_tests_to_close: true, require_mutation_to_close: false },
-    },
-  }));
-  const { status, out } = runEngine(dir, ['verify']);
-  assert.equal(status, 0, out);
-  assert.match(out, /Puedes cerrar la sesión/);
 });
 
 // ── red de seguridad: un fichero mal formado termina en [FAIL], no en una traza ──
@@ -1079,17 +743,6 @@ test('un harness.config.json mal formado termina en [FAIL] con exit 2 y sin traz
   });
   const { status, out } = runEngine(dir, ['init']);
   assert.equal(status, 2);
-  assert.match(out, /\[FAIL\]\s+Error inesperado: .*harness\.config\.json o feature_list\.json mal formado/);
+  assert.match(out, /\[FAIL\]\s+Error inesperado: .*harness\.config\.json mal formado/);
   assert.doesNotMatch(out, /\n\s+at /); // sin traza de pila
-});
-
-test('un feature_list.json mal formado termina en [FAIL] con exit 2 y sin traza', () => {
-  const dir = scenario({
-    'harness.config.json': { project: 't', standalone: false, commands: {} },
-    'feature_list.json': 'null',
-  });
-  const { status, out } = runEngine(dir, ['status']);
-  assert.equal(status, 2);
-  assert.match(out, /\[FAIL\]\s+Error inesperado/);
-  assert.doesNotMatch(out, /\n\s+at /);
 });

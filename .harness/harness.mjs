@@ -5,7 +5,7 @@
 // los comandos que TÚ declaras (test, mutación, lint...). Así el mismo motor sirve
 // para Python, Node/TS, Go o cualquier stack.
 //
-//   node .harness/harness.mjs <init|test|mutate [target]|verify|status|help>
+//   node .harness/harness.mjs <init|test|mutate [target]|verify|help>
 //
 // Requisito único: Node.js >= 18 (solo stdlib). Los comandos admiten los tokens {{py}}
 // (python3 o python, el que haya), {{target}} (el módulo a mutar) y {{threshold}} /
@@ -36,9 +36,6 @@ const CONFIG_NAME = 'harness.config.json';
 // Los editores de Windows guardan JSON con BOM y JSON.parse no lo tolera.
 const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
 const readText = (p) => stripBom(fs.readFileSync(p, 'utf8'));
-
-const VALID_STATUS = ['pending', 'spec_ready', 'in_progress', 'done', 'blocked'];
-const REQUIRES_SPEC = new Set(['spec_ready', 'in_progress', 'done']);
 
 let _py = null;
 /** Resuelve el intérprete de Python disponible (para el token {{py}}). */
@@ -79,13 +76,7 @@ function loadConfig() {
     fail(`${CONFIG_NAME} no es JSON válido: ${e.message}`);
     process.exit(2);
   }
-  cfg.paths = Object.assign(
-    {
-      src: 'src', tests: 'tests', features: 'features', progress: 'progress',
-      spec: 'project-spec.md', feature_list: 'feature_list.json',
-    },
-    cfg.paths,
-  );
+  cfg.paths = Object.assign({ src: 'src', tests: 'tests' }, cfg.paths);
   cfg.commands = Object.assign({ install: '', test: '', mutate: '', lint: '', build: '' }, cfg.commands);
   // Un comando solo-espacios es la AUSENCIA de comando: sin el trim, "   " cuenta como
   // declarado en los `if (cfg.commands.X)` pero run() lo salta con status 0 (falso verde).
@@ -100,15 +91,7 @@ function loadConfig() {
     threshold_pct: String(Math.round(Number((cfg.mutation.threshold * 100).toFixed(6)))),
   };
   cfg.standalone ??= true;
-  cfg.rules = Object.assign(
-    {
-      one_feature_at_a_time: true,
-      require_approved_spec_to_implement: true,
-      require_tests_to_close: true,
-      require_mutation_to_close: true,
-    },
-    cfg.rules,
-  );
+  cfg.rules = Object.assign({ require_tests_to_close: true, require_mutation_to_close: true }, cfg.rules);
   return cfg;
 }
 
@@ -134,52 +117,6 @@ function dirHasFiles(dir) {
   }
 }
 
-/**
- * Valida feature_list.json y devuelve {ok, features, absent?}. El fichero es
- * OPCIONAL: si no existe no hay nada que validar; si existe, se valida entero.
- */
-function validateFeatureList(cfg) {
-  const p = path.join(CWD, cfg.paths.feature_list);
-  if (!fs.existsSync(p)) {
-    ok(`${cfg.paths.feature_list} ausente (opcional): se omite la validación de features`);
-    return { ok: true, features: [], absent: true };
-  }
-  let data;
-  try {
-    data = JSON.parse(readText(p));
-  } catch (e) {
-    fail(`${cfg.paths.feature_list} inválido: ${e.message}`);
-    return { ok: false, features: [] };
-  }
-
-  const features = data.features || [];
-  let good = true;
-
-  const inProgress = features.filter((f) => f.status === 'in_progress');
-  if (cfg.rules.one_feature_at_a_time && inProgress.length > 1) {
-    fail(`Hay ${inProgress.length} features en in_progress (máximo 1)`);
-    good = false;
-  }
-
-  for (const f of features) {
-    if (!VALID_STATUS.includes(f.status)) {
-      fail(`Estado inválido en feature ${f.id}: ${f.status}`);
-      good = false;
-    }
-    // Un `.feature` por feature sdd es la enforcement mecánica de
-    // `require_approved_spec_to_implement`: el humano aprueba ese contrato antes de implementar.
-    if (cfg.rules.require_approved_spec_to_implement && f.sdd === true && REQUIRES_SPEC.has(f.status)) {
-      const feat = path.join(CWD, cfg.paths.features, `${f.name}.feature`);
-      if (!fs.existsSync(feat)) {
-        fail(`feature ${f.id} (${f.name}) en ${f.status} sin ${cfg.paths.features}/${f.name}.feature`);
-        good = false;
-      }
-    }
-  }
-  if (good) ok(`${cfg.paths.feature_list} válido (${features.length} features)`);
-  return { ok: good, features };
-}
-
 function cmdInit() {
   const cfg = loadConfig();
   let exit = 0;
@@ -197,14 +134,8 @@ function cmdInit() {
   if (cfg.standalone === false) {
     warn('standalone:false — este proyecto hereda el arnés raíz; se omite la comprobación de ficheros base.');
   } else {
-    // [ruta, opcional]: si un opcional falta, se avisa sin fallar.
-    const base = [
-      ['AGENTS.md', false], ['CLAUDE.md', false], ['CHECKPOINTS.md', false], ['docs/workflow.md', false],
-      [cfg.paths.feature_list, true], [path.join(cfg.paths.progress, 'current.md'), true],
-    ];
-    for (const [f, optional] of base) {
+    for (const f of ['AGENTS.md', 'CLAUDE.md', 'CHECKPOINTS.md']) {
       if (fs.existsSync(path.join(CWD, f))) ok(`Existe ${f}`);
-      else if (optional) ok(`Opcional y ausente: ${f} (se omite)`);
       else {
         fail(`Falta archivo base: ${f}`);
         exit = 1;
@@ -212,15 +143,12 @@ function cmdInit() {
     }
   }
 
-  rule('3. feature_list.json y escenarios');
-  if (!validateFeatureList(cfg).ok) exit = 1;
-
   // Lint y tests no corren sobre un árbol vacío (clon limpio): muchos linters salen
   // distinto de 0 sin ficheros. Los tests se buscan en `tests` Y en `src`: Go y Rust
   // los colocan junto al código.
   const hasCode = dirHasFiles(cfg.paths.tests) || dirHasFiles(cfg.paths.src);
   if (cfg.commands.lint) {
-    rule('4. Lint');
+    rule('3. Lint');
     if (!hasCode) {
       warn(`Sin código todavía en ${cfg.paths.tests}/ ni ${cfg.paths.src}/ (nada que lintar)`);
     } else {
@@ -232,7 +160,7 @@ function cmdInit() {
     }
   }
 
-  rule(cfg.commands.lint ? '5. Tests' : '4. Tests');
+  rule(cfg.commands.lint ? '4. Tests' : '3. Tests');
   if (!cfg.commands.test) {
     warn('No hay comando de tests declarado (commands.test vacío)');
   } else if (!hasCode) {
@@ -302,8 +230,8 @@ function cmdVerify() {
     process.exit(1);
   }
   const cfg = loadConfig();
-  // `init` solo AVISA si falta el comando de tests; verify, que es la puerta de cierre,
-  // no certifica un cierre sin suite que ejecutar (ni sin mutador, más abajo).
+  // `init` solo AVISA si falta el comando de tests; verify, la verificación de entrega,
+  // no da verde sin suite que ejecutar (ni sin mutador, más abajo).
   if (cfg.rules.require_tests_to_close && !cfg.commands.test) {
     fail('verify abortado: require_tests_to_close es true pero commands.test está vacío.');
     console.log(
@@ -329,27 +257,8 @@ function cmdVerify() {
       process.exit(1);
     }
   }
-  console.log(`\n${green(bold('[verify] Todo verde. Puedes cerrar la sesión.'))}`);
+  console.log(`\n${green(bold('[verify] Todo verde.'))}`);
   process.exit(0);
-}
-
-function cmdStatus() {
-  const cfg = loadConfig();
-  const v = validateFeatureList(cfg);
-  rule('Estado de features');
-  if (v.absent) {
-    console.log(`  (sin ${cfg.paths.feature_list}: es opcional; nada que resumir)`);
-  } else if (v.ok && !v.features.length) {
-    console.log('  (sin features definidas todavía)');
-  } else {
-    for (const f of v.features) {
-      const status = typeof f.status === 'string' ? f.status : '(sin estado)';
-      const tag = { done: green, in_progress: yellow, blocked: red }[status] || ((s) => s);
-      console.log(`  #${String(f.id ?? '?').padStart(2)} ${tag(status.padEnd(12))} ${f.name ?? '(sin nombre)'}${f.sdd ? ' (sdd)' : ''}`);
-    }
-  }
-  // Informativo, pero no verde sobre una lista inválida (el [FAIL] ya se imprimió).
-  process.exit(v.ok ? 0 : 1);
 }
 
 function help() {
@@ -357,11 +266,10 @@ function help() {
 
   node .harness/harness.mjs <comando>
 
-  ${bold('init')}     Verifica entorno, ficheros base, feature_list.json (opcional), lint y tests.
+  ${bold('init')}     Verifica entorno, ficheros base, lint y tests.
   ${bold('test')}     Ejecuta config.commands.test.
   ${bold('mutate')}   Ejecuta la prueba de mutación (config.commands.mutate [target]).
-  ${bold('verify')}   init + mutación (puerta de cierre de sesión).
-  ${bold('status')}   Resume feature_list.json (opcional).
+  ${bold('verify')}   init + mutación completa (verificación de entrega).
   ${bold('help')}     Esta ayuda.
 
   Configuración: ${CONFIG_NAME} (declara paths, commands, mutation, rules).
@@ -369,7 +277,7 @@ function help() {
 }
 
 const cmd = (process.argv[2] || 'help').toLowerCase();
-const COMMANDS = { init: cmdInit, test: cmdTest, mutate: cmdMutate, verify: cmdVerify, status: cmdStatus, help };
+const COMMANDS = { init: cmdInit, test: cmdTest, mutate: cmdMutate, verify: cmdVerify, help };
 try {
   if (!Object.hasOwn(COMMANDS, cmd)) {
     fail(`Comando desconocido: ${cmd}`);
@@ -378,6 +286,6 @@ try {
   }
   COMMANDS[cmd]();
 } catch (e) {
-  fail(`Error inesperado: ${e.message} (¿${CONFIG_NAME} o feature_list.json mal formado?)`);
+  fail(`Error inesperado: ${e.message} (¿${CONFIG_NAME} mal formado?)`);
   process.exit(2);
 }
