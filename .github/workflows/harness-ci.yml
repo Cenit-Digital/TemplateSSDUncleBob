@@ -21,6 +21,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false # sin caché automático: falla con "packageManager: pnpm" (ver pr-body.yml)
       - run: node .harness/harness.mjs init
       - name: Tests del script de propagación, del manifiesto y del comprobador del PR
         run: node --test .harness/test/upgrade.test.mjs .harness/test/pr-body.test.mjs
@@ -33,4 +34,5 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false # sin caché automático: falla con "packageManager: pnpm" (ver pr-body.yml)
       - run: node --test .harness/test/engine.test.mjs
