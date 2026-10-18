@@ -45,10 +45,16 @@ nada más depende de ellos.
 
 ## El camino de vuelta (en pausa)
 
-El bot destilaba el `progress/history.md` y el `CHECKPOINTS.md` de cada repo. La
-plantilla ya no exige `progress/*`, así que mientras el bot siga en pausa no
-entra nada nuevo en la memoria; lo ya validado sigue disponible. Su futuro está
-por decidir.
+El bot destilaba el `progress/history.md` y el `CHECKPOINTS.md` de cada repo de la
+organización. **`progress/history.md` ya no existe en la plantilla**: el seguimiento
+de una tarea vive ahora en su issue (casillas y «Resultados de la ejecución») y en
+su PR, y la spec de cada capacidad en `features/<capacidad>.feature`. Los proyectos
+nuevos no le dan, por tanto, esa materia prima; solo la conservan los derivados
+antiguos que mantienen su `progress/`. No consta que el mandato del bot (en
+`SistemaDeMemoriaUncleBob`) se haya adaptado a las fuentes nuevas, y como el bot
+sigue en pausa no entra nada nuevo en la memoria; lo ya validado sigue disponible.
+Si se reactiva, habrá que decidir de dónde destila (issues y PR, `AGENTS.md`) o
+retirarlo: esa decisión está pendiente.
 
 ## Esquema de un patrón (resumen)
 

@@ -5,10 +5,15 @@
 > el workflow se contradicen, **este archivo manda**.
 >
 > Diseño, operación y puesta en marcha para humanos: `docs/autonomous.md`.
+>
+> **Estado: PAUSADO.** El `cron` del workflow está retirado: el bot solo corre si
+> alguien lo lanza a mano (`workflow_dispatch`). La pausa no cambia este mandato:
+> en una ejecución manual, síguelo igual. Su futuro (eliminarlo, dejar un mandato
+> mínimo o reactivarlo) está por decidir.
 
 ## Mandato
 
-Alcance total y deliberado: puedes tocar documentación, adaptadores, ejemplos,
+Alcance total y deliberado: puedes tocar documentación, adaptadores,
 los prompts de los agentes en `.claude/agents/` e incluso el motor en
 `.harness/harness.mjs`. Es una decisión explícita del dueño del repo, no un
 descuido — **no te autolimites** a "solo docs" pensando que es lo prudente.
@@ -53,19 +58,20 @@ incorrecto aunque el resto del trabajo sea excelente:
    arregla la causa. Borrar el test, relajarlo, o bajar el umbral de mutación
    para que "pase" es peor que dejar el PR en rojo y explicarlo.
 
-3. **El umbral de mutación no baja, nunca.** Los dos ejemplos existentes
-   (`examples/python-notes-cli`, `examples/node-notes-cli`) están verificados al
-   100% de mutación. Cualquier ejemplo nuevo se mide con el mismo rasero. Si no
-   llegas al 100%, abre el PR igualmente pero dilo explícitamente y explica qué
-   mutantes sobreviven y por qué.
+3. **El umbral de mutación no baja para forzar el verde.** `mutation.threshold`
+   vale 0,8 por defecto en `harness.config.json` (1,0 solo por excepción
+   justificada y registrada en el PR). No lo rebajes ni recortes los módulos a
+   mutar para que algo pase. Si un cambio con mutación queda por debajo, abre el
+   PR igualmente pero dilo explícitamente y explica qué mutantes sobreviven y
+   por qué.
 
 4. **No rellenes el esqueleto de la plantilla con contenido de un proyecto.** Son
    plantilla, no un proyecto, y los ve cualquiera que haga "Use this template":
-   `features/`, `progress/`, `src/`, `tests/`, `project-spec.md`,
-   `feature_list.json` y **`harness.config.json` (raíz)**. Este último tiene
-   `commands.test` vacío **por diseño** (la plantilla es agnóstica): el warning
-   que verás en cada `init` raíz es esperado, no un bug que corregir. Si quieres
-   dogfooding real del arnés, hazlo dentro de `examples/`, como ya está establecido.
+   `features/`, `src/`, `tests/` y **`harness.config.json` (raíz)**. Este último
+   tiene `commands.test` vacío **por diseño** (la plantilla es agnóstica): el
+   warning que verás en cada `init` raíz es esperado, no un bug que corregir. La
+   plantilla ya no lleva proyectos de ejemplo ni seguimiento propio (`examples/`,
+   `progress/`, `feature_list.json`, `project-spec.md`): no los recrees.
 
 5. **`init.sh` / `init.ps1` / `bin/harness` deben seguir funcionando desde un
    clon limpio** después de tu cambio. Es la primera experiencia de cualquiera
@@ -131,15 +137,13 @@ etiquetar, dilo en el título.
 
 - **Siempre:** `node .harness/harness.mjs init` en la raíz → verde (exit 0; el
   warning de `commands.test` vacío es de diseño, no cuenta como fallo).
-- **Si tocaste un ejemplo o un stack con tests:** los tests de ese ejemplo, vía
-  `node .harness/harness.mjs test` en su carpeta (o el job equivalente de
-  `harness-ci.yml`).
-- **Si creaste o tocaste un ejemplo:** mutación al 100% de sus módulos
-  (`node .harness/harness.mjs mutate <target>` por módulo), igual que hacen los
-  jobs `python-example` y `node-example` de `harness-ci.yml`.
-- **Si añadiste un ejemplo nuevo:** añade su job a `.github/workflows/harness-ci.yml`
-  siguiendo el patrón de los jobs existentes (recuerda: tocar ese fichero activa
-  el aviso del límite 1).
+- **Siempre, además:** `node --test .harness/test/engine.test.mjs` (job
+  `Motor (tests)` de `harness-ci.yml`) y
+  `node --test .harness/test/upgrade.test.mjs .harness/test/pr-body.test.mjs`
+  (se ejecutan en el job `Arnés raíz (init)`). Los dos jobs son los checks
+  requeridos de `main`.
+- **Si cambias `harness-ci.yml`:** recuerda el aviso del límite 1. Quitar o
+  renombrar uno de esos dos jobs deja `main` sin check requerido.
 
 ## Backlog, ordenado por riesgo creciente
 
@@ -149,42 +153,28 @@ existe para que la revisión humana no se sature de golpe.
 
 ### Nivel 1 — Documentación y adaptadores (riesgo bajo)
 
-- [ ] `.harness/adapters/go.md` — el README y `docs/` prometen soporte Go; el
-      adaptador no existe todavía. Sigue la estructura de `python.md` / `node.md`
-      (config de ejemplo, layout típico, herramienta de mutación, notas de
-      producción). Herramientas sugeridas por `adapters/generic.md`:
-      `go test ./...` + [gremlins](https://github.com/go-gremlins/gremlins).
-- [ ] `.harness/adapters/rust.md` — el README lo menciona (`docs/` solo cubre Go);
-      mismo formato. `cargo test` + [cargo-mutants](https://github.com/sourcefrog/cargo-mutants).
-- [ ] `.harness/adapters/java.md` — el README lo menciona (`docs/` solo cubre Go);
-      mismo formato. `mvn test` + [PIT](https://pitest.org/).
-- [ ] Pasada de coherencia sobre `docs/` y `README.md`: cada mención a
-      Go/Rust/Java debe enlazar a un adaptador real, no a una promesa.
+Agotado: los adaptadores `.harness/adapters/go.md`, `rust.md` y `java.md` ya
+existen (con la estructura de `python.md` / `node.md`) y ni `README.md` ni `docs/`
+prometen ningún adaptador que falte. No queda tarea en este nivel.
 
-### Nivel 2 — Ejemplos nuevos (riesgo medio, protegido por el gate de mutación)
+### Nivel 2 — Ejemplos nuevos (retirado)
 
-- [ ] `examples/go-notes-cli` — mismo ejercicio y estándar que
-      `examples/python-notes-cli`: flujo Uncle Bob completo, 100% de mutación y su
-      mismo alcance funcional (contar / recientes / desde una fecha). Añade su job
-      a `harness-ci.yml`.
-- [ ] `examples/rust-notes-cli` — ídem, con el mismo alcance que
-      `examples/python-notes-cli`.
+Sin tareas: los proyectos de ejemplo (`examples/`) se eliminaron de la plantilla.
+No los recrees.
 
 ### Nivel 3 — Motor y agentes (riesgo alto, máxima revisión esperada)
 
 - [ ] Robustez multiplataforma en `.harness/harness.mjs` en la línea de lo ya
-      hecho (resolución `python3`→`python`, salida UTF-8 en el mutador). Busca
-      el siguiente punto de fricción **real** (un caso que efectivamente falle
-      hoy, con evidencia), no una corrección especulativa. Tocar el motor activa
-      el aviso del límite 1.
+      hecho (resolución `python3`→`python`). Busca el siguiente punto de fricción
+      **real** (un caso que efectivamente falle hoy, con evidencia), no una
+      corrección especulativa. Tocar el motor activa el aviso del límite 1.
 - [ ] Revisión de los prompts en `.claude/agents/` para detectar ambigüedades
-      que ya hayan causado un desvío **observable** en el pipeline — no
-      reescrituras de estilo sin motivo concreto.
+      que ya hayan causado un desvío **observable** al delegar en los agentes —
+      no reescrituras de estilo sin motivo concreto.
 
-Cuando el nivel 1 y 2 estén agotados y quieras entrar de lleno en el nivel 3,
-está bien: es el alcance que se decidió. Pero para entonces ya habrá un patrón
-de PRs revisados que hará más fácil confiar en el criterio del bot para lo más
-sensible.
+Los niveles 1 y 2 están agotados, así que hoy el backlog es solo el nivel 3: el
+alcance que se decidió y el que más revisión humana pide. No lo amplíes con
+tareas especulativas.
 
 ## Si te bloqueas
 

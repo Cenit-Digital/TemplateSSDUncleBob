@@ -1,6 +1,6 @@
 # TemplateSSDUncleBob — plantilla de arnés SSD para trabajar con agentes de IA
 
-Plantilla **agnóstica al lenguaje** para desarrollar con agentes de IA (Claude Code, Codex, GitHub Copilot, OpenCode…) de forma proporcional al riesgo, verificable y barata. Adapta el método que divulga [BettaTech](https://github.com/betta-tech/harness-sdd) (basado en el trabajo de Robert C. Martin, «Uncle Bob») y las prácticas del vídeo [«7 pasos para programar mejor con coding agents»](https://youtu.be/dhkiC4Iq1eM).
+Plantilla **agnóstica al lenguaje** para desarrollar con agentes de IA (Claude Code, Codex, GitHub Copilot, OpenCode…) de forma proporcional al riesgo, verificable y barata. Adapta el método que divulga [BettaTech](https://github.com/betta-tech/harness-sdd) y las prácticas del vídeo [«7 pasos para programar mejor con coding agents»](https://youtu.be/dhkiC4Iq1eM).
 
 Lo que fija la plantilla es **cómo se trabaja**, no tu aplicación: planificar, aprobar el plan, implementar con el modelo justo, revisar el diff en local y abrir un PR pequeño. Lo único que cambia por proyecto son los comandos de tu stack, en `harness.config.json`.
 
@@ -62,4 +62,6 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 
 ## Créditos
 
-Método de **Robert C. Martin (Uncle Bob)**, destilado por **BettaTech** ([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2), [repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)). Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT.
+Esta plantilla es una adaptación del método de **BettaTech** ([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2), [repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)) y de las prácticas del vídeo citado arriba. Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT.
+
+**Qué se le debe a Uncle Bob.** De Robert C. Martin solo consta una fuente primaria verificada: su [post del 12-feb-2026](https://x.com/unclebobmartin/status/2021998958579794052). Parafraseado: el desarrollo guiado por especificaciones aporta valor con IA, pero diseñarlo todo por adelantado arriesga volver al diseño grande previo; conviene mantener el carácter iterativo, con especificaciones justas para lo que se va a construir, que se modifican sobre la marcha, que coescriben persona e IA y que aprueba una persona. De ahí las specs vivas por capacidad y la aprobación humana de esta plantilla. El nombre «Uncle Bob» (también en la rama `uncle-bob-harness` del repo de BettaTech) no implica autoría ni aval suyo, y no se le atribuye nada más.
