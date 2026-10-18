@@ -919,3 +919,34 @@ test('impacto-tareas: gh solo se usa para leer y, sin gh o sin remoto, el CLI si
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /- #1 «feat: base» · comparte 1 fichero \(a\.txt\) · issues: #2/);
 });
+
+// --- el bucle de aprendizaje escrito: regla en el bloque gestionado y plantillas que citan el generador ---
+const leer = (...p) => fs.readFileSync(path.join(REPO, ...p), 'utf8').replace(/\r\n/g, '\n');
+
+test('el generador de candidatos se propaga a los derivados y se lanza con node (sin bit ejecutable)', () => {
+  const m = JSON.parse(leer('harness.manifest.json'));
+  assert.ok(m.template.includes('scripts/impacto-tareas.mjs'));
+  assert.ok(!m.executable.includes('scripts/impacto-tareas.mjs'));
+});
+
+test('la regla del bucle de aprendizaje vive en el bloque gestionado y AGENTS.md lo repite idéntico', () => {
+  const block = leer('.harness', 'agents-block.md');
+  for (const re of [
+    /scripts\/impacto-tareas\.mjs --files/, /^\*\*Bucle de aprendizaje/m, /Impacto en tareas anteriores/, /Tareas relacionadas/, /Resultados de la ejecución/,
+    /`revisit`/, /plan de enmienda/, /con el OK de la persona/, /ningún issue se reabre por su cuenta/, /sin LLM/, /No hay bot retrospectivo/, /Todo criterio de aceptación tiene un test/, /nivel trivial no ejecuta esta fase/,
+  ]) assert.match(block, re);
+  assert.doesNotMatch(block, /opcional mientras|feature_list|progress\//);
+  const agents = leer('AGENTS.md');
+  const fin = '<!-- harness:end -->';
+  assert.equal(agents.slice(agents.indexOf('<!-- harness:begin'), agents.indexOf(fin) + fin.length), block.trimEnd());
+});
+
+test('las plantillas de PR y de issue citan el generador y no dejan el issue opcional', () => {
+  const pr = leer('.github', 'pull_request_template.md');
+  const issue = leer('.github', 'ISSUE_TEMPLATE', 'tarea.md');
+  assert.match(pr, /node scripts\/impacto-tareas\.mjs/);
+  assert.match(pr, /«afecta» o «no afecta»/);
+  assert.doesNotMatch(pr, /n\/a/i);
+  assert.match(issue, /node scripts\/impacto-tareas\.mjs --files/);
+  assert.match(issue, /`revisit`/);
+});
