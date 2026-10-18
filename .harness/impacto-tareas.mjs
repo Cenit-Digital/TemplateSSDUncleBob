@@ -3,7 +3,7 @@
 // mismos ficheros que la rama (o que los ficheros de un plan). Alimentan «Impacto en tareas anteriores»
 // del PR y «Tareas relacionadas» del issue.
 //
-//   node scripts/impacto-tareas.mjs [--base <ref>] [--files <ruta>...] [--no-gh]
+//   node .harness/impacto-tareas.mjs [--base <ref>] [--files <ruta>...] [--no-gh]
 //
 // Sin --files compara la rama (más lo no confirmado) con su base: --base, o la rama por defecto de origin.
 // Con --files usa esas rutas, relativas al directorio actual, para listar lo relacionado al planificar.
@@ -27,7 +27,7 @@ export const TOPE_CANDIDATOS = 10;
 export const TOPE_GH = 20;
 const MAX_CARACTERES_RUTAS = 16000; // por llamada a git: Windows admite 32767 en toda la línea de órdenes
 const GH_TIMEOUT_MS = 15000;
-const USO = 'Uso: node scripts/impacto-tareas.mjs [--base <ref>] [--files <ruta>...] [--no-gh]';
+const USO = 'Uso: node .harness/impacto-tareas.mjs [--base <ref>] [--files <ruta>...] [--no-gh]';
 const CIERRE = 'close[sd]?|fix(?:e[sd])?|resolve[sd]?';
 const PALABRAS_CIERRE = new RegExp(`\\b(?:${CIERRE}):?\\s+#(\\d+)`, 'gi');
 const GH_PERMITIDO = [['pr', 'view'], ['issue', 'view']];
