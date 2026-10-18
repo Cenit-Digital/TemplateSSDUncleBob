@@ -204,10 +204,17 @@ test('optional: si falta en el derivado no es deriva', () => {
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /sin deriva/);
   assert.doesNotMatch(r.out, /falta/);
+  assert.match(r.out, /opcionales que no tienes[^\n]*opt\.txt/);
 });
 
 test('optional: presente e igual a la plantilla, sin deriva', () => {
   const r = run(optTpl(), repo({ 'opt.txt': 'o\n' }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /sin deriva/);
+});
+
+test('optional: solo cambian BOM y CRLF, sin deriva', () => {
+  const r = run(optTpl(), repo({ 'opt.txt': String.fromCharCode(0xfeff) + 'o\r\n' }));
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /sin deriva/);
 });
@@ -234,6 +241,15 @@ test('optional: --apply lo reemplaza si existe y difiere, y lo deja en el índic
   assert.ok(git(p, 'diff', '--cached', '--name-only').split('\n').includes('opt.txt'), 'opt.txt no está en el índice');
 });
 
+test('optional: --apply no pisa un opcional con ediciones sin confirmar', () => {
+  const p = proj({ 'opt.txt': 'otro\n' });
+  fs.writeFileSync(path.join(p, 'opt.txt'), 'local\n');
+  const r = exec(optTpl(), p, APPLY);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /sin confirmar[\s\S]*opt\.txt/);
+  assert.equal(rd(p, 'opt.txt'), 'local\n');
+});
+
 test('optional: un manifiesto sin la clave optional sigue siendo válido', () => {
   assert.equal('optional' in MANIFEST, false, 'el control necesita un manifiesto sin la clave optional');
   const r = run(BASE, repo({}));
@@ -244,7 +260,7 @@ test('optional: un manifiesto sin la clave optional sigue siendo válido', () =>
 const OPT_BAD = [
   ['una ruta insegura', { optional: ['../fuera'] }, /rutas relativas seguras/],
   ['una entrada inexistente', { optional: ['nada.txt'] }, /no existe en la plantilla/],
-  ...['template', 'project', 'excluded', 'mixedJson'].map((k) => [`un solape con ${k}`, { optional: ['opt.txt'], [k]: [...MANIFEST[k], 'opt.txt'] }, /"opt\.txt".*se solapan/]),
+  ...['template', 'project', 'excluded', 'mixedBlock', 'mixedJson', 'executable'].map((k) => [`un solape con ${k}`, { optional: ['opt.txt'], [k]: [...MANIFEST[k], 'opt.txt'] }, /"opt\.txt".*se solapan/]),
 ];
 for (const [name, patch, re] of OPT_BAD) {
   test(`optional: manifiesto con ${name}`, () => {
@@ -456,7 +472,7 @@ test('lo que se propaga a los derivados no cita el ADR ni sus números de decisi
   const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
   const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
   const tracked = git(REPO, 'ls-files', '-z').split('\0').filter(Boolean);
-  for (const f of tracked.filter((t) => [...m.template, m.blockSource].some((e) => covers(e, t)))) {
+  for (const f of tracked.filter((t) => [...m.template, ...(m.optional ?? []), m.blockSource].some((e) => covers(e, t)))) {
     const hit = /\bADR\b|\bD\d{1,2}\b/.exec(fs.readFileSync(path.join(REPO, f), 'utf8'));
     assert.equal(hit, null, `${f}: cita «${hit?.[0]}», que los derivados no tienen`);
   }
@@ -741,9 +757,10 @@ test('CLAUDE.md es mínimo: no repite el arranque de AGENTS.md, solo nombra ruta
   assert.doesNotMatch(text, /2bis|Protocolo de arranque/);
   assert.ok(m.template.includes('CLAUDE.md') && !m.project.includes('CLAUDE.md'), 'CLAUDE.md mínimo es de la plantilla: va en «template», no en «project»');
   // lo mixto (settings.json) y lo excluido (sync-memoria) no llegan al derivado, y este fichero no se personaliza allí
-  // un directorio que cita (p. ej. .claude/agents/) llega si lo cubre una entrada o si contiene alguna que se propaga (de nivel en template, especialistas en optional)
+  // un directorio que cita (p. ej. .claude/agents/) llega si lo cubre una entrada o si contiene entradas de template y nada del proyecto, excluido o mixto
   const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
-  const reaches = (f) => [...m.template, ...(m.optional ?? []), ...m.mixedBlock].some((e) => covers(e, f) || covers(f, e));
+  const reaches = (f) => [...m.template, ...m.mixedBlock].some((e) => covers(e, f))
+    || (f.endsWith('/') && m.template.some((e) => e.startsWith(f)) && ![...m.project, ...m.excluded, ...m.mixedJson].some((e) => e.startsWith(f)));
   const paths = [...text.matchAll(/`([^`\s]+)`/g)].map((x) => x[1]).filter((p) => !p.startsWith('/') && (p.includes('/') || /\.\w+$/.test(p)));
   assert.ok(paths.length >= 2, 'el detector no halló rutas en CLAUDE.md: la comprobación no vale');
   for (const p of paths) assert.ok(reaches(p), `CLAUDE.md nombra «${p}», que la plantilla no propaga a los derivados`);

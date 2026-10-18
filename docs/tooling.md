@@ -24,7 +24,7 @@ Los tres existen también, con el mismo cuerpo, para las demás herramientas: `.
 | `a11y_seo_auditor`  | Features con UI web (accesibilidad y SEO)                            | Veredicto por impacto             |
 | `mentor`            | Cuando la persona quiere una explicación didáctica de un cambio      | Responde en el chat, no bloquea   |
 
-Revisan y reportan; no editan `src/`. Son `optional` en `harness.manifest.json`: si tu proyecto no los necesita (p. ej. `a11y_seo_auditor` sin UI web), bórralos y `harness-upgrade` no los repone; los que conserves se actualizan con el resto.
+Revisan y reportan; no editan `src/`. Son `optional` en `harness.manifest.json`: si tu proyecto no los necesita (p. ej. `a11y_seo_auditor` sin UI web), bórralos y `harness-upgrade` no los repone; los que conserves se actualizan con el resto. Para recuperar uno que borraste (o adoptar uno nuevo de la plantilla), cópialo de su tag: `git show vX.Y.Z:.claude/agents/mentor.md`.
 
 ## Verificación: sin hooks de tests
 

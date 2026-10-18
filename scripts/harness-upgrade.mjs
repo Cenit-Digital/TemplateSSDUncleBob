@@ -115,7 +115,7 @@ function loadManifest(dir, files) {
     }
   };
   for (const a of ['template', 'optional', 'executable', 'mixedBlock', 'mixedJson']) for (const b of ['project', 'excluded']) clash(a, b);
-  for (const b of ['template', 'mixedBlock', 'mixedJson']) clash('optional', b);
+  for (const b of ['template', 'executable', 'mixedBlock', 'mixedJson']) clash('optional', b);
   return m;
 }
 
