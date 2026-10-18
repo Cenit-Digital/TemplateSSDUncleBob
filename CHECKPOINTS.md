@@ -9,7 +9,7 @@
 
 - [ ] Existen los ficheros base: `AGENTS.md`, `CLAUDE.md`, `CHECKPOINTS.md`,
       `harness.config.json`.
-- [ ] Existen los docs: `docs/workflow.md`, `docs/architecture.md`,
+- [ ] Existen los docs: `docs/workflow.md` (legado), `docs/architecture.md`,
       `docs/conventions.md`, `docs/verification.md`.
 - [ ] `bin/harness init` termina con exit code 0.
 
@@ -40,16 +40,19 @@
       «Resultados de la ejecución») o, si no hay issue, en el PR (y en
       `feature_list.json` si el proyecto lo conserva).
 
-## C6 — Contrato Gherkin (BDD)
+## C6 — Criterios Given/When/Then y spec viva
 
-- [ ] Toda capacidad con criterios Given/When/Then tiene su
-      `features/<capacidad>.feature`, actualizado en el mismo PR.
-- [ ] El `.feature` usa Gherkin con escenarios tagueados `@s1`, `@s2`, …
-      y cada `Then` afirma algo medible (ver `docs/gherkin.md`).
-- [ ] Cada escenario `@s` está cubierto por al menos un test concreto
-      (mapa `@s → test` en el issue o en el PR).
-- [ ] No hay código de producción que ningún test rojo haya pedido
-      (disciplina TDD, ver `docs/tdd.md`).
+- [ ] Cada criterio de aceptación (Given/When/Then, en el issue o en el plan)
+      está cubierto por al menos un test concreto cuyo nombre lo refleja, y el
+      PR declara en «Cómo se probó» cuál (ver `docs/verification.md`). En un
+      bugfix, el test de regresión se escribió antes del arreglo y se vio fallar.
+- [ ] Si la capacidad tiene su spec viva `features/<capacidad>.feature`
+      (opcional, ver `docs/gherkin.md`): el mismo PR que cambia el
+      comportamiento la actualiza, usa Gherkin con escenarios tagueados
+      `@s1`, `@s2`, …, cada `Then` afirma algo medible y cada escenario `@s`
+      está cubierto por al menos un test (mapa `@s → test` en el issue o en el PR).
+- [ ] Solo nivel crítico: TDD estricto; no hay código de producción que ningún
+      test rojo haya pedido (ver `docs/tdd.md`).
 
 ## C7 — Prueba de mutación (solo nivel crítico)
 
@@ -67,4 +70,5 @@ niveles no se corre (política en `docs/verification.md`).
 
 **Cómo usar este archivo:** quien revisa el trabajo
 recorre C1-C6 y, si la tarea es crítica, C7 (`bin/harness mutate <módulo>`).
-Se rechaza el cierre de sesión si quedan boxes vacíos.
+Se rechaza el cierre de sesión si quedan boxes vacíos; los que solo aplican en
+nivel crítico o con spec viva se marcan «n/a» cuando no corresponden.
