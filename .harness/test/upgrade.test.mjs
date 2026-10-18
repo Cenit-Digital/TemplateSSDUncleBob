@@ -624,3 +624,155 @@ test('CLAUDE.md es mínimo: no repite el arranque de AGENTS.md, solo nombra ruta
   assert.ok(paths.length >= 2, 'el detector no halló rutas en CLAUDE.md: la comprobación no vale');
   for (const p of paths) assert.ok(reaches(p), `CLAUDE.md nombra «${p}», que la plantilla no propaga a los derivados`);
 });
+
+// Capa 2: los agentes de nivel en Copilot, Codex y OpenCode. El cuerpo y la descripción son los de .claude/agents/ (una sola
+// fuente de texto, copiada); lo propio de cada herramienta es la cabecera, y su modelo, el de docs/modelos.md.
+const ADAPT_LEVELS = { worker_fast: 'fast', worker_balanced: 'balanced', reviewer_frontier: 'frontier' };
+const ADAPT_PATH = {
+  Copilot: (n) => `.github/agents/${n}.agent.md`,
+  Codex: (n) => `.codex/agents/${n}.toml`,
+  OpenCode: (n) => `.opencode/agents/${n}.md`,
+};
+const adaptText = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8').replace(/\r\n/g, '\n');
+const adaptTrim = (s) => s.replace(/^\n+|\n+$/g, ''); // TOML descarta el salto de línea que sigue a las ''' de apertura
+
+/** Front matter de un .md: claves de primer nivel (las sangradas y los comentarios `#` se saltan), el texto en bruto y el cuerpo. */
+function adaptFront(text, who) {
+  const m = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
+  assert.ok(m, `${who}: sin front matter entre ---`);
+  const keys = {};
+  for (const line of m[1].split('\n')) {
+    if (!line.trim() || /^\s/.test(line) || line.startsWith('#')) continue;
+    const kv = /^([A-Za-z][A-Za-z-]*):\s*(.*)$/.exec(line);
+    assert.ok(kv, `${who}: no es «clave: valor»: ${line}`);
+    assert.ok(!(kv[1] in keys), `${who}: clave repetida «${kv[1]}» (cada herramienta resuelve el duplicado a su manera)`);
+    assert.ok(/^["'[{]/.test(kv[2]) || !/: | #/.test(kv[2]), `${who}.${kv[1]}: valor sin comillas con «: » o « #» (YAML inválido)`);
+    keys[kv[1]] = kv[2];
+  }
+  return { raw: m[1], keys, body: adaptTrim(m[2]) };
+}
+
+/** Los elementos de una lista YAML en línea `['a', 'b']`; rechaza lo que no sea exactamente eso (p. ej. sin el corchete de cierre). */
+function adaptList(value, who) {
+  assert.match(value ?? '', /^\['[^']+'(, '[^']+')*\]$/, `${who}: se esperaba una lista en línea con elementos entre comillas simples`);
+  return [...value.matchAll(/'([^']+)'/g)].map((x) => x[1]);
+}
+
+/** TOML mínimo de un agente de Codex: `clave = "valor"` sin escapes y `developer_instructions` como cadena literal ''' que cierra el fichero. */
+function adaptToml(text, who) {
+  const open = "developer_instructions = '''\n";
+  const at = text.indexOf(open);
+  assert.ok(at >= 0, `${who}: falta developer_instructions = ''' (cadena literal, para que «\\» no sea un escape)`);
+  const rest = text.slice(at + open.length);
+  const end = rest.indexOf("'''");
+  assert.ok(end >= 0, `${who}: la cadena de developer_instructions no se cierra`);
+  assert.equal(rest.slice(end + 3).trim(), '', `${who}: developer_instructions debe ser la última clave y su cuerpo no puede llevar '''`);
+  const keys = {};
+  for (const line of text.slice(0, at).split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    const kv = /^([a-z_]+) = "([^"\\]*)"$/.exec(line);
+    assert.ok(kv, `${who}: no es «clave = "valor"» sin escapes: ${line}`);
+    assert.ok(!(kv[1] in keys), `${who}: clave repetida «${kv[1]}»`);
+    keys[kv[1]] = kv[2];
+  }
+  return { keys, body: adaptTrim(rest.slice(0, end)) };
+}
+
+/** Los IDs de modelo de cada fila de la tabla principal de docs/modelos.md, por nivel. */
+function adaptModelTable() {
+  const rows = {};
+  const lines = adaptText('docs/modelos.md').split('\n');
+  const head = lines.find((l) => l.startsWith('| Herramienta')).split('|').map((c) => c.trim());
+  assert.deepEqual([head[3], head[4], head[5]].map((c) => c.replace(/`/g, '')), ['frontier', 'balanced', 'fast'], 'columnas de niveles de docs/modelos.md');
+  for (const line of lines) {
+    const cells = line.split('|').map((c) => c.trim());
+    const tool = ['Claude Code', 'Codex', 'Copilot', 'OpenCode'].find((t) => cells.length >= 6 && cells[1].startsWith(t));
+    if (!tool) continue;
+    const ids = (c) => [...c.matchAll(/`([^`]+)`/g)].map((x) => x[1]);
+    rows[tool] = { frontier: ids(cells[3]), balanced: ids(cells[4]), fast: ids(cells[5]) };
+  }
+  return rows;
+}
+
+test('el manifiesto propaga las tres carpetas de adaptadores', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  for (const dir of ['.github/agents/', '.codex/agents/', '.opencode/agents/']) assert.ok(m.template.includes(dir), `${dir} no está en template`);
+});
+
+test('cada adaptador repite el nombre, la descripción y el cuerpo del agente de .claude/agents/', () => {
+  for (const name of Object.keys(ADAPT_LEVELS)) {
+    const claude = adaptFront(agentFile(name), `Claude ${name}`);
+    for (const [tool, pathOf] of Object.entries(ADAPT_PATH)) {
+      const rel = pathOf(name);
+      assert.ok(fs.existsSync(path.join(REPO, rel)), `falta ${rel}`);
+      const a = tool === 'Codex' ? adaptToml(adaptText(rel), rel) : adaptFront(adaptText(rel), rel);
+      assert.equal(a.body, claude.body, `${rel}: el cuerpo difiere de .claude/agents/${name}.md`);
+      assert.equal(a.keys.description, claude.keys.description, `${rel}: description`);
+      if (tool !== 'OpenCode') assert.equal(a.keys.name, name, `${rel}: name`); // en OpenCode el nombre es el del fichero
+    }
+  }
+});
+
+test('el modelo de cada adaptador es el de su herramienta y su nivel en docs/modelos.md', () => {
+  const table = adaptModelTable();
+  for (const tool of ['Codex', 'Copilot', 'OpenCode']) assert.ok(table[tool], `docs/modelos.md: sin fila de ${tool}`);
+  for (const [name, level] of Object.entries(ADAPT_LEVELS)) {
+    const codex = adaptToml(adaptText(ADAPT_PATH.Codex(name)), `Codex ${name}`);
+    assert.deepEqual([codex.keys.model], table.Codex[level], `Codex ${name} (${level})`);
+    const copilot = adaptFront(adaptText(ADAPT_PATH.Copilot(name)), `Copilot ${name}`);
+    assert.deepEqual(adaptList(copilot.keys.model, `Copilot ${name}.model`), table.Copilot[level], `Copilot ${name} (${level})`);
+    const opencode = adaptFront(adaptText(ADAPT_PATH.OpenCode(name)), `OpenCode ${name}`);
+    assert.deepEqual([...opencode.raw.matchAll(/^# model: (\S+)$/gm)].map((x) => x[1]), table.OpenCode[level], `OpenCode ${name} (${level})`);
+  }
+});
+
+test('los adaptadores no fijan el esfuerzo, y el modelo de OpenCode queda por elegir (no se ata a un proveedor)', () => {
+  for (const name of Object.keys(ADAPT_LEVELS)) {
+    const codex = adaptToml(adaptText(ADAPT_PATH.Codex(name)), `Codex ${name}`);
+    assert.equal(codex.keys.model_reasoning_effort, undefined, `Codex ${name}: el esfuerzo lo decide la tarea al lanzar el agente`);
+    const opencode = adaptFront(adaptText(ADAPT_PATH.OpenCode(name)), `OpenCode ${name}`);
+    assert.equal(opencode.keys.mode, 'subagent', `OpenCode ${name}: mode`);
+    assert.equal(opencode.keys.model, undefined, `OpenCode ${name}: model va comentado, el proveedor lo elige cada persona`);
+    assert.doesNotMatch(opencode.raw, /reasoningEffort|^steps:/m, `OpenCode ${name}: esfuerzo y pasos son del proveedor y de la tarea`);
+  }
+});
+
+test('cada adaptador usa exactamente las claves previstas de su herramienta (ni más ni menos)', () => {
+  const sorted = (keys) => Object.keys(keys).sort();
+  for (const name of Object.keys(ADAPT_LEVELS)) {
+    assert.deepEqual(sorted(adaptFront(adaptText(ADAPT_PATH.Copilot(name)), name).keys), ['description', 'model', 'name', 'tools'], `Copilot ${name}`);
+    assert.deepEqual(sorted(adaptToml(adaptText(ADAPT_PATH.Codex(name)), name).keys), ['description', 'model', 'name'], `Codex ${name}`);
+    assert.deepEqual(sorted(adaptFront(adaptText(ADAPT_PATH.OpenCode(name)), name).keys), name === 'reviewer_frontier' ? ['description', 'mode', 'permission'] : ['description', 'mode'], `OpenCode ${name}`);
+  }
+});
+
+test('reviewer_frontier no puede editar donde la herramienta lo permite, y los trabajadores sí', () => {
+  const tools = (name) => adaptList(adaptFront(adaptText(ADAPT_PATH.Copilot(name)), name).keys.tools, `Copilot ${name}.tools`);
+  assert.deepEqual(tools('reviewer_frontier'), ['read', 'search', 'execute']);
+  for (const name of ['worker_fast', 'worker_balanced']) assert.deepEqual(tools(name), ['read', 'edit', 'search', 'execute']);
+  // OpenCode: el bloque sangrado bajo `permission:` es exactamente `edit: deny` en el revisor y no existe en los trabajadores
+  const indented = (name) => adaptFront(adaptText(ADAPT_PATH.OpenCode(name)), name).raw.split('\n').filter((l) => /^\s/.test(l));
+  assert.deepEqual(indented('reviewer_frontier'), ['  edit: deny']);
+  for (const name of ['worker_fast', 'worker_balanced']) assert.deepEqual(indented(name), []);
+});
+
+test('ningún ID de modelo de la tabla aparece en AGENTS.md ni en el bloque gestionado (la política no nombra modelos)', () => {
+  const table = adaptModelTable();
+  const ids = ['Codex', 'Copilot', 'OpenCode'].flatMap((t) => Object.values(table[t]).flat());
+  assert.ok(ids.length >= 12, `la tabla trae pocos IDs (${ids.length}): la comprobación no vale`);
+  for (const f of ['AGENTS.md', '.harness/agents-block.md']) {
+    const text = adaptText(f).toLowerCase();
+    for (const id of ids) assert.ok(!text.includes(id.toLowerCase()), `${f} nombra «${id}»`);
+  }
+});
+
+test('docs/modelos.md y los adaptadores no citan el ADR ni sus números (A8, D8…), que los derivados no tienen', () => {
+  const files = ['docs/modelos.md', ...Object.keys(ADAPT_LEVELS).flatMap((n) => Object.values(ADAPT_PATH).map((p) => p(n)))];
+  for (const f of files) {
+    const text = adaptText(f);
+    const hit = /\bADR\b/i.exec(text) ?? /docs\/decisiones\//.exec(text) ?? /\b[AD]\d{1,2}\b/.exec(text);
+    assert.equal(hit, null, `${f}: cita «${hit?.[0]}»`);
+  }
+  assert.match(adaptText('docs/modelos.md'), /^> Consultado el \*\*\d{4}-\d{2}-\d{2}\*\*/m);
+  assert.match(adaptText('docs/modelos.md'), /no ejecutado/);
+});
