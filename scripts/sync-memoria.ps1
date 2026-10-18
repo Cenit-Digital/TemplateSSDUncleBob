@@ -1,6 +1,6 @@
 # sync-memoria.ps1 — Sincroniza la memoria organizacional de Cénit Digital
-# (patrones validados) en .memoria-cache\. Paso 2bis del Protocolo de
-# arranque (CLAUDE.md). Ver docs/memoria-organizacional.md.
+# (patrones validados) en .memoria-cache\. Paso de memoria de «Al empezar una
+# tarea» de AGENTS.md. Ver docs/memoria-organizacional.md.
 #
 # NO bloqueante por diseño: cualquier fallo (sin red, sin git/gh, repo
 # privado inaccesible) avisa y termina en 0 — el arranque nunca se rompe.

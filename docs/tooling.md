@@ -14,6 +14,8 @@ La política de niveles está en `AGENTS.md`; el modelo de cada uno, en `docs/mo
 
 Sirven para todo el repositorio, `src/` y sus tests incluidos.
 
+Los tres existen también, con el mismo cuerpo, para las demás herramientas: `.github/agents/*.agent.md` (Copilot, con una lista de modelos de respaldo), `.codex/agents/*.toml` (Codex; solo en proyectos de confianza) y `.opencode/agents/*.md` (OpenCode, con la línea `model:` comentada hasta que elijas proveedor). Cada uno lleva el modelo de su herramienta según `docs/modelos.md`, que dice qué se leyó en la documentación y qué no se ha ejecutado. Los especialistas solo existen en `.claude/agents/`.
+
 ## Especialistas (opt-in, solo lectura)
 
 | Agente              | Cuándo usarlo                                                        | Qué devuelve                      |

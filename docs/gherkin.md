@@ -1,11 +1,11 @@
 # Gherkin — criterios de aceptación en Given/When/Then
 
-> Los criterios se escriben en Given/When/Then porque también los leen personas no técnicas. Viven en la sección «Criterios de aceptación» del issue de tarea (`.github/ISSUE_TEMPLATE/tarea.md`) o, si no hay issue, en el plan. No hay agente propio ni una aprobación aparte del `.feature`: la persona aprueba el plan, que ya los incluye.
+> Los criterios se escriben en Given/When/Then porque también los leen personas no técnicas. Viven en la sección «Criterios de aceptación» del issue de tarea (`.github/ISSUE_TEMPLATE/tarea.md`). No hay agente propio ni una aprobación aparte del `.feature`: la persona aprueba el plan, que ya los incluye.
 
 ## Dónde viven
 
-- **En el issue o el plan:** un criterio = un test. Cada `Then` afirma algo medible.
-- **Spec viva (opcional):** un fichero por capacidad, `features/<capacidad>.feature`. El mismo PR que cambia el comportamiento lo actualiza en su diff, así no deriva. No se ejecuta con ningún runner BDD (ver abajo). Si tu proyecto conserva `feature_list.json`, una feature con `sdd: true` sí exige su `features/<name>.feature` (lo comprueba `init`).
+- **En el issue:** un criterio = un test. Cada `Then` afirma algo medible.
+- **Spec viva (opcional):** un fichero por capacidad, `features/<capacidad>.feature`. El mismo PR que cambia el comportamiento lo actualiza en su diff, así no deriva. No se ejecuta con ningún runner BDD (ver abajo) y el motor no la comprueba.
 
 ## Estructura
 

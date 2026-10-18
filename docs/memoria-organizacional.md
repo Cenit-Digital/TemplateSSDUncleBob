@@ -2,8 +2,8 @@
 
 > Cada repo aprende por su cuenta (issues y PR). La memoria organizacional hace
 > que lo aprendido **cruce de un proyecto a los demás**: patrones ya validados,
-> sincronizados al arrancar cada sesión (paso **2bis** del Protocolo de arranque
-> de `CLAUDE.md`).
+> sincronizados al arrancar cada tarea (paso de «Al empezar una tarea» de
+> `AGENTS.md`).
 >
 > **Estado: en pausa.** El bot que la alimenta tiene su cron retirado; los
 > patrones ya validados siguen disponibles.
@@ -20,7 +20,7 @@ Nada entra en la memoria sin revisión y fusión humanas; cero patrones
 inventados es la regla número uno de su mandato
 (`SistemaDeMemoriaUncleBob/.github/MEMORIA-AUTONOMA.md`).
 
-## Cómo se consume (el paso 2bis)
+## Cómo se consume
 
 Al recibir la primera tarea de una sesión:
 
@@ -40,7 +40,7 @@ sección "Cuándo NO aplica" que se lee primero.
 repo privado (por ejemplo, si usas esta plantilla pública desde fuera de
 Cénit Digital), el script avisa, termina en 0 y la sesión sigue exactamente
 igual. La memoria es una ventaja, nunca un punto único de fallo. Si no la
-quieres en tu proyecto, borra los dos scripts y el paso 2bis de `CLAUDE.md` —
+quieres en tu proyecto, borra los dos scripts y el paso de memoria de `AGENTS.md` —
 nada más depende de ellos.
 
 ## El camino de vuelta (en pausa)

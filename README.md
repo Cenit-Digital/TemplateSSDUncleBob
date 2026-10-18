@@ -52,13 +52,15 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 | `harness.config.json` · `harness.schema.json` | El único punto que depende del stack |
 | `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje y comprobador del PR |
 | `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
+| `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los 3 agentes de nivel para Copilot, Codex y OpenCode (`docs/tooling.md`, modelos en `docs/modelos.md`) |
+| `scripts/` | `harness-upgrade.mjs` (propagación) e `impacto-tareas.mjs` (candidatos de «Impacto en tareas anteriores») |
 | `docs/` | Guías cortas: TDD, criterios en Gherkin, verificación, arquitectura, convenciones, configuración, modelos y palancas de usuario |
 | `.github/` | Plantillas de issue y de PR (cuatro bloques y «Impacto en tareas anteriores»), CI y guardián de rutas sensibles |
 
 ## Opcional, hoy en pausa
 
 - **Evolución autónoma:** un workflow (`.github/workflows/autonomous-evolve.yml`) puede mejorar el propio arnés abriendo PR que una persona revisa. Su cron está retirado; solo se lanza a mano. Mandato en `.github/AUTONOMOUS.md`, puesta en marcha en `docs/autonomous.md`.
-- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso 2bis de `CLAUDE.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
+- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso de «Al empezar una tarea» de `AGENTS.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 
