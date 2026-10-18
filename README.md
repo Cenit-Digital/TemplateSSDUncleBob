@@ -47,8 +47,8 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 
 | Dónde | Qué hay |
 | --- | --- |
-| `AGENTS.md` | Mapa de navegación y política de trabajo, para cualquier agente |
-| `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; `CLAUDE.md` añade el arranque propio de Claude Code |
+| `AGENTS.md` | Instrucciones para cualquier agente: las cinco secciones del proyecto y, al final, la política de trabajo de la plantilla (bloque gestionado) |
+| `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; son de la plantilla y lo del proyecto va en `AGENTS.md` |
 | `harness.config.json` · `harness.schema.json` | El único punto que depende del stack |
 | `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje y comprobador del PR |
 | `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
@@ -60,7 +60,7 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 ## Opcional, hoy en pausa
 
 - **Evolución autónoma:** un workflow (`.github/workflows/autonomous-evolve.yml`) puede mejorar el propio arnés abriendo PR que una persona revisa. Su cron está retirado; solo se lanza a mano. Mandato en `.github/AUTONOMOUS.md`, puesta en marcha en `docs/autonomous.md`.
-- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso de «Al empezar una tarea» de `AGENTS.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
+- **Memoria organizacional:** patrones validados que se sincronizan al empezar una tarea (paso de `AGENTS.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 

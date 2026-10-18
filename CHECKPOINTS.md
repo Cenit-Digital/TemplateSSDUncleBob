@@ -39,7 +39,7 @@
 
 ## C6 — Criterios Given/When/Then y spec viva
 
-- [ ] Cada criterio de aceptación (Given/When/Then, en el issue o en el plan)
+- [ ] Cada criterio de aceptación (Given/When/Then, en el issue)
       está cubierto por al menos un test concreto cuyo nombre lo refleja, y el
       PR declara en «Cómo se probó» cuál (ver `docs/verification.md`). En un
       bugfix, el test de regresión se escribió antes del arreglo y se vio fallar.

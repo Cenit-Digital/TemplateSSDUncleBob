@@ -22,7 +22,7 @@ inventados es la regla número uno de su mandato
 
 ## Cómo se consume
 
-Al recibir la primera tarea de una sesión:
+Al empezar una tarea:
 
 ```bash
 scripts/sync-memoria.sh        # POSIX / macOS / Linux
