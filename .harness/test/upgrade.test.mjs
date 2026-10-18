@@ -380,10 +380,9 @@ test('el bloque gestionado no conserva la cláusula de transición ni el rol ret
   assert.doesNotMatch(block, /transici[oó]n|craftsman_lead|tdd_craftsman|spec_partner|gherkin_author|mutation_tester|\bjudge\b|pipeline/i);
 });
 
-test('CLAUDE.md no vuelve a imponer el rol retirado y conserva el paso 2bis', () => {
+test('CLAUDE.md no vuelve a imponer el rol retirado', () => {
   const claude = fs.readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf8');
   assert.doesNotMatch(claude, /craftsman_lead|rol obligatorio/i);
-  assert.match(claude, /^2bis\./m);
 });
 
 test('los 6 agentes del pipeline retirado ya no existen en .claude/agents/', () => {
@@ -551,4 +550,77 @@ test('todo paso actions/setup-node de los workflows desactiva el caché automát
     for (const s of steps) assert.ok(s.ok, `${f}:${s.line}: actions/setup-node sin «package-manager-cache: false» ni «cache:» explícito; con «packageManager: pnpm» en el package.json activa el caché y falla porque pnpm aún no está instalado`);
   }
   assert.ok(found['.github/workflows/pr-body.yml'] >= 1, 'el detector no halló setup-node en pr-body.yml (el que se propaga): la comprobación no vale');
+});
+
+// AGENTS.md corto y con las cinco secciones del proyecto; CLAUDE.md mínimo (solo importa AGENTS.md y añade lo propio de Claude Code).
+const PROJECT_SECTIONS = [/^resumen del proyecto/i, /^ficheros clave/i, /^desarrollo y validaci[oó]n/i, /^guardarra[ií]les/i, /^definici[oó]n de hecho/i];
+const readRepo = (f) => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n');
+const lineCount = (src) => src.replace(/\n$/, '').split('\n').length;
+const projectPart = (src) => src.replace(/<!-- harness:begin[\s\S]*?<!-- harness:end -->\n?/, ''); // la parte del bloque gestionado no es del proyecto
+
+/** Encabezados `## ` (con o sin número) fuera de vallas de código y de comentarios HTML, con el texto que les sigue hasta el siguiente. */
+function h2Sections(src) {
+  const sections = [];
+  let fence = null; // el marcador (``` o ~~~) que abrió la valla: solo ese la cierra
+  for (const line of src.replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '').split('\n')) {
+    const marker = /^\s*(```|~~~)/.exec(line)?.[1];
+    if (marker && (fence === null || fence === marker)) fence = fence === null ? marker : null;
+    const h = fence === null && !marker && /^##\s+(?:\d+\.\s+)?(.+?)\s*$/.exec(line);
+    if (h) sections.push({ title: h[1], body: '' });
+    else if (sections.length) sections.at(-1).body += `${line}\n`;
+  }
+  return sections;
+}
+const hasContent = (s) => s.body.split('\n').some((l) => l.trim() && !/^#{1,6}(?:\s|$)/.test(l.trim())); // un `###` suelto no es contenido
+
+test('el detector de secciones de AGENTS.md ignora vallas, comentarios y niveles distintos, quita la numeración y deja ver las secciones vacías', () => {
+  const view = (s) => h2Sections(s).map((x) => [x.title, x.body.trim()]);
+  assert.deepEqual(view('# T\n\n## 1. Resumen del proyecto\nalgo\n## Ficheros clave\n'), [['Resumen del proyecto', 'algo'], ['Ficheros clave', '']]);
+  assert.deepEqual(h2Sections('## A\n```\n## B\n```\n~~~\n## C\n~~~\n### D\n#### E\n').map((x) => x.title), ['A']);
+  assert.deepEqual(h2Sections('## A\n~~~\n```\n## B\n```\n~~~\n## C\n').map((x) => x.title), ['A', 'C']); // un ``` dentro de ~~~ no cierra la valla
+  assert.deepEqual(h2Sections('## A\n<!--\n## B\n-->\n## C\n').map((x) => x.title), ['A', 'C']);
+  assert.deepEqual(h2Sections('##Sin espacio\n## 12. Doce\n').map((x) => x.title), ['Doce']);
+  assert.deepEqual(h2Sections('## A\n### Sub\n\n## B\ntexto\n').map(hasContent), [false, true]);
+  assert.equal(projectPart('a\n<!-- harness:begin x -->\n## B\n<!-- harness:end -->\nc\n'), 'a\nc\n');
+});
+
+test('AGENTS.md trae, en este orden, las cinco secciones del proyecto y todas tienen contenido', () => {
+  const sections = h2Sections(projectPart(readRepo('AGENTS.md')));
+  const titles = sections.map((s) => s.title).join(' | ');
+  let last = -1;
+  for (const re of PROJECT_SECTIONS) {
+    const at = sections.findIndex((s) => re.test(s.title));
+    assert.ok(at > last, `${re}: falta o está fuera de orden entre los encabezados «${titles}»`);
+    assert.ok(hasContent(sections[at]), `${re}: sección vacía`);
+    last = at;
+  }
+});
+
+test('AGENTS.md tiene menos de 200 líneas (se carga entero en cada sesión)', () => {
+  const n = lineCount(readRepo('AGENTS.md'));
+  assert.ok(n < 200, `AGENTS.md tiene ${n} líneas; debe tener menos de 200 (el objetivo, unas 100)`);
+});
+
+test('la parte del proyecto de AGENTS.md no cita el ADR ni el seguimiento retirado', () => {
+  const text = projectPart(readRepo('AGENTS.md'));
+  const hit = /\badr\b|docs\/decisiones/i.exec(text) ?? /\bD\d{1,2}\b/.exec(text) ?? /feature_list|progress\/|project-spec|una sola feature/i.exec(text);
+  assert.equal(hit, null, `AGENTS.md cita «${hit?.[0]}», que los derivados no tienen o está retirado`);
+});
+
+test('el paso de memoria organizacional está en «Desarrollo y validación» de AGENTS.md, donde lo ven todas las herramientas', () => {
+  const dev = h2Sections(projectPart(readRepo('AGENTS.md'))).find((s) => PROJECT_SECTIONS[2].test(s.title));
+  assert.match(dev?.body ?? '', /sync-memoria/); // antes solo lo veía Claude Code, desde el «paso 2bis» de CLAUDE.md
+});
+
+test('CLAUDE.md es mínimo: no repite el arranque de AGENTS.md, solo nombra rutas que se propagan y es de la plantilla', () => {
+  const text = readRepo('CLAUDE.md');
+  const m = JSON.parse(readRepo('harness.manifest.json'));
+  assert.ok(lineCount(text) <= 20, `CLAUDE.md tiene ${lineCount(text)} líneas; mínimo = importar AGENTS.md y lo propio de Claude Code (tope 20)`);
+  assert.doesNotMatch(text, /2bis|Protocolo de arranque/);
+  assert.ok(m.template.includes('CLAUDE.md') && !m.project.includes('CLAUDE.md'), 'CLAUDE.md mínimo es de la plantilla: va en «template», no en «project»');
+  // lo mixto (settings.json) y lo excluido (sync-memoria) no llegan al derivado, y este fichero no se personaliza allí
+  const reaches = (f) => [...m.template, ...m.mixedBlock].some((e) => (e.endsWith('/') ? f.startsWith(e) : f === e));
+  const paths = [...text.matchAll(/`([^`\s]+)`/g)].map((x) => x[1]).filter((p) => !p.startsWith('/') && (p.includes('/') || /\.\w+$/.test(p)));
+  assert.ok(paths.length >= 2, 'el detector no halló rutas en CLAUDE.md: la comprobación no vale');
+  for (const p of paths) assert.ok(reaches(p), `CLAUDE.md nombra «${p}», que la plantilla no propaga a los derivados`);
 });

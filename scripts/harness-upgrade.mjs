@@ -266,7 +266,7 @@ async function main() {
     }
     const linked = projectLinks([...todo.keys()]);
     if (linked.length > 0) {
-      const msg = `${linked.join(', ')}: enlace(s) simbólico(s) en el proyecto; no se escribe a través de ellos. Si es AGENTS.md: haz que sea el fichero real y CLAUDE.md un enlace a él, o usa un CLAUDE.md mínimo con @AGENTS.md.`;
+      const msg = `${linked.join(', ')}: enlace(s) simbólico(s) en el proyecto; no se escribe a través de ellos. Si es AGENTS.md: haz que sea el fichero real. CLAUDE.md es de la plantilla: usa su CLAUDE.md mínimo (con @AGENTS.md), no un enlace.`;
       if (opts.mode === '--apply') die(msg);
       fail(msg); drift++;
     }
