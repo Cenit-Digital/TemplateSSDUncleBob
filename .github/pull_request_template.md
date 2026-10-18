@@ -18,8 +18,9 @@ Tarea: <!-- Closes #N (toda tarea tiene su issue, también la trivial) -->
 
 ## Impacto en tareas anteriores
 <!-- Candidatos: `node scripts/impacto-tareas.mjs` (PR e issues previos que tocaron los mismos ficheros).
-     Por cada uno, «afecta» o «no afecta» y el motivo en una línea. A los que afecta se les pone `revisit`
-     y un comentario con el motivo; enlaza aquí el issue de enmienda si se abrió.
+     Por cada uno, «afecta» o «no afecta» y el motivo en una línea. A los que afecta (su issue, o el PR si no
+     tiene) se les pone `revisit` y un comentario con el motivo, con el OK de la persona; enlaza aquí el
+     issue de enmienda si se abrió.
      «Ninguna» si no hay candidatos o la tarea es trivial (no ejecuta esta fase). -->
 
 - [ ] Diff revisado en local antes de empujar

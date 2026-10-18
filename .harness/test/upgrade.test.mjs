@@ -779,10 +779,10 @@ test('docs/modelos.md y los adaptadores no citan el ADR ni sus números (A8, D8�
 
 // --- scripts/impacto-tareas.mjs: candidatos del bucle de aprendizaje (git, y gh solo para leer) ---
 const IMPACTO = path.join(REPO, 'scripts', 'impacto-tareas.mjs');
-const { parseLog, candidatos, enriquecer, render, ghArgs, TOPE_CANDIDATOS } = await import(new URL('../../scripts/impacto-tareas.mjs', import.meta.url));
+const { parseLog, candidatos, enriquecer, render, ghArgs, lotes, TOPE_CANDIDATOS, TOPE_FICHEROS, TOPE_GH } = await import(new URL('../../scripts/impacto-tareas.mjs', import.meta.url));
 
-/** Registro de `git log --format=%x1e%h%x1f%s%x1f%b%x1f --name-only`, como lo escribe git. */
-const rec = (hash, asunto, cuerpo, ficheros) => `\x1e${hash}\x1f${asunto}\x1f${cuerpo}\x1f\n\n${ficheros.join('\n')}\n`;
+/** Registro de `git log --format=%x1e%h%x1f%ct%x1f%s%x1f%b%x1f --name-only`, como lo escribe git. */
+const rec = (hash, asunto, cuerpo, ficheros, ct = 0) => `\x1e${hash}\x1f${ct}\x1f${asunto}\x1f${cuerpo}\x1f\n\n${ficheros.join('\n')}\n`;
 const impacto = (cwd, args, env = ENV) => {
   const r = spawnSync(process.execPath, [IMPACTO, ...args], { cwd, env, encoding: 'utf8' });
   return { code: r.status, out: r.stdout + r.stderr };
@@ -815,6 +815,33 @@ test('impacto-tareas: parseLog saca el PR del squash y del merge, y los issues d
   assert.deepEqual([mg.pr, mg.issues, mg.titulo], [5, [8], 'fix: título real']);
   assert.deepEqual([sin.pr, sin.issues], [null, [10]]);
   assert.deepEqual([no.pr, no.issues], [null, []]);
+});
+
+test('impacto-tareas: parseLog descarta lo que no es de un commit (salida suelta antes del primer registro, registros sin ficheros) y lee la fecha', () => {
+  const c = parseLog(`gpg: Signature made ayer\ngpg: Good signature\n${rec('aaa1', 'feat: uno (#1)', '', ['a.txt'], 1700000000)}${rec('bbb2', 'feat: dos (#2)', '', [])}`);
+  assert.deepEqual(c.map((x) => [x.hash, x.ct, x.ficheros]), [['aaa1', 1700000000, ['a.txt']]]);
+  assert.match(fs.readFileSync(IMPACTO, 'utf8'), /'--no-show-signature'/); // con log.showSignature git mezclaría líneas gpg en la salida
+});
+
+test('impacto-tareas: el texto que viene de fuera sale en una línea, sin controles, sin comentarios HTML ni cierres de issue', () => {
+  const sucio = 'feat: x \x1b[2J\x1b]0;pwn\x07 ‮evil‬ <!-- oculta el resto --> y closes #3, fixes: #4 y resolved   #5\nsegunda línea';
+  const [c] = parseLog(rec('aaa1', sucio, '', ['a\x1b.txt']));
+  const linea = render(candidatos([c]), { origen: 'x', nFicheros: 1 }).split('\n')[1];
+  assert.doesNotMatch(linea, /[\x00-\x08\x0b-\x1f\x7f‪-‮]|<!--|-->/);
+  assert.match(linea, /‹!-- oculta el resto --›/);
+  assert.match(linea, /closes # 3, fixes: # 4 y resolved # 5 segunda línea/);
+  assert.doesNotMatch(linea, /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#\d/i); // pegado en un PR, no cerraría nada
+  const largo = parseLog(rec('bbb2', `feat: ${'<!-- x '.repeat(40)}`, '', ['a.txt']))[0].titulo;
+  assert.ok(largo.length <= 120 && !largo.includes('<!--'));
+});
+
+test('impacto-tareas: lotes parte las rutas para que cada llamada a git quepa en la línea de órdenes', () => {
+  assert.deepEqual(lotes(['aaaa', 'bbbb', 'cc'], 10), [['aaaa', 'bbbb'], ['cc']]);
+  assert.deepEqual(lotes([], 10), []);
+  assert.deepEqual(lotes(['x'.repeat(30)], 10), [['x'.repeat(30)]]); // una ruta sola nunca se parte
+  const rutas = Array.from({ length: TOPE_FICHEROS }, (_, i) => `${'d/'.repeat(90)}f${i}.java`);
+  for (const l of lotes(rutas)) assert.ok(l.join(' ').length < 16000 + 200);
+  assert.equal(lotes(rutas).flat().length, TOPE_FICHEROS);
 });
 
 test('impacto-tareas: ordena por ficheros compartidos y luego por recencia, une los commits de un PR y corta al tope', () => {
@@ -903,6 +930,31 @@ test('impacto-tareas: enriquecer suma los issues del PR y su título y estado; c
   assert.equal(intentos, 1);
   assert.deepEqual(caido[0].issues, [4]);
   assert.match(enriquecer(lista(), gh, 2), /tope de 2 llamadas/);
+  assert.equal(TOPE_GH, 20);
+
+  const parcial = lista(); // un issue borrado, o un número que no es un PR, no corta el resto
+  const borrado = (args) => { if (args[0] === 'issue' && args[2] === '4') throw new Error('issue borrado'); return gh(args); };
+  assert.equal(enriquecer(parcial, borrado), null);
+  assert.deepEqual(Object.keys(parcial[0].detalle), ['5']);
+  let n = 0; // gh que no arranca o agota el tiempo en mitad del recorrido: se corta
+  const fatal = (args) => { n += 1; if (n === 2) throw Object.assign(new Error('tiempo agotado'), { fatal: true }); return gh(args); };
+  assert.match(enriquecer(lista(), fatal), /gh no ha respondido \(tiempo agotado\)/);
+  assert.equal(n, 2);
+});
+
+test('impacto-tareas: --files se lee desde el directorio actual, rechaza rutas fuera del repo y avisa al pasar el tope de ficheros', () => {
+  const d = historia([[{ 'a.txt': '1' }, 'feat: raíz (#1)']]);
+  fs.mkdirSync(path.join(d, 'dir'));
+  commitEn(d, { 'dir/x.txt': '1' }, 'feat: en dir (#2)');
+  const sub = path.join(d, 'dir');
+  assert.match(impacto(sub, ['--files', 'x.txt', '--no-gh']).out, /- #2 «feat: en dir»/);
+  assert.match(impacto(sub, ['--files', '../a.txt', '--no-gh']).out, /- #1 «feat: raíz»/);
+  const fuera = impacto(sub, ['--files', '../../x.txt', '--no-gh']);
+  assert.equal(fuera.code, 2, fuera.out);
+  assert.match(fuera.out, /solo rutas relativas dentro del repositorio/);
+  const muchos = impacto(d, ['--files', ...Array.from({ length: TOPE_FICHEROS + 1 }, (_, i) => `f${i}.txt`), '--no-gh']);
+  assert.match(muchos.out, /\[WARN\]  Son 201 ficheros: se consideran solo los 200 primeros/);
+  assert.match(muchos.out, /ficheros indicados; 200 ficheros\)/);
 });
 
 test('impacto-tareas: gh solo se usa para leer y, sin gh o sin remoto, el CLI sigue con lo que da git', () => {
@@ -917,6 +969,7 @@ test('impacto-tareas: gh solo se usa para leer y, sin gh o sin remoto, el CLI si
   delete env.GH_REPO; // sin remoto y sin repo forzado, gh falla al instante y sin red; si ni está instalado, también se degrada
   const r = impacto(d, ['--base', 'main'], env);
   assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /\[WARN\]  gh no ha respondido/); // sin gh instalado y con gh sin remoto: la primera llamada falla en los dos casos
   assert.match(r.out, /- #1 «feat: base» · comparte 1 fichero \(a\.txt\) · issues: #2/);
 });
 
@@ -933,9 +986,11 @@ test('la regla del bucle de aprendizaje vive en el bloque gestionado y AGENTS.md
   const block = leer('.harness', 'agents-block.md');
   for (const re of [
     /scripts\/impacto-tareas\.mjs --files/, /^\*\*Bucle de aprendizaje/m, /Impacto en tareas anteriores/, /Tareas relacionadas/, /Resultados de la ejecución/,
-    /`revisit`/, /plan de enmienda/, /con el OK de la persona/, /ningún issue se reabre por su cuenta/, /sin LLM/, /No hay bot retrospectivo/, /Todo criterio de aceptación tiene un test/, /nivel trivial no ejecuta esta fase/,
+    /`revisit`/, /plan de enmienda/, /se hace con el OK de la persona/, /ningún issue se reabre por su cuenta/, /sin LLM/, /No hay bot retrospectivo/, /Todo criterio de aceptación tiene un test/, /nivel trivial no ejecuta esta fase/,
+    /Toda tarea tiene su issue/, /en trivial es mínimo: objetivo y plan de 1-2 líneas/, /El PR lo enlaza con `Closes #N`/, /Cada tarea afectada \(su issue; si solo existe el PR, el PR\)/,
+    /comprueba esas secciones y la casilla/,
   ]) assert.match(block, re);
-  assert.doesNotMatch(block, /opcional mientras|feature_list|progress\//);
+  assert.doesNotMatch(block, /opcional mientras|feature_list|progress\/|si no hay issue|sin issue/);
   const agents = leer('AGENTS.md');
   const fin = '<!-- harness:end -->';
   assert.equal(agents.slice(agents.indexOf('<!-- harness:begin'), agents.indexOf(fin) + fin.length), block.trimEnd());
@@ -946,7 +1001,10 @@ test('las plantillas de PR y de issue citan el generador y no dejan el issue opc
   const issue = leer('.github', 'ISSUE_TEMPLATE', 'tarea.md');
   assert.match(pr, /node scripts\/impacto-tareas\.mjs/);
   assert.match(pr, /«afecta» o «no afecta»/);
+  assert.match(pr, /Closes #N/);
+  assert.match(pr, /con el OK de la persona/);
   assert.doesNotMatch(pr, /n\/a/i);
   assert.match(issue, /node scripts\/impacto-tareas\.mjs --files/);
   assert.match(issue, /`revisit`/);
+  assert.match(issue, /requiere el OK de la persona/);
 });
