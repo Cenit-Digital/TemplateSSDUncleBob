@@ -31,7 +31,7 @@ En Windows: `bin\harness.ps1 <comando>`. `verify` aborta si `commands.mutate` es
 
 ## Cómo se propaga a los derivados
 
-Los repos creados desde la plantilla reciben sus cambios con `scripts/harness-upgrade.mjs` (modelo pull, 0 tokens; requiere Node ≥ 18 y git). `harness.manifest.json` dice qué es de la plantilla (se reemplaza), qué es del proyecto (nunca se toca) y qué se queda solo aquí. La política de `AGENTS.md` viaja en un bloque entre marcadores `harness:begin/end`: se reemplaza ese bloque y el resto del fichero es del proyecto.
+Los repos creados desde la plantilla reciben sus cambios con `scripts/harness-upgrade.mjs` (modelo pull, 0 tokens; requiere Node ≥ 18 y git). `harness.manifest.json` dice qué es de la plantilla (se reemplaza), qué es del proyecto (nunca se toca) y qué se queda solo aquí. La política de `AGENTS.md` viaja en un bloque entre marcadores `harness:begin/end`: se reemplaza ese bloque y el resto del fichero es del proyecto. Lo que cada proyecto rellena (`docs/architecture.md` y `docs/conventions.md`) es del proyecto y `--apply` no lo toca.
 
 Desde la raíz del derivado y en una rama:
 
