@@ -741,7 +741,9 @@ test('CLAUDE.md es mínimo: no repite el arranque de AGENTS.md, solo nombra ruta
   assert.doesNotMatch(text, /2bis|Protocolo de arranque/);
   assert.ok(m.template.includes('CLAUDE.md') && !m.project.includes('CLAUDE.md'), 'CLAUDE.md mínimo es de la plantilla: va en «template», no en «project»');
   // lo mixto (settings.json) y lo excluido (sync-memoria) no llegan al derivado, y este fichero no se personaliza allí
-  const reaches = (f) => [...m.template, ...m.mixedBlock].some((e) => (e.endsWith('/') ? f.startsWith(e) : f === e));
+  // un directorio que cita (p. ej. .claude/agents/) llega si lo cubre una entrada o si contiene alguna que se propaga (de nivel en template, especialistas en optional)
+  const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
+  const reaches = (f) => [...m.template, ...(m.optional ?? []), ...m.mixedBlock].some((e) => covers(e, f) || covers(f, e));
   const paths = [...text.matchAll(/`([^`\s]+)`/g)].map((x) => x[1]).filter((p) => !p.startsWith('/') && (p.includes('/') || /\.\w+$/.test(p)));
   assert.ok(paths.length >= 2, 'el detector no halló rutas en CLAUDE.md: la comprobación no vale');
   for (const p of paths) assert.ok(reaches(p), `CLAUDE.md nombra «${p}», que la plantilla no propaga a los derivados`);
