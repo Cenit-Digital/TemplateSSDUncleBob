@@ -1,4 +1,4 @@
-# Tooling — agentes y hooks
+# Tooling — agentes y verificación
 
 > Refuerzan el arnés, no lo reemplazan. Los agentes de nivel ejecutan y revisan lo que delega el plan; los especialistas son **opcionales y de solo lectura**: los convoca el planificador cuando aportan valor y no sustituyen a la revisión del cambio.
 
@@ -24,14 +24,15 @@ Sirven para todo el repositorio, `src/` y sus tests incluidos.
 
 Revisan y reportan; no editan `src/`. Bórralos si tu proyecto no los necesita (p. ej. `a11y_seo_auditor` sin UI web).
 
-## Hooks (`.claude/settings.json`)
+## Verificación: sin hooks de tests
 
-Dos verificaciones que **ejecuta el arnés, no el agente**, así que no se pueden saltar:
+`.claude/settings.json` no trae hooks que corran los tests ni `init` tras cada edición o cada turno. Un hook es síncrono (Claude espera a que acabe) y, si sale con 1 en rojo como `harness test`, no condiciona nada: solo sale un aviso con la primera línea de stderr. Con una suite de minutos son minutos de espera por edición sin que nada se haga cumplir. La verificación vive en tres sitios:
 
-- **PostToolUse (Edit|Write)** → corre `node .harness/harness.mjs test` y muestra el resumen: feedback inmediato tras cada cambio de código.
-- **Stop** → corre `node .harness/harness.mjs init` cuando el agente termina de responder y avisa si algo quedó rojo.
+- **Cierre de tarea:** `bin/harness init` y `bin/harness test` en verde (`AGENTS.md` §5); en nivel crítico, además, la mutación que fija el plan.
+- **Revisión local del diff** antes de cualquier `git push`, a cargo de la persona (`AGENTS.md`, «Política de trabajo»).
+- **CI:** el workflow `harness-ci.yml` ejecuta `init` y los tests en cada PR; conviene que la protección de `main` exija esos checks.
 
-Usan el motor agnóstico: los comandos concretos salen de `harness.config.json`.
+Si un proyecto quiere un hook, que sea barato (p. ej. el lint del fichero tocado) y, si tarda, `async: true`; nunca la suite completa en cada edición.
 
 ## Permisos y modelo
 

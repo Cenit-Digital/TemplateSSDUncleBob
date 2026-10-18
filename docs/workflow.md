@@ -10,4 +10,4 @@ Qué leer según lo que necesites:
 - Escribir el código y sus tests: `docs/tdd.md`
 - Demostrar que funciona y cuándo está hecho: `docs/verification.md`
 - Validar que los tests muerden: `docs/mutation-testing.md`
-- Agentes de nivel, especialistas y hooks: `docs/tooling.md`
+- Agentes de nivel, especialistas y dónde se verifica: `docs/tooling.md`
