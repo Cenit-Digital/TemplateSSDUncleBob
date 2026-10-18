@@ -490,3 +490,52 @@ test('los .ps1 que se propagan no usan Join-Path con más de dos segmentos (Wind
   }
   assert.ok(total >= 2, 'el detector no encontró ningún Join-Path: la comprobación no vale');
 });
+
+/**
+ * Pasos `actions/setup-node` de un workflow y si fijan `package-manager-cache: false` o un `cache:` explícito.
+ * Sin parser de YAML en el repo: un paso es el bloque que arranca en su línea `- ` y llega hasta la siguiente línea con su misma sangría o menos.
+ */
+function setupNodeSteps(src) {
+  const lines = src.replace(/\r\n/g, '\n').split('\n').map((l) => l.replace(/(^|\s)#.*$/, ''));
+  const indent = (l) => l.length - l.trimStart().length;
+  const isItem = (l) => /^\s*-\s/.test(l);
+  const steps = [];
+  lines.forEach((l, i) => {
+    if (!/^\s*(?:-\s+)?uses:\s*["']?actions\/setup-node@/.test(l)) return;
+    let start = i;
+    while (!isItem(l) && start > 0 && !(isItem(lines[start]) && indent(lines[start]) < indent(l))) start--;
+    let end = start + 1;
+    while (end < lines.length && (!lines[end].trim() || indent(lines[end]) > indent(lines[start]))) end++;
+    const block = lines.slice(start, end).join('\n');
+    steps.push({ line: i + 1, ok: /^\s*package-manager-cache:\s*["']?false["']?\s*$/m.test(block) || /^\s*cache:\s*["']?[A-Za-z]/m.test(block) });
+  });
+  return steps;
+}
+
+test('el detector de setup-node distingue los pasos con el caché automático desactivado', () => {
+  const ok = (s) => setupNodeSteps(s).map((x) => x.ok);
+  const step = (withLines) => `      - uses: actions/setup-node@v5\n        with:\n          node-version: "22"\n${withLines}`;
+  assert.deepEqual(ok(step('')), [false]);
+  assert.deepEqual(ok(step('          package-manager-cache: false\n')), [true]);
+  assert.deepEqual(ok(step('          package-manager-cache: "false"\n')), [true]);
+  assert.deepEqual(ok(step('          package-manager-cache: true\n')), [false]);
+  assert.deepEqual(ok(step('          cache: npm\n')), [true]);
+  assert.deepEqual(ok(step('          cache-dependency-path: x\n')), [false]);
+  assert.deepEqual(ok(step('          # package-manager-cache: false\n')), [false]);
+  assert.deepEqual(ok('      - name: Node\n        uses: actions/setup-node@v5\n        with:\n          package-manager-cache: false\n'), [true]);
+  // cada paso con lo suyo: la línea del paso siguiente no cuenta para el anterior
+  assert.deepEqual(ok(`${step('          package-manager-cache: false\n')}${step('')}`), [true, false]);
+  assert.deepEqual(ok(`${step('')}${step('          package-manager-cache: false\n')}`), [false, true]);
+  assert.deepEqual(ok('      - uses: actions/checkout@v5\n        with:\n          package-manager-cache: false\n'), []);
+});
+
+test('todo paso actions/setup-node de los workflows desactiva el caché automático (con pnpm en el derivado falla antes de llegar al script)', () => {
+  const flows = git(REPO, 'ls-files', '-z').split('\0').filter((f) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(f));
+  const found = {};
+  for (const f of flows) {
+    const steps = setupNodeSteps(fs.readFileSync(path.join(REPO, f), 'utf8'));
+    found[f] = steps.length;
+    for (const s of steps) assert.ok(s.ok, `${f}:${s.line}: actions/setup-node sin «package-manager-cache: false» ni «cache:» explícito; con «packageManager: pnpm» en el package.json activa el caché y falla porque pnpm aún no está instalado`);
+  }
+  assert.ok(found['.github/workflows/pr-body.yml'] >= 1, 'el detector no halló setup-node en pr-body.yml (el que se propaga): la comprobación no vale');
+});
