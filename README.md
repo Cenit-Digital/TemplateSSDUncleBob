@@ -47,18 +47,20 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 
 | Dónde | Qué hay |
 | --- | --- |
-| `AGENTS.md` | Mapa de navegación y política de trabajo, para cualquier agente |
-| `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; `CLAUDE.md` añade el arranque propio de Claude Code |
+| `AGENTS.md` | Instrucciones para cualquier agente: las cinco secciones del proyecto y, al final, la política de trabajo de la plantilla (bloque gestionado) |
+| `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; son de la plantilla y lo del proyecto va en `AGENTS.md` |
 | `harness.config.json` · `harness.schema.json` | El único punto que depende del stack |
 | `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje y comprobador del PR |
 | `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
+| `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los 3 agentes de nivel para Copilot, Codex y OpenCode (`docs/tooling.md`, modelos en `docs/modelos.md`) |
+| `scripts/` | `harness-upgrade.mjs` (propagación) e `impacto-tareas.mjs` (candidatos de «Impacto en tareas anteriores») |
 | `docs/` | Guías cortas: TDD, criterios en Gherkin, verificación, arquitectura, convenciones, configuración, modelos y palancas de usuario |
 | `.github/` | Plantillas de issue y de PR (cuatro bloques y «Impacto en tareas anteriores»), CI y guardián de rutas sensibles |
 
 ## Opcional, hoy en pausa
 
 - **Evolución autónoma:** un workflow (`.github/workflows/autonomous-evolve.yml`) puede mejorar el propio arnés abriendo PR que una persona revisa. Su cron está retirado; solo se lanza a mano. Mandato en `.github/AUTONOMOUS.md`, puesta en marcha en `docs/autonomous.md`.
-- **Memoria organizacional:** patrones validados que se sincronizan al arrancar la sesión (paso 2bis de `CLAUDE.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
+- **Memoria organizacional:** patrones validados que se sincronizan al empezar una tarea (paso de `AGENTS.md`, no bloqueante). El bot que la alimenta está en pausa (decisión D11 del ADR). Detalles: `docs/memoria-organizacional.md`.
 
 ## Créditos
 

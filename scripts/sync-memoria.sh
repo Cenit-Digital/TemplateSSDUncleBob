@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # sync-memoria.sh — Sincroniza la memoria organizacional de Cénit Digital
-# (patrones validados) en .memoria-cache/. Paso 2bis del Protocolo de
-# arranque (CLAUDE.md). Ver docs/memoria-organizacional.md.
+# (patrones validados) en .memoria-cache/. Paso de memoria de «Al empezar una
+# tarea» de AGENTS.md. Ver docs/memoria-organizacional.md.
 #
 # NO bloqueante por diseño: sin red, sin `git`/`gh`, o sin acceso al repo
 # (es privado), avisa y termina en 0 — el arranque del arnés nunca se rompe

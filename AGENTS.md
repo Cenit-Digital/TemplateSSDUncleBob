@@ -19,8 +19,10 @@ Plantilla de **desarrollo guiado por especificaciones (SSD)**, agnóstica al len
 | `docs/` | Detalle por tema: `tdd`, `gherkin`, `verification`, `conventions`, `architecture`, `mutation-testing`, `tooling` y `modelos` (qué modelo es cada nivel en cada herramienta) |
 | `CHECKPOINTS.md` | Criterios objetivos de «estado final correcto», para autoevaluarte |
 | `.claude/agents/` | Agentes de nivel (`worker_fast`, `worker_balanced`, `reviewer_frontier`) y especialistas opt-in de solo lectura |
+| `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los tres agentes de nivel para Copilot, Codex y OpenCode, con el mismo cuerpo que los de `.claude/agents/`; el modelo de cada herramienta, en `docs/modelos.md` |
 | `.github/` | Plantillas de issue de tarea y de PR, y el check «Cuerpo del PR» (`node .harness/pr-body.mjs`) |
 | `harness.manifest.json` · `scripts/harness-upgrade.mjs` | Qué es de la plantilla y qué del proyecto; `--check` y `--diff` miran la deriva, `--apply` la reemplaza |
+| `scripts/impacto-tareas.mjs` | Candidatos de «Impacto en tareas anteriores»: PR e issues previos que tocaron los mismos ficheros (sin LLM, con tope fijo) |
 | `docs/memoria-organizacional.md` · `docs/instrucciones-de-usuario.md` · `docs/autonomous.md` | Memoria de la organización, plantilla de instrucciones de usuario y bot de auto-mejora |
 
 ## 3. Desarrollo y validación
@@ -57,7 +59,7 @@ Una tarea está hecha cuando se cumple todo esto:
 - `bin/harness init` y `bin/harness test` en verde; en nivel crítico, además, la mutación sobre los módulos del plan por encima de `mutation.threshold` (0,8 por defecto).
 - Cada criterio del issue tiene su test; si cambió una capacidad, su `features/<capacidad>.feature` está actualizado en el mismo diff.
 - El diff está revisado (por ti y, en local, por la persona) y el PR rellena sus bloques y marca la casilla de revisión local.
-- El issue tiene las casillas del plan marcadas y «Resultados de la ejecución» rellena; sin issue, lo cuenta el PR.
+- El issue tiene las casillas del plan marcadas y «Resultados de la ejecución» rellena.
 - El repo queda limpio: sin logs de debug, sin ficheros temporales, sin TODOs sin contexto.
 
 <!-- harness:begin — bloque gestionado por la plantilla: no lo edites aquí; lo reemplaza scripts/harness-upgrade.mjs al aplicar -->

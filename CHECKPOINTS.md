@@ -9,14 +9,12 @@
 
 - [ ] Existen los ficheros base: `AGENTS.md`, `CLAUDE.md`, `CHECKPOINTS.md`,
       `harness.config.json`.
-- [ ] Existen los docs: `docs/workflow.md` (legado), `docs/architecture.md`,
-      `docs/conventions.md`, `docs/verification.md`.
+- [ ] Existen los docs: `docs/architecture.md`, `docs/conventions.md`,
+      `docs/verification.md`.
 - [ ] `bin/harness init` termina con exit code 0.
 
 ## C2 — El estado es coherente
 
-- [ ] Si el proyecto conserva `feature_list.json`: como mucho una feature en
-      `in_progress`.
 - [ ] Toda tarea terminada tiene tests asociados que pasan.
 
 ## C3 — El código respeta la arquitectura
@@ -37,12 +35,11 @@
 - [ ] No hay archivos sin trackear sospechosos (temporales, cachés fuera del
       `.gitignore`).
 - [ ] La última tarea trabajada está reflejada en su issue (casillas y
-      «Resultados de la ejecución») o, si no hay issue, en el PR (y en
-      `feature_list.json` si el proyecto lo conserva).
+      «Resultados de la ejecución»).
 
 ## C6 — Criterios Given/When/Then y spec viva
 
-- [ ] Cada criterio de aceptación (Given/When/Then, en el issue o en el plan)
+- [ ] Cada criterio de aceptación (Given/When/Then, en el issue)
       está cubierto por al menos un test concreto cuyo nombre lo refleja, y el
       PR declara en «Cómo se probó» cuál (ver `docs/verification.md`). En un
       bugfix, el test de regresión se escribió antes del arreglo y se vio fallar.
