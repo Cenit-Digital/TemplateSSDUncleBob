@@ -23,7 +23,9 @@ about: "Una tarea del arnés SSD: objetivo, nivel, criterios, plan y resultados"
 | --- | --- | --- | --- | --- | --- |
 
 ## Tareas relacionadas
-<!-- Issues anteriores que esta tarea puede dejar obsoletos; se listan al planificar. -->
+<!-- Se listan al planificar las tareas anteriores que esta puede dejar obsoletas:
+     `node scripts/impacto-tareas.mjs --files <rutas del plan>` da los candidatos. «Ninguna» si no hay. -->
 
 ## Resultados de la ejecución
-<!-- Se rellena al cerrar: nivel real, qué se hizo, enlace al PR, desviaciones. -->
+<!-- Se rellena al cerrar: nivel real, qué se hizo, enlace al PR, desviaciones, y las tareas marcadas
+     `revisit` (con el issue de enmienda, si se abrió). Marcar y comentar requiere el OK de la persona. -->
