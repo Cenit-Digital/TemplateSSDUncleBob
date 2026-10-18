@@ -392,6 +392,19 @@ test('los 6 agentes del pipeline retirado ya no existen en .claude/agents/', () 
   }
 });
 
+// Un hook es síncrono (Claude espera a que acabe) y, si sale con 1 en rojo, no condiciona nada: la verificación vive en el cierre, la revisión local y la CI.
+const HEAVY_HOOK = /\b(?:init\.(?:sh|ps1)|harness(?:\.mjs|\.ps1)?\s+(?:test|init|verify|mutate))\b/;
+const heavyHook = (h) => HEAVY_HOOK.test([h.command, ...(h.args ?? [])].join(' '));
+
+test('.claude/settings.json no trae hooks que corran los tests o init tras cada edición o turno', () => {
+  assert.ok(heavyHook({ command: 'node .harness/harness.mjs test' }) && heavyHook({ command: 'bin/harness', args: ['init'] }) && heavyHook({ command: 'pwsh ./init.ps1' }), 'el detector no marca lo que debe');
+  assert.ok(!heavyHook({ command: 'node .harness/harness.mjs status' }), 'el detector marca de más');
+  const settings = JSON.parse(fs.readFileSync(path.join(REPO, '.claude', 'settings.json'), 'utf8'));
+  for (const h of Object.values(settings.hooks ?? {}).flatMap((groups) => groups.flatMap((g) => g.hooks ?? []))) {
+    assert.ok(!heavyHook(h), `un hook ejecuta «${h.command}»: bloquea a Claude y, si sale con 1 en rojo, no condiciona nada; la verificación va en el cierre, la revisión local y la CI`);
+  }
+});
+
 test('docs/modelos.md recoge, en una misma línea, cada agente y su modelo', () => {
   const lines = fs.readFileSync(path.join(REPO, 'docs', 'modelos.md'), 'utf8').split('\n');
   for (const [name, model] of Object.entries(TIER_AGENTS)) {

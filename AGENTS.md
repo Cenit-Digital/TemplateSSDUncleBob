@@ -30,7 +30,7 @@
 | `docs/conventions.md`      | Estilo, nombres, estructura                                               | Antes de escribir código          |
 | `docs/verification.md`     | Cómo demostrar que funciona                                               | Antes de declarar `done`          |
 | `docs/configuration.md`    | Cómo adaptar `harness.config.json` a cualquier stack                      | Al portar a un nuevo lenguaje     |
-| `docs/tooling.md`          | Agentes de apoyo y hooks                                                  | Para entender el tooling          |
+| `docs/tooling.md`          | Agentes de nivel y especialistas; dónde se verifica (sin hooks de tests)  | Para entender el tooling          |
 | `docs/modelos.md`          | Qué modelo es `frontier`/`balanced`/`fast` en cada herramienta (con fecha y fuentes) | Al delegar o cambiar de modelo |
 | `docs/instrucciones-de-usuario.md` | Plantilla de las instrucciones de usuario compartidas por todos tus repos (los siete pasos) y dónde instalarla en cada herramienta | Al configurar una máquina o una herramienta nueva |
 | `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` añade el arranque (memoria y comandos) | Si usas Claude Code o Gemini CLI |
