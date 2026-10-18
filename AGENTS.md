@@ -1,86 +1,64 @@
-# AGENTS.md — Mapa de navegación para agentes de IA
+# AGENTS.md — instrucciones para agentes de IA
 
-> Punto de entrada para cualquier agente que trabaje en este repositorio.
-> NO es una biblia de reglas: es un **mapa**. Lee solo lo que necesites,
-> cuando lo necesites (divulgación progresiva).
->
-> Proceso: lo fija la «Política de trabajo» del final de este fichero (niveles,
-> puerta humana, delegación). El pipeline por fases anterior está retirado:
-> `docs/workflow.md` queda como legado. Plantilla **agnóstica al lenguaje**: los
-> comandos del stack viven en `harness.config.json`.
+> Punto de entrada para cualquier agente (Claude Code, Codex, Copilot, OpenCode, Gemini). Corto a propósito (menos de 200 líneas):
+> lo detallado vive en `docs/`, léelo solo cuando lo necesites. Las cinco secciones son del proyecto; el bloque final lo gestiona la plantilla.
 
-## 1. Antes de empezar (obligatorio)
+## 1. Resumen del proyecto
 
-1. Ejecuta `./init.sh` (o `bin/harness init`). Si falla, **para** y resuelve
-   el entorno antes de tocar código.
-2. Lee el issue de la tarea (objetivo, criterios y plan); si no hay issue, lo que pida la persona.
-3. Lee la «Política de trabajo» (final de este fichero) antes de planificar.
+Plantilla de **desarrollo guiado por especificaciones (SSD)**, agnóstica al lenguaje: una política de trabajo (niveles de tarea, puerta humana en dos puntos, delegación por capacidad), un motor mínimo que ejecuta los comandos de tu stack y plantillas de issue y PR. Solo `harness.config.json` cambia por proyecto. Se versiona por tag y se propaga a los derivados con `scripts/harness-upgrade.mjs`.
 
-## 2. Mapa del repositorio
+*Proyecto derivado: sustituye las secciones 1 y 2 por las de tu proyecto; la 3, la 4 y la 5 sirven tal cual. El `/init` de tu herramienta te da un primer borrador (en Claude Code, vuélcalo en `AGENTS.md`, no en `CLAUDE.md`); recórtalo a estas cinco secciones.*
 
-| Archivo / carpeta          | Qué contiene                                                              | Cuándo leerlo                     |
-| -------------------------- | ------------------------------------------------------------------------- | --------------------------------- |
-| `harness.config.json`      | ⭐ Comandos de TU stack (test, mutación, lint…). El único punto no-agnóstico | Antes de tocar el arnés           |
-| `features/<capacidad>.feature` | Spec viva de una capacidad (Given/When/Then); el PR que cambia la capacidad actualiza su `.feature` | Antes de implementar esa capacidad |
-| `docs/workflow.md`         | Legado: el pipeline por fases anterior, retirado (`init` lo exige)        | Solo como referencia              |
-| `docs/tdd.md`              | Las Tres Leyes; Rojo-Verde-Refactor                                       | Antes de escribir código          |
-| `docs/gherkin.md`          | Cómo escribir `.feature`; de Gherkin a test                               | Antes de redactar escenarios      |
-| `docs/mutation-testing.md` | Por qué y cómo; umbral; mutación por stack                                | Antes de validar la suite         |
-| `docs/architecture.md`     | Qué significa "hacer un buen trabajo"                                     | Antes de implementar              |
-| `docs/conventions.md`      | Estilo, nombres, estructura                                               | Antes de escribir código          |
-| `docs/verification.md`     | Cómo demostrar que funciona                                               | Antes de declarar `done`          |
-| `docs/configuration.md`    | Cómo adaptar `harness.config.json` a cualquier stack                      | Al portar a un nuevo lenguaje     |
-| `docs/tooling.md`          | Agentes de nivel y especialistas; dónde se verifica (sin hooks de tests)  | Para entender el tooling          |
-| `docs/modelos.md`          | Qué modelo es `frontier`/`balanced`/`fast` en cada herramienta (con fecha y fuentes) | Al delegar o cambiar de modelo |
-| `docs/instrucciones-de-usuario.md` | Plantilla de las instrucciones de usuario compartidas por todos tus repos (los siete pasos) y dónde instalarla en cada herramienta | Al configurar una máquina o una herramienta nueva |
-| `CLAUDE.md` · `GEMINI.md`  | Importan este `AGENTS.md`; `CLAUDE.md` añade el arranque (memoria y comandos) | Si usas Claude Code o Gemini CLI |
-| `.github/ISSUE_TEMPLATE/` · `.github/pull_request_template.md` | Plantillas de issue de tarea y de PR (cuatro bloques + impacto en tareas anteriores) | Al abrir un issue o un PR |
-| `.harness/pr-body.mjs` · `.github/workflows/pr-body.yml` | Comprobador de la descripción del PR (sin LLM) y su workflow; no es check requerido | Si un PR falla «Cuerpo del PR» |
-| `docs/autonomous.md`       | El bot de evolución autónoma (solo-PR) y su puesta en marcha              | Para operar el bot de auto-mejora |
-| `docs/memoria-organizacional.md` | Patrones validados compartidos entre proyectos (memoria de la org)  | Al arrancar sesión (paso 2bis)    |
-| `scripts/sync-memoria.sh(.ps1)` | Sincroniza la memoria organizacional en `.memoria-cache/`           | Paso 2bis del Protocolo de arranque |
-| `scripts/harness-upgrade.mjs` · `harness.manifest.json` | `--check`/`--diff`: deriva del proyecto respecto a la plantilla; `--apply`: reemplazo explícito; el manifiesto dice qué es de cada uno | Para saber si el arnés está al día |
-| `CHECKPOINTS.md`           | Criterios objetivos de "estado final correcto"                           | Para auto-evaluarte               |
-| `.harness/harness.mjs`     | Motor agnóstico (lee la config y ejecuta tus comandos)                    | Si depuras el arnés               |
-| `.harness/agents-block.md` | Fuente del bloque gestionado del final de este `AGENTS.md` (`harness-upgrade` lo reemplaza en los derivados) | Para cambiar ese bloque |
-| `.claude/agents/`          | 3 de nivel y 3 especialistas opt-in                                       | Si delegas                  |
-| `src/` · `tests/`          | Código de la aplicación y sus tests                                       | Para implementar / verificar      |
+## 2. Ficheros clave
 
-## 3. Reglas duras (no negociables)
+| Ruta | Qué contiene |
+| --- | --- |
+| `harness.config.json` | Los comandos de tu stack (instalar, test, lint, mutación, build): el único punto que depende del lenguaje (`docs/configuration.md`) |
+| `src/` · `tests/` | Código de la aplicación y sus tests |
+| `features/<capacidad>.feature` | Spec viva de una capacidad (Given/When/Then); el PR que cambia la capacidad actualiza su `.feature` |
+| `docs/` | Detalle por tema: `tdd`, `gherkin`, `verification`, `conventions`, `architecture`, `mutation-testing`, `tooling` y `modelos` (qué modelo es cada nivel en cada herramienta) |
+| `CHECKPOINTS.md` | Criterios objetivos de «estado final correcto», para autoevaluarte |
+| `.claude/agents/` | Agentes de nivel (`worker_fast`, `worker_balanced`, `reviewer_frontier`) y especialistas opt-in de solo lectura |
+| `.github/` | Plantillas de issue de tarea y de PR, y el check «Cuerpo del PR» (`node .harness/pr-body.mjs`) |
+| `harness.manifest.json` · `scripts/harness-upgrade.mjs` | Qué es de la plantilla y qué del proyecto; `--check` y `--diff` miran la deriva, `--apply` la reemplaza |
+| `docs/memoria-organizacional.md` · `docs/instrucciones-de-usuario.md` · `docs/autonomous.md` | Memoria de la organización, plantilla de instrucciones de usuario y bot de auto-mejora |
 
-- **Una sola feature a la vez.**
-- **No declares `done`** sin `bin/harness test` e `init` en verde. En nivel
-  **crítico**, además, mutación sobre los módulos que fija el plan
-  (`bin/harness mutate <módulo>`) por encima de `mutation.threshold` (0,8 por defecto).
-- **No saltes la puerta humana:** plan aprobado antes de implementar y diff
-  revisado en local antes de cualquier `git push` (ver «Política de trabajo»).
-- **Un test por criterio**; TDD estricto (un test a la vez, `docs/tdd.md`) en
-  nivel crítico.
-- **Documenta** en el issue de la tarea (casillas y «Resultados de la ejecución») mientras trabajas; sin issue, en el PR.
-- **Deja el repo limpio** antes de cerrar (sin logs de debug, sin TODOs sin
-  contexto).
+## 3. Desarrollo y validación
+
+**Cómo se ejecuta.** Empieza siempre por el entorno: `./init.sh` (POSIX), `pwsh ./init.ps1` (Windows) o `bin/harness init` (`bin\harness.ps1 init` en Windows). Si falla, **para** y resuelve el entorno antes de tocar código. Los comandos de tu stack viven en `harness.config.json` y se invocan siempre a través del arnés, nunca copiados aquí.
+
+| Comando | Para qué |
+| --- | --- |
+| `bin/harness init` | Verifica el entorno y el arnés |
+| `bin/harness test` | La suite de tests |
+| `bin/harness mutate [objetivo]` | Prueba de mutación; solo nivel crítico, sobre los módulos que fija el plan |
+| `bin/harness verify` | `init` + mutación completa; solo antes de una entrega (el cierre ordinario es `init` + `test`) |
+
+**Al empezar una tarea.** Lee el issue (objetivo, criterios y plan) o lo que pida la persona, y la «Política de trabajo» del final de este fichero. Opcional y no bloqueante, para cualquier herramienta y si tu repo conserva `scripts/sync-memoria.*`: sincroniza la memoria de la organización con `scripts/sync-memoria.sh` (`pwsh scripts/sync-memoria.ps1` en Windows) y revisa en `.memoria-cache/patterns/` los patrones de la categoría de tu tarea antes de diseñar desde cero, respetando su «Cuándo NO aplica»; si falla (sin red o sin acceso), sigue sin ella y anótalo en el PR (`docs/memoria-organizacional.md`).
+
+**Flujo.**
+- Trabaja en una **rama nueva** desde la rama por defecto y usa **commits convencionales** (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
+- Antes de pedir revisión, **revisa tu propio diff**: `/code-review` (Claude Code), `/review` (Codex y Copilot CLI) o, si tu herramienta no trae un comando de revisión, pide el diff a otro agente (`reviewer_frontier` o el equivalente).
+- El PR sigue la plantilla de `.github/`; si el cambio es visual, adjunta imágenes o vídeo de antes y después.
+
+## 4. Guardarraíles
+
+- **No saltes la puerta humana:** plan aprobado antes de implementar y diff revisado en local antes de cualquier `git push`.
+- **Un test por criterio** del issue; TDD estricto (`docs/tdd.md`) y mutación solo en nivel crítico.
+- **Un tema por tarea y por PR**, pequeño y fácil de revisar.
+- **Una tarea, una sesión:** el traspaso es el issue y el PR, no el chat. Si lo que te piden se sale del objetivo de la sesión, avisa y propón abrir una sesión nueva con un título; no la sigas aquí. Gasta poco contexto: lee solo lo necesario y resume en vez de pegar.
 - **Si no sabes algo, busca en `docs/`** antes de inventarlo.
+- **Si te bloqueas** (una herramienta no hace lo que esperas), no inventes un workaround: documenta el bloqueo en el issue o en el PR y para.
 
-## 4. Flujo de trabajo
+## 5. Definición de hecho
 
-Lo fija la «Política de trabajo» del final de este fichero: nivel de la tarea,
-plan aprobado, ejecución delegada por capacidad y diff revisado en local. El
-pipeline por fases con agentes propios (`docs/workflow.md`) está retirado.
+Una tarea está hecha cuando se cumple todo esto:
 
-## 5. Cierre de sesión (lifecycle)
-
-1. `./init.sh` (o `bin/harness init`) y `bin/harness test` — todo verde.
-2. Solo nivel crítico: `bin/harness mutate <módulo>` sobre los módulos del plan,
-   por encima del umbral (0,8 por defecto). `bin/harness verify` (init + mutación
-   completa) solo antes de una entrega.
-3. Si la tarea acabó: marca las casillas del plan y rellena «Resultados de la ejecución» en su issue (o, sin issue, en el PR).
-4. No dejes archivos temporales, ni logs de debug, ni TODOs sin contexto.
-
-## 6. Si te bloqueas
-
-- Relee la sección relevante de `docs/`.
-- Si una herramienta no hace lo que esperas, **no inventes un workaround**:
-  documenta el bloqueo en el issue de la tarea (o en el PR) y para la sesión.
+- `bin/harness init` y `bin/harness test` en verde; en nivel crítico, además, la mutación sobre los módulos del plan por encima de `mutation.threshold` (0,8 por defecto).
+- Cada criterio del issue tiene su test; si cambió una capacidad, su `features/<capacidad>.feature` está actualizado en el mismo diff.
+- El diff está revisado (por ti y, en local, por la persona) y el PR rellena sus bloques y marca la casilla de revisión local.
+- El issue tiene las casillas del plan marcadas y «Resultados de la ejecución» rellena; sin issue, lo cuenta el PR.
+- El repo queda limpio: sin logs de debug, sin ficheros temporales, sin TODOs sin contexto.
 
 <!-- harness:begin — bloque gestionado por la plantilla: no lo edites aquí; lo reemplaza scripts/harness-upgrade.mjs al aplicar -->
 ## Arnés SSD (gestionado por la plantilla)

@@ -5,6 +5,7 @@
     ".claude/agents/", ".github/ISSUE_TEMPLATE/", ".github/pull_request_template.md",
     ".github/workflows/pr-body.yml", ".harness/adapters/", ".harness/harness.mjs", ".harness/pr-body.mjs",
     "CHECKPOINTS.md",
+    "CLAUDE.md",
     "bin/harness", "bin/harness.ps1", "GEMINI.md", "harness.manifest.json", "harness.schema.json",
     "init.ps1", "init.sh", "scripts/harness-upgrade.mjs",
     "docs/architecture.md", "docs/configuration.md", "docs/conventions.md", "docs/gherkin.md",
@@ -18,7 +19,7 @@
   "mixedJson": [".claude/settings.json", "harness.config.json"],
   "project": [
     ".editorconfig", ".gitattributes", ".gitignore", ".github/CODEOWNERS", ".github/workflows/harness-ci.yml",
-    "CLAUDE.md", "LICENSE", "README.md",
+    "LICENSE", "README.md",
     "features/", "src/", "tests/"
   ],
   "excluded": [
