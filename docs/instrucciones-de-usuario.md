@@ -49,7 +49,7 @@ Delega la implementación en un modelo menos capaz y más barato; tú revisas y 
 Pasa una revisión propia del diff (`/review` o equivalente) y déjame revisarlo en local. No hagas `git push` hasta entonces.
 
 ## 6. Pull request de cuatro bloques
-Qué, por qué, cómo se probó y pendiente. Pequeña y fácil de revisar: un tema y pocas líneas. Si el cambio es visual, adjunta imágenes o vídeo de antes y después. Para explicar un diff, usa el skill `show-me` si está instalado.
+Qué, por qué, cómo se probó y pendiente. Pequeña y fácil de revisar: un tema y pocas líneas. Si el cambio es visual, adjunta imágenes o vídeo de antes y después. Para explicar un diff, usa el skill `show-me` (https://github.com/humanlayer/skills) si está instalado.
 
 ## 7. Tarea nueva, sesión nueva
 Una tarea, una sesión: el traspaso es el issue y el PR, no el chat. Si lo que te pido se sale del objetivo de esta sesión, avísame y sugiere abrir una sesión nueva con un título; no la sigas aquí. Gasta poco contexto: lee solo lo necesario, resume en vez de pegar y delega las búsquedas amplias en subagentes. Si la sesión se alarga o acumula varias tareas, propón cerrarla.

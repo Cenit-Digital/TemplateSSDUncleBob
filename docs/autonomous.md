@@ -12,6 +12,12 @@
 > entradas malformadas. Para reactivar la cadencia diaria, restaura el bloque
 > `schedule` comentado al inicio de `autonomous-evolve.yml`. Lo que sigue describe
 > el diseño cuando está activo.
+>
+> Su futuro (eliminarlo, dejar un mandato mínimo o reactivarlo) es una decisión
+> abierta (`docs/decisiones/0001-rediseno-arnes.md`). Antes de lanzarlo o
+> reactivarlo, comprueba que el modelo fijado en el workflow (`--model
+> claude-opus-4-8`) sigue disponible, que el secret `CLAUDE_CODE_OAUTH_TOKEN` sigue
+> vigente y que el backlog de `.github/AUTONOMOUS.md` es el que quieres que trabaje.
 
 ## Qué es
 
@@ -30,10 +36,10 @@ la metodología y una plantilla pública, así que **la fusión es siempre manua
 
 | Fichero | Rol |
 | --- | --- |
-| `.github/workflows/autonomous-evolve.yml` | El disparador. Deliberadamente "tonto": cron + `workflow_dispatch`, permisos mínimos, apunta al mandato y para. |
+| `.github/workflows/autonomous-evolve.yml` | El disparador. Deliberadamente "tonto": hoy solo `workflow_dispatch` (el cron está retirado y comentado), permisos mínimos, apunta al mandato y para. |
 | `.github/AUTONOMOUS.md` | El mandato. Alcance, **límites duros**, política de fusión, formato del PR y **backlog por niveles de riesgo**. Es la fuente de verdad. |
 | `.github/workflows/guard-sensitive-paths.yml` | Guardián. En cada PR, si se tocan rutas sensibles (el propio workflow, el mandato, la CI o el motor) etiqueta el PR con `permissions-change` para que la revisión no lo pase por alto. |
-| `.github/CODEOWNERS` | Fuerza revisión del dueño sobre esas mismas rutas sensibles (efectivo cuando la protección de rama exige "review from Code Owners"). |
+| `.github/CODEOWNERS` | Marca al dueño sobre esas mismas rutas sensibles; solo fuerza su revisión si la protección de rama exige "review from Code Owners", y hoy no lo exige. |
 
 ## Requisitos previos
 
@@ -63,11 +69,13 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
 - [ ] **OBLIGATORIO — Proteger `main`.** Esta es la barrera que convierte "solo
       abre PR" de promesa en garantía estructural. En *Settings → Branches → Add
       branch protection rule* (o *Settings → Rules → Rulesets*) sobre `main`:
-    - ✅ *Require a pull request before merging* → *Require approvals: 1* y
-      ✅ *Require review from Code Owners*.
+    - ✅ *Require a pull request before merging* → *Require approvals: 1*.
+    - ☐ *Require review from Code Owners* — opcional y **hoy desactivado** en este
+      repo (`require_code_owner_reviews: false`, comprobado el 2026-10-18): mientras
+      lo esté, `.github/CODEOWNERS` solo informa. Actívalo si quieres que las rutas
+      sensibles exijan además la aprobación del dueño.
     - ✅ *Require status checks to pass before merging* y añade los checks de la
-      CI: `Arnés raíz (init)`, `Ejemplo Python (init + mutación 100%)`,
-      `Ejemplo Node (init + mutación 100%)`.
+      CI: `Arnés raíz (init)` y `Motor (tests)` (los dos jobs de `harness-ci.yml`).
     - ☐ *Allow force pushes* y ☐ *Allow deletions* — **sin marcar**: así es como
       quedan bloqueados. Estas dos aplican a todo el mundo, admins incluidos.
     - ☐ *Do not allow bypassing the above settings* — **déjalo SIN marcar**, que
@@ -94,14 +102,16 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
 ## Activar / desactivar
 
 - **Repositorio canónico** (`Cenit-Digital/TemplateSSDUncleBob`): el job corre
-  siempre; no hay que hacer nada más que los requisitos de arriba.
+  siempre que se lanza (hoy, solo a mano); no hay que hacer nada más que los
+  requisitos de arriba.
 - **Consumidores de la plantilla** (quien haga "Use this template"): el workflow
   se copia, pero el job **no corre** salvo que se opte explícitamente creando la
   variable de repo `ENABLE_AUTONOMOUS_EVOLVE=true`
-  (*Settings → Secrets and variables → Actions → Variables*). Verás un run
-  diario marcado como *skipped* mientras no optes: es inofensivo (un job saltado
-  no consume minutos ni hace fallar nada). Así ningún proyecto nuevo hereda un
-  bot programado que no pidió.
+  (*Settings → Secrets and variables → Actions → Variables*). Con el cron retirado
+  no hay runs programados; si alguien lo lanzara a mano sin optar, el job saldría
+  *skipped*, y con el cron restaurado verías uno diario así. Es inofensivo (un job
+  saltado no consume minutos ni hace fallar nada). Así ningún proyecto nuevo
+  hereda un bot programado que no pidió.
 - **Desactivarlo del todo**: borra `.github/workflows/autonomous-evolve.yml` (y,
   si quieres, `.github/AUTONOMOUS.md` y `.github/workflows/guard-sensitive-paths.yml`),
   o desactiva el workflow desde la pestaña *Actions*.
@@ -111,7 +121,8 @@ falta crearlas a mano**: se crean de forma idempotente antes de usarse.
 > Decisión de arquitectura: **`DE-003`** en Confluence (espacio DDS) — por qué la
 > cadencia la protege una guarda y no un cron largo, y qué se descartó.
 
-Cron **diario**, 06:23 UTC — pero eso **no** significa un PR al día. La guarda
+Con el cron restaurado, la cadencia es **diaria**, 06:23 UTC — pero eso **no**
+significa un PR al día. La guarda
 del workflow no deja que haya más de un PR del bot esperando revisión: si el
 anterior sigue abierto, el ciclo se salta y sale en verde sin gastar nada.
 
@@ -163,8 +174,9 @@ fe del bot:
   mutación para forzar el verde (límite 2). Marcar los jobs de `harness-ci.yml`
   como *required checks* (checklist) cierra el hueco de que un PR borre la CI y se
   presente en verde: si el check desaparece, el merge queda bloqueado.
-- **El umbral de mutación no baja.** Los ejemplos están al 100%; cualquiera nuevo
-  se mide igual (límite 3).
+- **El umbral de mutación no baja para forzar el verde.** `mutation.threshold`
+  vale 0,8 por defecto; rebajarlo o recortar los módulos a mutar para que un PR
+  pase queda prohibido (límite 3).
 - **Permisos y herramientas acotados.** El workflow concede solo `contents`,
   `pull-requests`, `issues` (write) e `id-token` (que la acción usa en su flujo
   de auth OIDC; los ejemplos oficiales lo incluyen y el bot hermano lo necesitó
