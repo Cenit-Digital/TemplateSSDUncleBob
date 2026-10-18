@@ -50,10 +50,10 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 | `AGENTS.md` | Instrucciones para cualquier agente: las cinco secciones del proyecto y, al final, la política de trabajo de la plantilla (bloque gestionado) |
 | `CLAUDE.md` · `GEMINI.md` | Importan `AGENTS.md`; son de la plantilla y lo del proyecto va en `AGENTS.md` |
 | `harness.config.json` · `harness.schema.json` | El único punto que depende del stack |
-| `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje y comprobador del PR |
+| `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje, comprobador del PR e `impacto-tareas.mjs` (candidatos de «Impacto en tareas anteriores») |
 | `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
 | `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los 3 agentes de nivel para Copilot, Codex y OpenCode (`docs/tooling.md`, modelos en `docs/modelos.md`) |
-| `scripts/` | `harness-upgrade.mjs` (propagación) e `impacto-tareas.mjs` (candidatos de «Impacto en tareas anteriores») |
+| `scripts/` | `harness-upgrade.mjs` (propagación) |
 | `docs/` | Guías cortas: TDD, criterios en Gherkin, verificación, arquitectura, convenciones, configuración, modelos y palancas de usuario |
 | `.github/` | Plantillas de issue y de PR (cuatro bloques y «Impacto en tareas anteriores»), CI y guardián de rutas sensibles |
 

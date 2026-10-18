@@ -777,9 +777,9 @@ test('docs/modelos.md y los adaptadores no citan el ADR ni sus números (A8, D8�
   assert.match(adaptText('docs/modelos.md'), /no ejecutado/);
 });
 
-// --- scripts/impacto-tareas.mjs: candidatos del bucle de aprendizaje (git, y gh solo para leer) ---
-const IMPACTO = path.join(REPO, 'scripts', 'impacto-tareas.mjs');
-const { parseLog, candidatos, enriquecer, render, ghArgs, lotes, TOPE_CANDIDATOS, TOPE_FICHEROS, TOPE_GH } = await import(new URL('../../scripts/impacto-tareas.mjs', import.meta.url));
+// --- .harness/impacto-tareas.mjs: candidatos del bucle de aprendizaje (git, y gh solo para leer) ---
+const IMPACTO = path.join(REPO, '.harness', 'impacto-tareas.mjs');
+const { parseLog, candidatos, enriquecer, render, ghArgs, lotes, TOPE_CANDIDATOS, TOPE_FICHEROS, TOPE_GH } = await import(new URL('../impacto-tareas.mjs', import.meta.url));
 
 /** Registro de `git log --format=%x1e%h%x1f%ct%x1f%s%x1f%b%x1f --name-only`, como lo escribe git. */
 const rec = (hash, asunto, cuerpo, ficheros, ct = 0) => `\x1e${hash}\x1f${ct}\x1f${asunto}\x1f${cuerpo}\x1f\n\n${ficheros.join('\n')}\n`;
@@ -976,22 +976,24 @@ test('impacto-tareas: gh solo se usa para leer y, sin gh o sin remoto, el CLI si
 // --- el bucle de aprendizaje escrito: regla en el bloque gestionado y plantillas que citan el generador ---
 const leer = (...p) => fs.readFileSync(path.join(REPO, ...p), 'utf8').replace(/\r\n/g, '\n');
 
-test('el generador de candidatos se propaga a los derivados y se lanza con node (sin bit ejecutable)', () => {
+test('el generador de candidatos se propaga a los derivados desde .harness/ y se lanza con node (sin bit ejecutable)', () => {
   const m = JSON.parse(leer('harness.manifest.json'));
-  assert.ok(m.template.includes('scripts/impacto-tareas.mjs'));
-  assert.ok(!m.executable.includes('scripts/impacto-tareas.mjs'));
+  assert.ok(m.template.includes('.harness/impacto-tareas.mjs'));
+  assert.ok(!m.executable.includes('.harness/impacto-tareas.mjs'));
+  for (const cat of ['template', 'executable', 'project', 'excluded']) assert.ok(!m[cat].includes('scripts/impacto-tareas.mjs'), cat);
 });
 
 test('la regla del bucle de aprendizaje vive en el bloque gestionado y AGENTS.md lo repite idéntico', () => {
   const block = leer('.harness', 'agents-block.md');
   for (const re of [
-    /scripts\/impacto-tareas\.mjs --files/, /^\*\*Bucle de aprendizaje/m, /Impacto en tareas anteriores/, /Tareas relacionadas/, /Resultados de la ejecución/,
+    /\.harness\/impacto-tareas\.mjs --files/, /^\*\*Bucle de aprendizaje/m, /Impacto en tareas anteriores/, /Tareas relacionadas/, /Resultados de la ejecución/,
     /`revisit`/, /plan de enmienda/, /se hace con el OK de la persona/, /ningún issue se reabre por su cuenta/, /sin LLM/, /No hay bot retrospectivo/, /Todo criterio de aceptación tiene un test/, /nivel trivial no ejecuta esta fase/,
     /Toda tarea tiene su issue/, /en trivial es mínimo: objetivo y plan de 1-2 líneas/, /El PR lo enlaza con `Closes #N`/, /Cada tarea afectada \(su issue; si solo existe el PR, el PR\)/,
     /comprueba esas secciones y la casilla/,
   ]) assert.match(block, re);
   assert.doesNotMatch(block, /opcional mientras|feature_list|progress\/|si no hay issue|sin issue/);
   const agents = leer('AGENTS.md');
+  for (const t of [block, agents]) assert.doesNotMatch(t, /scripts\/impacto-tareas/); // el generador vive en .harness/, que los derivados no lintan
   const fin = '<!-- harness:end -->';
   assert.equal(agents.slice(agents.indexOf('<!-- harness:begin'), agents.indexOf(fin) + fin.length), block.trimEnd());
 });
@@ -999,12 +1001,13 @@ test('la regla del bucle de aprendizaje vive en el bloque gestionado y AGENTS.md
 test('las plantillas de PR y de issue citan el generador y no dejan el issue opcional', () => {
   const pr = leer('.github', 'pull_request_template.md');
   const issue = leer('.github', 'ISSUE_TEMPLATE', 'tarea.md');
-  assert.match(pr, /node scripts\/impacto-tareas\.mjs/);
+  assert.match(pr, /node \.harness\/impacto-tareas\.mjs/);
   assert.match(pr, /«afecta» o «no afecta»/);
   assert.match(pr, /Closes #N/);
   assert.match(pr, /con el OK de la persona/);
   assert.doesNotMatch(pr, /n\/a/i);
-  assert.match(issue, /node scripts\/impacto-tareas\.mjs --files/);
+  assert.match(issue, /node \.harness\/impacto-tareas\.mjs --files/);
+  for (const t of [pr, issue]) assert.doesNotMatch(t, /scripts\/impacto-tareas/);
   assert.match(issue, /`revisit`/);
   assert.match(issue, /requiere el OK de la persona/);
 });

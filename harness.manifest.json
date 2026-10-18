@@ -6,12 +6,11 @@
     ".codex/agents/",
     ".github/agents/",
     ".opencode/agents/",
-    ".github/workflows/pr-body.yml", ".harness/adapters/", ".harness/harness.mjs", ".harness/pr-body.mjs",
+    ".github/workflows/pr-body.yml", ".harness/adapters/", ".harness/harness.mjs", ".harness/impacto-tareas.mjs", ".harness/pr-body.mjs",
     "CHECKPOINTS.md",
     "CLAUDE.md",
     "bin/harness", "bin/harness.ps1", "GEMINI.md", "harness.manifest.json", "harness.schema.json",
     "init.ps1", "init.sh", "scripts/harness-upgrade.mjs",
-    "scripts/impacto-tareas.mjs",
     "docs/architecture.md", "docs/configuration.md", "docs/conventions.md", "docs/gherkin.md",
     "docs/instrucciones-de-usuario.md",
     "docs/modelos.md", "docs/mutation-testing.md", "docs/tdd.md", "docs/tooling.md", "docs/verification.md"
