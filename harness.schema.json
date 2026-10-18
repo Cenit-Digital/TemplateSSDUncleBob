@@ -40,19 +40,7 @@
       "additionalProperties": { "type": "string" },
       "properties": {
         "src": { "type": "string", "default": "src" },
-        "tests": { "type": "string", "default": "tests" },
-        "features": { "type": "string", "default": "features" },
-        "progress": {
-          "type": "string",
-          "default": "progress",
-          "description": "Carpeta de seguimiento de la sesión. Opcional: si no existe progress/current.md, init lo omite."
-        },
-        "spec": { "type": "string", "default": "project-spec.md" },
-        "feature_list": {
-          "type": "string",
-          "default": "feature_list.json",
-          "description": "Lista de features. Opcional: si el fichero no existe, init y status lo omiten; si existe, se valida."
-        }
+        "tests": { "type": "string", "default": "tests" }
       }
     },
     "mutation": {
@@ -76,10 +64,16 @@
       "type": "object",
       "additionalProperties": { "type": "boolean" },
       "properties": {
-        "one_feature_at_a_time": { "type": "boolean", "default": true },
-        "require_approved_spec_to_implement": { "type": "boolean", "default": true },
-        "require_tests_to_close": { "type": "boolean", "default": true },
-        "require_mutation_to_close": { "type": "boolean", "default": true }
+        "require_tests_to_close": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rige `verify`: con true, verify aborta si commands.test está vacío."
+        },
+        "require_mutation_to_close": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rige `verify`: con true, verify ejecuta commands.mutate y aborta si está vacío o no supera el umbral; con false no ejecuta la mutación."
+        }
       }
     }
   }

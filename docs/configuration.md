@@ -10,7 +10,7 @@
 - Windows/PowerShell: `pwsh ./init.ps1`, `bin\harness.ps1 <cmd>`
 - Directo: `node .harness/harness.mjs <cmd>`
 
-Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
+Comandos: `init`, `test`, `mutate [target]`, `verify`, `help`. `verify` es `init` más las comprobaciones que activen las `rules` (comando de tests declarado y mutación completa) y se usa antes de una entrega; el cierre ordinario de una tarea es `init` + `test`.
 
 ## `harness.config.json` — campos
 
@@ -27,23 +27,17 @@ Comandos: `init`, `test`, `mutate [target]`, `verify`, `status`, `help`.
     "mutate":  "…",               // sale != 0 si no supera el umbral
     "build":   "…"                // opcional
   },
-  "paths": {                       // solo si tu layout difiere de los defaults
-    "src": "src", "tests": "tests", "features": "features",
-    "progress": "progress", "spec": "project-spec.md",
-    "feature_list": "feature_list.json"
-  },
+  "paths": { "src": "src", "tests": "tests" },   // solo si tu layout difiere de los defaults
   "mutation": { "threshold": 0.8, "targets": ["src/…"] },
   "rules": {
-    "one_feature_at_a_time": true,
-    "require_approved_spec_to_implement": true,
     "require_tests_to_close": true,
     "require_mutation_to_close": true
   }
 }
 ```
 
-- `feature_list.json` y `progress/` ya **no son obligatorios**: si faltan, `init` los omite; `feature_list.json`, si existe, se valida.
-- Las dos primeras `rules` actúan sobre las features de `feature_list.json` (sin él no hacen nada). `require_tests_to_close` y `require_mutation_to_close` rigen `verify`: con `true` y el comando vacío, `verify` aborta; pon `require_mutation_to_close` a `false` si tu proyecto no cierra por mutación.
+- El motor no lee `feature_list.json`, `progress/` ni `features/`: si tu proyecto los conserva, son tuyos. Si tu `harness.config.json` aún trae `paths.features`, `paths.progress`, `paths.spec`, `paths.feature_list`, `rules.one_feature_at_a_time` o `rules.require_approved_spec_to_implement`, el motor las ignora; puedes borrarlas.
+- `require_tests_to_close` y `require_mutation_to_close` rigen solo `verify`. Con `require_tests_to_close: true`, `verify` aborta si `commands.test` está vacío. Con `require_mutation_to_close: true`, `verify` ejecuta `commands.mutate` (todos los `mutation.targets`) y aborta si está vacío o no supera el umbral; con `false` **no ejecuta la mutación**, aunque `commands.mutate` esté declarado. El `harness.config.json` de la plantilla las trae a `false` porque no declara stack; ponlas a `true` cuando declares `commands.test` y `commands.mutate`.
 
 ### Tokens en `commands`
 
@@ -80,5 +74,6 @@ Para Python, [Cosmic Ray](https://cosmic-ray.readthedocs.io/en/latest/reference/
 1. Copia `harness.config.json` y rellena `commands` con los de tu stack.
 2. Asegura que `commands.test` sale con código 0 solo si todos los tests pasan.
 3. Elige un mutador y ponlo en `commands.mutate` (debe salir != 0 bajo umbral).
-4. Ajusta `paths` si tu layout no usa `src/`/`tests/`.
-5. `bin/harness init` en verde → listo.
+4. Pon `require_tests_to_close` y `require_mutation_to_close` a `true` si quieres que `verify` exija el comando de tests y ejecute la mutación (con `false`, `verify` no ejecuta la mutación).
+5. Ajusta `paths` si tu layout no usa `src/`/`tests/`.
+6. `bin/harness init` en verde → listo.

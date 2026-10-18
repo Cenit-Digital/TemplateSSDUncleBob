@@ -12,20 +12,14 @@
   },
   "paths": {
     "src": "src",
-    "tests": "tests",
-    "features": "features",
-    "progress": "progress",
-    "spec": "project-spec.md",
-    "feature_list": "feature_list.json"
+    "tests": "tests"
   },
   "mutation": {
     "threshold": 0.8,
     "targets": []
   },
   "rules": {
-    "one_feature_at_a_time": true,
-    "require_approved_spec_to_implement": true,
-    "require_tests_to_close": true,
-    "require_mutation_to_close": true
+    "require_tests_to_close": false,
+    "require_mutation_to_close": false
   }
 }
