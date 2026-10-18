@@ -776,3 +776,146 @@ test('docs/modelos.md y los adaptadores no citan el ADR ni sus números (A8, D8�
   assert.match(adaptText('docs/modelos.md'), /^> Consultado el \*\*\d{4}-\d{2}-\d{2}\*\*/m);
   assert.match(adaptText('docs/modelos.md'), /no ejecutado/);
 });
+
+// --- scripts/impacto-tareas.mjs: candidatos del bucle de aprendizaje (git, y gh solo para leer) ---
+const IMPACTO = path.join(REPO, 'scripts', 'impacto-tareas.mjs');
+const { parseLog, candidatos, enriquecer, render, ghArgs, TOPE_CANDIDATOS } = await import(new URL('../../scripts/impacto-tareas.mjs', import.meta.url));
+
+/** Registro de `git log --format=%x1e%h%x1f%s%x1f%b%x1f --name-only`, como lo escribe git. */
+const rec = (hash, asunto, cuerpo, ficheros) => `\x1e${hash}\x1f${asunto}\x1f${cuerpo}\x1f\n\n${ficheros.join('\n')}\n`;
+const impacto = (cwd, args, env = ENV) => {
+  const r = spawnSync(process.execPath, [IMPACTO, ...args], { cwd, env, encoding: 'utf8' });
+  return { code: r.status, out: r.stdout + r.stderr };
+};
+/** Repo con historia en main: cada paso es [ficheros, asunto, cuerpo]. */
+function historia(pasos) {
+  const d = tmp();
+  git(d, 'init', '-q', '-b', 'main');
+  for (const [files, asunto, cuerpo] of pasos) {
+    for (const [f, body] of Object.entries(files)) fs.writeFileSync(path.join(d, f), body);
+    git(d, 'add', '-A');
+    git(d, 'commit', '-q', '-m', asunto, ...(cuerpo ? ['-m', cuerpo] : []));
+  }
+  return d;
+}
+const commitEn = (d, files, asunto) => {
+  for (const [f, body] of Object.entries(files)) fs.writeFileSync(path.join(d, f), body);
+  git(d, 'add', '-A');
+  git(d, 'commit', '-q', '-m', asunto);
+};
+
+test('impacto-tareas: parseLog saca el PR del squash y del merge, y los issues de las palabras de cierre', () => {
+  const [sq, mg, sin, no] = parseLog([
+    rec('aaa1', 'feat: uno (#12)', 'Closes #3 y fixes #4.\n', ['a.txt', 'b.txt']),
+    rec('bbb2', 'Merge pull request #5 from u/rama', 'fix: título real\n\nResolves: #8\n', ['c.txt']),
+    rec('ccc3', 'chore: sin PR', 'FIXED #10\n', ['d.txt']),
+    rec('ddd4', 'docs: nada', 'ver #9, prefix #11 y fixes otro/repo#12\n', ['e.txt']),
+  ].join(''));
+  assert.deepEqual([sq.pr, sq.issues, sq.ficheros, sq.titulo], [12, [3, 4], ['a.txt', 'b.txt'], 'feat: uno']);
+  assert.deepEqual([mg.pr, mg.issues, mg.titulo], [5, [8], 'fix: título real']);
+  assert.deepEqual([sin.pr, sin.issues], [null, [10]]);
+  assert.deepEqual([no.pr, no.issues], [null, []]);
+});
+
+test('impacto-tareas: ordena por ficheros compartidos y luego por recencia, une los commits de un PR y corta al tope', () => {
+  const mk = (pr, n, hash = `h${pr}`) => ({ hash, pr, titulo: `t${pr}`, issues: [], ficheros: Array.from({ length: n }, (_, i) => `f${i}`) });
+  const nuevoPrimero = [...Array.from({ length: 11 }, (_, i) => mk(12 - i, 1)), mk(1, 3)];
+  const r = candidatos(nuevoPrimero);
+  assert.equal(TOPE_CANDIDATOS, 10);
+  assert.deepEqual(r.lista.map((c) => c.pr), [1, 12, 11, 10, 9, 8, 7, 6, 5, 4]);
+  assert.equal(r.omitidos, 2);
+  const texto = render(r, { origen: 'rama contra main', nFicheros: 3 });
+  assert.match(texto, /- y 2 más, con menos ficheros en común \(tope 10\)/);
+  assert.equal(texto.split('\n').filter((l) => l.startsWith('- #')).length, 10);
+  const unido = candidatos([{ ...mk(5, 0, 'x1'), ficheros: ['a'], issues: [1] }, { ...mk(5, 0, 'x2'), ficheros: ['b'], issues: [2] }, { ...mk(null, 1, 'sinpr'), pr: null }]);
+  assert.equal(unido.lista.length, 2);
+  assert.deepEqual([unido.lista[0].ficheros, unido.lista[0].issues], [['a', 'b'], [1, 2]]);
+  assert.match(render(candidatos([]), { origen: 'x', nFicheros: 1 }), /Ninguno: ningún PR ni issue anterior tocó estos ficheros/);
+});
+
+test('impacto-tareas: CLI lista los PR que tocaron los mismos ficheros, con los issues de los mensajes, y cuenta lo no confirmado', () => {
+  const d = historia([
+    [{ 'a.txt': '1', 'b.txt': '1', 'c.txt': '1' }, 'feat: base (#1)'],
+    [{ 'a.txt': '2', 'b.txt': '2' }, 'fix: toca a y b (#2)', 'Closes #7'],
+    [{ 'c.txt': '2' }, 'chore: solo c (#3)'],
+  ]);
+  git(d, 'switch', '-q', '-c', 'rama');
+  commitEn(d, { 'a.txt': '3', 'b.txt': '3' }, 'feat: la rama');
+  const r = impacto(d, ['--base', 'main', '--no-gh']);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /rama contra main; 2 ficheros/);
+  assert.match(r.out, /- #2 «fix: toca a y b» · comparte 2 ficheros \(a\.txt, b\.txt\) · issues: #7/);
+  assert.match(r.out, /- #1 «feat: base»/);
+  assert.ok(r.out.indexOf('- #2 ') < r.out.indexOf('- #1 '), 'a igualdad de ficheros, el más reciente primero');
+  assert.doesNotMatch(r.out, /#3\b/);
+  fs.writeFileSync(path.join(d, 'c.txt'), '9'); // sin confirmar: también cuenta
+  assert.match(impacto(d, ['--base', 'main', '--no-gh']).out, /- #3 «chore: solo c»/);
+});
+
+test('impacto-tareas: CLI con --files, un merge commit (por su PR) y sin candidatos', () => {
+  const d = historia([[{ 'a.txt': '1', 'b.txt': '1' }, 'feat: base (#1)']]);
+  git(d, 'switch', '-q', '-c', 'feat');
+  commitEn(d, { 'a.txt': '2' }, 'feat: dentro de la rama');
+  git(d, 'switch', '-q', 'main');
+  git(d, 'merge', '-q', '--no-ff', 'feat', '-m', 'Merge pull request #5 from u/feat', '-m', 'feat: título del merge');
+  git(d, 'switch', '-q', '-c', 'nueva');
+  commitEn(d, { 'a.txt': '3' }, 'feat: otra');
+  const m = impacto(d, ['--base', 'main', '--no-gh']);
+  assert.match(m.out, /- #5 «feat: título del merge» · comparte 1 fichero \(a\.txt\)/);
+  assert.doesNotMatch(m.out, /dentro de la rama/); // el commit de la rama fusionada no es de la línea principal
+  const f = impacto(d, ['--files', 'b.txt', '--no-gh']);
+  assert.match(f.out, /ficheros indicados; 1 fichero\)/);
+  assert.match(f.out, /- #1 «feat: base»/);
+  assert.match(impacto(d, ['--files', 'no-existe.txt', '--no-gh']).out, /Ninguno/);
+  git(d, 'reset', '-q', '--hard', 'main');
+  assert.match(impacto(d, ['--base', 'main', '--no-gh']).out, /Sin cambios respecto a main/);
+});
+
+test('impacto-tareas: errores de uso, repo o base dan salida 2', () => {
+  const d = historia([[{ 'a.txt': '1' }, 'feat: base (#1)']]);
+  for (const [args, cwd, re] of [
+    [['--base', 'no-existe', '--no-gh'], d, /no encuentro la rama base «no-existe»/],
+    [['--files', '--no-gh'], d, /--files necesita al menos una ruta/],
+    [['--raro'], d, /argumento no válido: --raro/],
+    [['--no-gh'], tmp(), /no es un repositorio git/],
+  ]) {
+    const r = impacto(cwd, args);
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, re);
+  }
+});
+
+test('impacto-tareas: enriquecer suma los issues del PR y su título y estado; con gh caído, avisa y corta tras el primer fallo', () => {
+  const lista = () => [{ pr: 9, titulo: 't9', ficheros: ['a'], issues: [4], detalle: {} }, { pr: 8, titulo: 't8', ficheros: ['a'], issues: [], detalle: {} }];
+  const gh = (args) => {
+    if (args[0] === 'pr') return { closingIssuesReferences: args[2] === '9' ? [{ number: 5 }] : [] };
+    return { title: `t${args[2]}\ncon salto`, state: args[2] === '4' ? 'OPEN' : 'CLOSED' };
+  };
+  const ok = lista();
+  assert.equal(enriquecer(ok, gh), null);
+  assert.deepEqual(ok[0].issues, [4, 5]);
+  assert.deepEqual(ok[0].detalle, { 4: { titulo: 't4 con salto', estado: 'abierto' }, 5: { titulo: 't5 con salto', estado: 'cerrado' } });
+  assert.match(render({ lista: ok, omitidos: 0 }, { origen: 'x', nFicheros: 1 }), /issues: #4 «t4 con salto» \(abierto\), #5 «t5 con salto» \(cerrado\)/);
+
+  let intentos = 0;
+  const caido = lista();
+  assert.match(enriquecer(caido, () => { intentos += 1; throw new Error('sin red'); }), /gh no ha respondido \(sin red\)/);
+  assert.equal(intentos, 1);
+  assert.deepEqual(caido[0].issues, [4]);
+  assert.match(enriquecer(lista(), gh, 2), /tope de 2 llamadas/);
+});
+
+test('impacto-tareas: gh solo se usa para leer y, sin gh o sin remoto, el CLI sigue con lo que da git', () => {
+  for (const ok of [['pr', 'view', '1', '--json', 'x'], ['issue', 'view', '2']]) assert.equal(ghArgs(ok), ok);
+  for (const mal of [['issue', 'edit', '1'], ['issue', 'comment', '1'], ['pr', 'create'], ['pr', 'merge', '1'], ['label', 'create', 'x'], ['api', 'x']]) {
+    assert.throws(() => ghArgs(mal), /no está permitido: este script solo lee/, mal.join(' '));
+  }
+  const d = historia([[{ 'a.txt': '1' }, 'feat: base (#1)', 'Closes #2']]);
+  git(d, 'switch', '-q', '-c', 'rama');
+  commitEn(d, { 'a.txt': '2' }, 'feat: rama');
+  const env = { ...ENV, GH_PROMPT_DISABLED: '1' };
+  delete env.GH_REPO; // sin remoto y sin repo forzado, gh falla al instante y sin red; si ni está instalado, también se degrada
+  const r = impacto(d, ['--base', 'main'], env);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /- #1 «feat: base» · comparte 1 fichero \(a\.txt\) · issues: #2/);
+});
