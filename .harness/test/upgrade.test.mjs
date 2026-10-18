@@ -195,6 +195,128 @@ test('argumentos: un solo modo; --yes y --replace-json solo con --apply', () => 
   }
 });
 
+// Ficheros opcionales (categoría optional del manifiesto)
+const OPT = { ...MANIFEST, optional: ['opt.txt'] };
+const optTpl = (manifest = OPT, files = { 'opt.txt': 'o\n' }, opts = {}) => repo(files, { manifest, tags: ['v1.0.0'], ...opts });
+
+test('optional: si falta en el derivado no es deriva', () => {
+  const r = run(optTpl(), repo({}));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /sin deriva/);
+  assert.doesNotMatch(r.out, /falta/);
+});
+
+test('optional: presente e igual a la plantilla, sin deriva', () => {
+  const r = run(optTpl(), repo({ 'opt.txt': 'o\n' }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /sin deriva/);
+});
+
+test('optional: presente y distinto de la plantilla, deriva', () => {
+  const r = run(optTpl(), repo({ 'opt.txt': 'otro\n' }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /\[FAIL\]\s+difiere: opt\.txt/);
+});
+
+test('optional: --apply no lo crea si falta en el derivado', () => {
+  const p = proj({});
+  const r = exec(optTpl(), p, APPLY);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(fs.existsSync(path.join(p, 'opt.txt')), false, 'opt.txt no debía crearse');
+  assert.match(r.out, /Nada que aplicar/);
+});
+
+test('optional: --apply lo reemplaza si existe y difiere, y lo deja en el índice', () => {
+  const p = proj({ 'opt.txt': 'otro\n' });
+  const r = exec(optTpl(), p, APPLY);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(rd(p, 'opt.txt'), 'o\n');
+  assert.ok(git(p, 'diff', '--cached', '--name-only').split('\n').includes('opt.txt'), 'opt.txt no está en el índice');
+});
+
+test('optional: un manifiesto sin la clave optional sigue siendo válido', () => {
+  assert.equal('optional' in MANIFEST, false, 'el control necesita un manifiesto sin la clave optional');
+  const r = run(BASE, repo({}));
+  assert.equal(r.code, 0, r.out);
+});
+
+// [nombre, parche del manifiesto, salida esperada]; el fichero opt.txt existe en la plantilla
+const OPT_BAD = [
+  ['una ruta insegura', { optional: ['../fuera'] }, /rutas relativas seguras/],
+  ['una entrada inexistente', { optional: ['nada.txt'] }, /no existe en la plantilla/],
+  ...['template', 'project', 'excluded', 'mixedJson'].map((k) => [`un solape con ${k}`, { optional: ['opt.txt'], [k]: [...MANIFEST[k], 'opt.txt'] }, /"opt\.txt".*se solapan/]),
+];
+for (const [name, patch, re] of OPT_BAD) {
+  test(`optional: manifiesto con ${name}`, () => {
+    const r = run(optTpl({ ...MANIFEST, ...patch }), repo({}));
+    assert.equal(r.code, 2, r.out);
+    assert.match(r.out, re);
+  });
+}
+
+test('optional: la plantilla con un opcional que es enlace simbólico se rechaza', () => {
+  const r = run(optTpl(OPT, { 'opt.txt': 'o\n' }, { link: 'opt.txt' }), repo({}));
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /enlaces simbólicos.*opt\.txt/);
+});
+
+test('optional: --diff solo enseña el diff de los opcionales que existen en el derivado', () => {
+  const t = optTpl({ ...MANIFEST, optional: ['opt.txt', 'opt2.txt'] }, { 'opt.txt': 'o\n', 'opt2.txt': 'o2\n' });
+  const r = exec(t, repo({ 'opt.txt': 'otro\n' }), ['--diff']);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /old\/opt\.txt[\s\S]*-otro\r?\n\+o\r?\n/);
+  assert.doesNotMatch(r.out, /diff --git[^\n]*opt2\.txt/);
+});
+
+const SPECIALISTS = ['security_reviewer', 'a11y_seo_auditor', 'mentor'].map((n) => `.claude/agents/${n}.md`);
+
+/** Copia del árbol de trabajo (no de HEAD: ve las ediciones sin confirmar) de los ficheros rastreados, como repo git; `omit` los quita, `tag` la etiqueta v1.0.0. */
+function copyOfTracked({ omit = [], tag = false } = {}) {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const d = tmp();
+  for (const f of git(REPO, 'ls-files', '-z').split('\0').filter(Boolean)) {
+    if (omit.includes(f)) continue;
+    fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true });
+    fs.copyFileSync(path.join(REPO, f), path.join(d, f));
+  }
+  git(d, 'init', '-q', '-b', 'main');
+  git(d, 'add', '-A');
+  for (const x of m.executable) git(d, 'update-index', '--chmod=+x', x); // la copia pierde el bit ejecutable en Windows
+  git(d, 'commit', '-q', '-m', 't');
+  if (tag) git(d, 'tag', 'v1.0.0');
+  return d;
+}
+
+test('optional: con el manifiesto real, un derivado sin los especialistas no tiene deriva', () => {
+  const r = run(copyOfTracked({ tag: true }), copyOfTracked({ omit: SPECIALISTS }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /sin deriva/);
+});
+
+test('optional: con el manifiesto real, sin un agente de nivel sigue habiendo deriva', () => {
+  const r = run(copyOfTracked({ tag: true }), copyOfTracked({ omit: ['.claude/agents/worker_fast.md'] }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /falta: \.claude\/agents\/worker_fast\.md/);
+});
+
+test('el manifiesto real: los tres especialistas son opcionales y los tres agentes de nivel, de plantilla', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
+  for (const f of SPECIALISTS) {
+    assert.ok((m.optional ?? []).includes(f), `${f} no está en optional`);
+    assert.ok(!m.template.some((e) => covers(e, f)), `${f} sigue cubierto por template`);
+  }
+  for (const n of ['worker_fast', 'worker_balanced', 'reviewer_frontier']) {
+    assert.ok(m.template.includes(`.claude/agents/${n}.md`), `.claude/agents/${n}.md no está en template`);
+  }
+});
+
+test('docs/tooling.md explica la categoría optional y que borrar un especialista no genera deriva', () => {
+  const t = fs.readFileSync(path.join(REPO, 'docs', 'tooling.md'), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(t, /`optional`/, 'docs/tooling.md no menciona la categoría `optional`');
+  assert.match(t, /bórralos y `harness-upgrade` no los repone/, 'docs/tooling.md no dice que borrar un especialista no genera deriva');
+});
+
 const STALE = BLOCK.replace('uno', 'otro');
 const FENCED = `\`\`\`md\n${BLOCK}\`\`\`\n`;
 const CRLF = (s) => s.replace(/\n/g, '\r\n');
@@ -285,15 +407,15 @@ test('el bloque real de AGENTS.md coincide con su fuente en la plantilla', () =>
 
 test('el manifiesto real clasifica cada fichero rastreado en exactamente una categoría', () => {
   const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
-  const cats = ['template', 'mixedBlock', 'mixedJson', 'project', 'excluded'];
+  const cats = ['template', 'optional', 'mixedBlock', 'mixedJson', 'project', 'excluded'];
   const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
   const files = Object.fromEntries(git(REPO, 'ls-files', '-s', '-z').split('\0').filter(Boolean)
     .map((rec) => rec.split('\t').reverse()).map(([f, info]) => [f, info.split(' ')[0]]));
   for (const f of Object.keys(files)) {
-    const hit = cats.filter((c) => m[c].some((e) => covers(e, f)));
+    const hit = cats.filter((c) => (m[c] ?? []).some((e) => covers(e, f)));
     assert.equal(hit.length, 1, `${f}: en ${hit.length} categorías (${hit})`);
   }
-  for (const e of cats.flatMap((c) => m[c])) assert.ok(Object.keys(files).some((f) => covers(e, f)), `entrada sin ficheros: ${e}`);
+  for (const e of cats.flatMap((c) => (m[c] ?? []))) assert.ok(Object.keys(files).some((f) => covers(e, f)), `entrada sin ficheros: ${e}`);
   for (const x of m.executable) {
     assert.ok(m.template.includes(x), `${x} no está en template`);
     assert.equal(files[x], '100755', `${x} perdió el bit ejecutable`);
