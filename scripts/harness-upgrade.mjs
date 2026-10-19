@@ -17,6 +17,8 @@
 //            nombra con --replace-json. Rechaza enlaces simbólicos (de la plantilla y del
 //            proyecto) y ediciones sin confirmar en lo que pisaría. Lo aplicado queda
 //            añadido al índice (git add), con el bit ejecutable fijado.
+// Un fichero `optional` del manifiesto es de la plantilla pero no se exige: se compara y se reemplaza
+// solo si existe en el proyecto; si falta no es deriva y --apply no lo crea.
 // Salida: 0 sin deriva (o aplicado) · 1 deriva en ficheros de plantilla o en el bloque (o
 // aplicación rechazada) · 2 error de uso, descarga, manifiesto o guarda. Requiere Node >= 18 y git.
 
@@ -96,19 +98,24 @@ function loadManifest(dir, files) {
   try { m = JSON.parse(read(path.join(dir, 'harness.manifest.json'))); } catch (e) {
     die(`La plantilla no trae un harness.manifest.json válido (${e.code ?? e.message}).`);
   }
-  for (const k of ['template', 'executable', 'mixedBlock', 'mixedJson', 'project', 'excluded']) {
+  if (m && typeof m === 'object' && m.optional === undefined) m.optional = []; // clave opcional: sin ella el manifiesto sigue siendo válido
+  for (const k of ['template', 'optional', 'executable', 'mixedBlock', 'mixedJson', 'project', 'excluded']) {
     if (!Array.isArray(m?.[k]) || !m[k].every(safe)) die(`harness.manifest.json: "${k}" debe ser una lista de rutas relativas seguras.`);
   }
-  for (const e of [...m.template, ...m.mixedBlock, ...m.mixedJson]) {
+  for (const e of [...m.template, ...m.optional, ...m.mixedBlock, ...m.mixedJson]) {
     if (!files.some((f) => covers(e, f))) die(`El manifiesto lista "${e}", que no existe en la plantilla.`);
   }
   if (m.mixedBlock.length > 0 && !(safe(m.blockSource) && files.includes(m.blockSource))) {
     die('harness.manifest.json: "blockSource" debe ser la ruta relativa segura de un fichero de la plantilla (hay mixedBlock).');
   }
-  for (const e of [...m.template, ...m.executable, ...m.mixedBlock, ...m.mixedJson]) {
-    const x = [...m.project, ...m.excluded].find((p) => covers(e, p) || covers(p, e));
-    if (x) die(`El manifiesto pone "${e}" como de la plantilla y "${x}" como del proyecto o excluido, y se solapan.`);
-  }
+  const clash = (a, b) => {
+    for (const e of m[a]) {
+      const x = m[b].find((p) => covers(e, p) || covers(p, e));
+      if (x) die(`El manifiesto pone "${e}" en ${a} y "${x}" en ${b}, y se solapan.`);
+    }
+  };
+  for (const a of ['template', 'optional', 'executable', 'mixedBlock', 'mixedJson']) for (const b of ['project', 'excluded']) clash(a, b);
+  for (const b of ['template', 'executable', 'mixedBlock', 'mixedJson']) clash('optional', b);
   return m;
 }
 
@@ -232,7 +239,8 @@ async function main() {
     for (const f of opts.json) if (!m.mixedJson.includes(f)) die(`--replace-json ${f}: no es un JSON mixto del manifiesto.`);
 
     const owned = files.filter((f) => m.template.some((e) => covers(e, f)));
-    const links = [...owned, ...m.mixedJson, m.blockSource].filter((f) => modes.get(f) === '120000');
+    const optional = files.filter((f) => m.optional.some((e) => covers(e, f)));
+    const links = [...owned, ...optional, ...m.mixedJson, m.blockSource].filter((f) => modes.get(f) === '120000');
     if (links.length > 0) die(`La plantilla trae enlaces simbólicos entre lo que se propaga (no se reemplazan): ${links.join(', ')}`);
     const block = m.mixedBlock.length > 0 ? loadBlock(tmp, m) : null;
     const todo = new Map(); // ruta → true si hay que copiar su contenido, false si solo el bit ejecutable
@@ -244,7 +252,14 @@ async function main() {
       if (read(mine) !== read(path.join(tmp, f))) { fail(`difiere: ${f}`); drift++; todo.set(f, true); differs.push(f); }
       if (m.executable.includes(f) && isExecutable(f) === false) { fail(`sin bit ejecutable: ${f} (git update-index --chmod=+x)`); drift++; todo.set(f, todo.get(f) ?? false); }
     }
-    if (drift === 0) ok(`${owned.length} ficheros de plantilla sin deriva.`);
+    const absent = []; // opcionales que el proyecto no tiene: no son deriva y --apply no los crea
+    for (const f of optional) {
+      const mine = path.join(ROOT, f);
+      if (!fs.existsSync(mine)) { absent.push(f); continue; }
+      if (read(mine) !== read(path.join(tmp, f))) { fail(`difiere: ${f}`); drift++; todo.set(f, true); differs.push(f); }
+    }
+    if (drift === 0) ok(`${owned.length + optional.length - absent.length} ficheros de plantilla sin deriva.`);
+    if (absent.length > 0) ok(`opcionales que no tienes (no son deriva): ${absent.join(', ')}`);
 
     for (const f of m.mixedBlock) {
       const gone = !fs.existsSync(path.join(ROOT, f));
