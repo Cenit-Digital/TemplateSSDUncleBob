@@ -439,6 +439,40 @@ test('el manifiesto real clasifica cada fichero rastreado en exactamente una cat
   assert.ok(files[m.blockSource], `blockSource ${m.blockSource} no es un fichero rastreado`);
 });
 
+test('docs/architecture.md y docs/conventions.md son del proyecto: un derivado con contenido propio no muestra deriva y --apply no los reemplaza', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const mine = { 'docs/architecture.md': '# Arquitectura de mi proyecto\n', 'docs/conventions.md': '# Convenciones de mi proyecto\n' };
+  for (const f of Object.keys(mine)) {
+    assert.ok(m.project.includes(f), `${f} no está en project`);
+    assert.ok(!m.template.includes(f), `${f} sigue en template`);
+  }
+  // Copia byte a byte de lo rastreado: el test ejerce el manifiesto real, no uno de juguete.
+  const copy = (overrides, tag) => {
+    const d = tmp();
+    for (const f of git(REPO, 'ls-files', '-z').split('\0').filter(Boolean)) {
+      fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true });
+      fs.copyFileSync(path.join(REPO, f), path.join(d, f));
+    }
+    for (const [f, body] of Object.entries(overrides)) fs.writeFileSync(path.join(d, f), body);
+    git(d, 'init', '-q', '-b', 'main');
+    git(d, 'add', '-A');
+    for (const x of m.executable) git(d, 'update-index', '--chmod=+x', x);
+    git(d, 'commit', '-q', '-m', 't');
+    if (tag) git(d, 'tag', 'v1.0.0');
+    return d;
+  };
+  const template = copy({}, true);
+  const derived = copy(mine);
+  const check = run(template, derived);
+  assert.equal(check.code, 0, check.out);
+  assert.match(check.out, /sin deriva/);
+  assert.doesNotMatch(check.out, /architecture\.md|conventions\.md/);
+  const apply = exec(template, derived, APPLY);
+  assert.equal(apply.code, 0, apply.out);
+  assert.match(apply.out, /Nada que aplicar/);
+  for (const [f, body] of Object.entries(mine)) assert.equal(rd(derived, f), body);
+});
+
 test('la capa 0 de la política (el bloque) no nombra modelos: eso es de docs/modelos.md', () => {
   const block = fs.readFileSync(path.join(REPO, '.harness', 'agents-block.md'), 'utf8');
   assert.deepEqual(block.match(/\b(opus|sonnet|haiku|fable|gpt|gemini)\b/gi), null);
