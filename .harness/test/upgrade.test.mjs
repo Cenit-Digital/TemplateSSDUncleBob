@@ -675,6 +675,50 @@ test('los .ps1 que se propagan no usan Join-Path con más de dos segmentos (Wind
   assert.ok(total >= 2, 'el detector no encontró ningún Join-Path: la comprobación no vale');
 });
 
+/** Una copia mínima de la raíz con `init.sh` y un motor de mentira que solo anota que corrió; `hook` crea scripts/pre-init.sh. */
+function initEnCopia(hook) {
+  const d = tmp();
+  fs.mkdirSync(path.join(d, '.harness'), { recursive: true });
+  fs.copyFileSync(path.join(REPO, 'init.sh'), path.join(d, 'init.sh'));
+  fs.writeFileSync(path.join(d, '.harness', 'harness.mjs'),
+    "import fs from 'node:fs'; fs.appendFileSync(new URL('../orden.log', import.meta.url), `motor ${process.argv[2]}\\n`);\n");
+  if (hook !== undefined) {
+    fs.mkdirSync(path.join(d, 'scripts'));
+    fs.writeFileSync(path.join(d, 'scripts', 'pre-init.sh'), hook); // sin bit ejecutable: init.sh lo lanza con bash
+  }
+  const r = spawnSync('bash', [path.join(d, 'init.sh')], { cwd: d, env: ENV, encoding: 'utf8' });
+  const log = fs.existsSync(path.join(d, 'orden.log')) ? fs.readFileSync(path.join(d, 'orden.log'), 'utf8') : '';
+  return { r, log };
+}
+
+test('init.sh: sin scripts/pre-init.sh solo corre el motor', () => {
+  const { r, log } = initEnCopia(undefined);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(log, 'motor init\n');
+});
+
+test('init.sh: scripts/pre-init.sh corre antes del motor aunque no sea ejecutable', () => {
+  const { r, log } = initEnCopia('echo gancho >> "$(dirname "$0")/../orden.log"\n');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(log, 'gancho\nmotor init\n');
+});
+
+test('init.sh: si scripts/pre-init.sh sale con error, init sale con su código y el motor no corre', () => {
+  const { r, log } = initEnCopia('echo gancho >> "$(dirname "$0")/../orden.log"\nexit 7\n');
+  assert.equal(r.status, 7);
+  assert.equal(log, 'gancho\n');
+});
+
+test('init.ps1 llama a scripts/pre-init.ps1 si existe, para si falla y reinicia $LASTEXITCODE; docs/configuration.md lo explica', () => {
+  const ps1 = fs.readFileSync(path.join(REPO, 'init.ps1'), 'utf8');
+  const hook = ps1.indexOf("'pre-init.ps1'");
+  const motor = ps1.indexOf('& node $engine init');
+  assert.ok(hook > 0 && motor > hook, 'el gancho debe ir antes del motor');
+  assert.match(ps1, /\$global:LASTEXITCODE = 0\s*\n\s*& \$preInit\s*\n\s*if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}/);
+  const doc = fs.readFileSync(path.join(REPO, 'docs', 'configuration.md'), 'utf8');
+  assert.ok(doc.includes('scripts/pre-init.sh') && doc.includes('scripts/pre-init.ps1'), 'docs/configuration.md no explica el gancho');
+});
+
 /**
  * Pasos `actions/setup-node` de un workflow y si fijan `package-manager-cache: false` o un `cache:` explícito.
  * Sin parser de YAML en el repo: un paso es el bloque que arranca en su línea `- ` y llega hasta la siguiente línea con su misma sangría o menos.

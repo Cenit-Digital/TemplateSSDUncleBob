@@ -12,6 +12,14 @@
 
 Comandos: `init`, `test`, `mutate [target]`, `verify`, `help`. `verify` es `init` más las comprobaciones que activen las `rules` (comando de tests declarado y mutación completa) y se usa antes de una entrega; el cierre ordinario de una tarea es `init` + `test`.
 
+## Pasos propios de `init`: `scripts/pre-init.sh` y `scripts/pre-init.ps1`
+
+`init.sh` e `init.ps1` son de la plantilla y `scripts/harness-upgrade.mjs --apply` los reemplaza: no los edites. Si tu proyecto necesita un paso previo que no es de ningún stack (por ejemplo, generar un secreto local si falta), ponlo en `scripts/pre-init.sh` (y, para Windows, `scripts/pre-init.ps1`). Son **opcionales y del proyecto**: la plantilla no los trae ni los toca.
+
+- Si el fichero existe, corre **antes** del motor. Si sale con un código distinto de 0, `init` se detiene con ese código y el motor no corre.
+- `init.sh` lo lanza con `bash`, así que no necesita bit ejecutable. `init.ps1` lo lanza con `&` y pone `$LASTEXITCODE` a 0 antes.
+- `bin/harness init` y `node .harness/harness.mjs init` no lo ejecutan: solo los lanzadores `init.sh` e `init.ps1`. Si el paso debe correr siempre, declara su comando en `commands.install`.
+
 ## `harness.config.json` — campos
 
 ```jsonc
