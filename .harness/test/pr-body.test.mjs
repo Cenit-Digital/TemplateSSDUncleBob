@@ -101,3 +101,36 @@ test('CLI: sale 0 si cumple, 1 si no, y nunca imprime la descripción', () => {
   assert.equal(none.status, 1);
   assert.match(none.stdout, /PR_BODY no está definido/);
 });
+
+// pr-body.yml se propaga a los derivados. En los repos privados de Cenit-Digital, con la variable de repo
+// CI_RUNNER=cenit-runners, los jobs en runners de GitHub se saltan (cupo de Actions agotado): el gemelo corre en los
+// runners del servidor para que la comprobación no se pierda (Cenit-Digital/KubernetesInfrastructure#282).
+const WORKFLOW = fs.readFileSync(path.join(HARNESS, '..', '.github', 'workflows', 'pr-body.yml'), 'utf8').replace(/\r\n/g, '\n');
+const job = (id) => {
+  const m = WORKFLOW.match(new RegExp(`^  ${id}:\\n((?:(?: {4}.*)?\\n)*)`, 'm'));
+  assert.ok(m, `pr-body.yml: falta el job ${id}`);
+  return m[1];
+};
+const condicion = (bloque) => bloque.match(/^ {4}if: \$\{\{ (.+) \}\}$/m)?.[1];
+
+test('pr-body.yml: un job en runners de GitHub sin CI_RUNNER=cenit-runners y su gemelo en los propios con ella', () => {
+  const comun = "!github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot'";
+  const github = job('body');
+  const propio = job('body-propio');
+  assert.equal(condicion(github), `${comun} && vars.CI_RUNNER != 'cenit-runners'`);
+  assert.equal(condicion(propio), `${comun} && vars.CI_RUNNER == 'cenit-runners'`);
+  assert.match(github, /^ {4}runs-on: ubuntu-latest$/m);
+  assert.match(propio, /^ {4}runs-on: cenit-runners$/m);
+  assert.match(propio, /^ {4}timeout-minutes: [1-9]\d*$/m);
+  // El pod de trabajo de ARC exige `container:`; la imagen, siempre por digest.
+  assert.match(propio, /^ {6}image: docker\.io\/library\/node:[\w.-]+@sha256:[0-9a-f]{64}$/m);
+  assert.match(propio, /^ {4}name: Cuerpo del PR \(runners propios\)$/m);
+});
+
+test('pr-body.yml: el gemelo ejecuta los mismos pasos (anclas YAML), sin copias que se desincronicen', () => {
+  const anclas = [...job('body').matchAll(/^ {6}- &(\w+)$/gm)].map((m) => m[1]);
+  const alias = [...job('body-propio').matchAll(/^ {6}- \*(\w+)$/gm)].map((m) => m[1]);
+  assert.ok(anclas.length >= 2, 'los pasos del job de GitHub llevan ancla (&nombre)');
+  assert.deepEqual(alias, anclas);
+  assert.doesNotMatch(job('body-propio'), /^ {8}(uses|run|env|with):/m, 'el gemelo solo usa los alias de los pasos del job de GitHub');
+});
