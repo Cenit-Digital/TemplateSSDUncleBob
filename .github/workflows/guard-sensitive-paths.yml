@@ -30,19 +30,35 @@ concurrency:
 jobs:
   flag:
     name: Marcar cambios en rutas sensibles
+    if: vars.CI_RUNNER != 'cenit-runners'
     runs-on: ubuntu-latest
     steps:
-      - name: Detectar rutas sensibles y etiquetar
+      - &marcar
+        name: Detectar rutas sensibles y etiquetar
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+        shell: bash
+        # Con curl y jq, que traen tanto ubuntu-latest como la imagen de CI de los runners propios (allí no hay `gh`).
+        # Sin checkout: la API REST no necesita contexto git local. No bloqueante por diseño.
         run: |
           set -euo pipefail
+          api() {
+            curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" "$@"
+          }
           # Incluye previous_filename: un RENAME de una ruta sensible reporta
           # solo la ruta nueva en .filename — sin esto, mover el mandato, la CI
-          # o el motor escaparía al guardián.
-          files="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')"
+          # o el motor escaparía al guardián. Páginas de 100 hasta la primera incompleta.
+          files=""
+          pagina=1
+          while :; do
+            lote="$(api "$GITHUB_API_URL/repos/$REPO/pulls/$PR/files?per_page=100&page=$pagina")"
+            files="$files$(printf '%s' "$lote" | jq -r '.[] | .filename, (.previous_filename // empty)')"$'\n'
+            [ "$(printf '%s' "$lote" | jq length)" -eq 100 ] || break
+            pagina=$((pagina + 1))
+          done
           sensitive="$(printf '%s\n' "$files" | grep -E '^(\.github/workflows/|\.github/AUTONOMOUS\.md$|\.github/CODEOWNERS$|docs/autonomous\.md$|\.harness/.*\.(mjs|js|cjs|ts)$|\.claude/)' || true)"
           if [ -z "$sensitive" ]; then
             echo "Sin rutas sensibles tocadas en este PR."
@@ -57,12 +73,23 @@ jobs:
             echo ""
             printf '%s\n' "$sensitive" | while IFS= read -r f; do echo "- $f"; done
           } >> "$GITHUB_STEP_SUMMARY"
-          # Etiquetar vía la API REST: `gh api` NO necesita contexto git local.
-          # En pull_request_target no hacemos checkout, así que `gh pr edit` /
-          # `gh label create` sin --repo fallarían con "not a git repository"
-          # (lo destapó el primer run real del bot). No bloqueante por diseño.
-          gh label create permissions-change --repo "$REPO" --color b60205 \
-            --description "El PR toca workflow/permisos/motor de verificación: requiere revisión reforzada" --force || true
-          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=permissions-change" >/dev/null \
+          # Crea la etiqueta, o la actualiza si ya existe (lo que hacía `gh label create --force`).
+          etiqueta='{"name":"permissions-change","color":"b60205","description":"El PR toca workflow/permisos/motor de verificación: requiere revisión reforzada"}'
+          api -X POST "$GITHUB_API_URL/repos/$REPO/labels" -d "$etiqueta" >/dev/null 2>&1 \
+            || api -X PATCH "$GITHUB_API_URL/repos/$REPO/labels/permissions-change" -d "$etiqueta" >/dev/null 2>&1 || true
+          api -X POST "$GITHUB_API_URL/repos/$REPO/issues/$PR/labels" -d '{"labels":["permissions-change"]}' >/dev/null \
             || echo "::warning::No se pudo aplicar la etiqueta permissions-change; revísalo manualmente."
           exit 0
+
+  # Gemelo en los runners propios (cuando vars.CI_RUNNER = cenit-runners, como harness-ci e imagen): sin él, con el cupo de
+  # Actions agotado, este check salía en rojo en todos los PR («recent account payments have failed…»). ARC en modo
+  # kubernetes exige `container:`; la imagen de CI de la organización trae curl y jq.
+  flag-propio:
+    name: Marcar cambios en rutas sensibles (runners propios)
+    if: vars.CI_RUNNER == 'cenit-runners'
+    runs-on: cenit-runners
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/cenit-digital/ci-infraestructura:sha-600eae5c25c73ff9dc3cc49f4682c6b86ffd398b@sha256:2f9b4cf23a708541bb2a30ceb485ff64effdc5e2b265c35ac8dea84d5c9e945c
+    steps:
+      - *marcar
