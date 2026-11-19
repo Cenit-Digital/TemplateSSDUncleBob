@@ -53,6 +53,7 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 | `.harness/` | Motor agnóstico (cero dependencias), adaptadores por lenguaje, comprobador del PR e `impacto-tareas.mjs` (candidatos de «Impacto en tareas anteriores») |
 | `.claude/agents/` | 3 agentes de nivel y 3 especialistas opcionales (`docs/tooling.md`) |
 | `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los 3 agentes de nivel para Copilot, Codex y OpenCode (`docs/tooling.md`, modelos en `docs/modelos.md`) |
+| `.claude/skills/impeccable/` · `.agents/skills/impeccable/` | La skill de diseño Impeccable (Apache-2.0) para Claude Code y Codex; toda UI pasa por ella y el workflow «Diseño (Impeccable)» pasa su detector por la web del proyecto (`docs/impeccable.md`) |
 | `scripts/` | `harness-upgrade.mjs` (propagación) |
 | `docs/` | Guías cortas: TDD, criterios en Gherkin, verificación, arquitectura, convenciones, configuración, modelos y palancas de usuario |
 | `.github/` | Plantillas de issue y de PR (cuatro bloques y «Impacto en tareas anteriores»), CI y guardián de rutas sensibles |
@@ -64,6 +65,6 @@ Sin `--ref` toma el último tag `vX.Y.Z` de la plantilla (sin tags, sale con err
 
 ## Créditos
 
-Esta plantilla es una adaptación del método de **BettaTech** ([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2), [repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)) y de las prácticas del vídeo citado arriba. Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT.
+Esta plantilla es una adaptación del método de **BettaTech** ([playlist](https://www.youtube.com/playlist?list=PLJkcleqxxobX8POJ0sMoG62VyyZGrvhM2), [repo](https://github.com/betta-tech/harness-sdd/tree/uncle-bob-harness)) y de las prácticas del vídeo citado arriba. Generalización agnóstica y plantilla por **Cenit Digital**. Licencia MIT; la skill Impeccable que se distribuye en `.claude/skills/impeccable/` y `.agents/skills/impeccable/` es de Paul Bakaus y conserva su licencia Apache-2.0 (`LICENSE` y `NOTICE.md` en cada carpeta).
 
 **Qué se le debe a Uncle Bob.** De Robert C. Martin solo consta una fuente primaria verificada: su [post del 12-feb-2026](https://x.com/unclebobmartin/status/2021998958579794052). Parafraseado: el desarrollo guiado por especificaciones aporta valor con IA, pero diseñarlo todo por adelantado arriesga volver al diseño grande previo; conviene mantener el carácter iterativo, con especificaciones justas para lo que se va a construir, que se modifican sobre la marcha, que coescriben persona e IA y que aprueba una persona. De ahí las specs vivas por capacidad y la aprobación humana de esta plantilla. El nombre «Uncle Bob» (también en la rama `uncle-bob-harness` del repo de BettaTech) no implica autoría ni aval suyo, y no se le atribuye nada más.

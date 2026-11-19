@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = path.join(REPO, 'scripts', 'harness-upgrade.mjs');
@@ -28,6 +28,9 @@ const git = (cwd, ...args) => {
   assert.equal(r.status, 0, r.stderr);
   return r.stdout;
 };
+
+/** Skills de terceros que la plantilla distribuye sin tocar (de plantilla en el manifiesto). */
+const VENDORED_SKILLS = ['.claude/skills/impeccable', '.agents/skills/impeccable'];
 
 const BLOCK = '<!-- harness:begin -->\n## Arnés\n- uno\n<!-- harness:end -->\n';
 const MANIFEST = { version: 1, template: ['a.txt', 'dir/', 'run.sh'], executable: ['run.sh'], mixedBlock: ['AGENTS.md'], blockSource: 'blk.md', mixedJson: ['cfg.json'], project: ['proj.txt'], excluded: ['blk.md'] };
@@ -433,7 +436,7 @@ test('el manifiesto real clasifica cada fichero rastreado en exactamente una cat
   }
   for (const e of cats.flatMap((c) => (m[c] ?? []))) assert.ok(Object.keys(files).some((f) => covers(e, f)), `entrada sin ficheros: ${e}`);
   for (const x of m.executable) {
-    assert.ok(m.template.includes(x), `${x} no está en template`);
+    assert.ok(m.template.some((e) => covers(e, x)), `${x} no está en template`); // puede caer en un directorio de plantilla
     assert.equal(files[x], '100755', `${x} perdió el bit ejecutable`);
   }
   assert.ok(files[m.blockSource], `blockSource ${m.blockSource} no es un fichero rastreado`);
@@ -506,7 +509,9 @@ test('lo que se propaga a los derivados no cita el ADR ni sus números de decisi
   const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
   const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
   const tracked = git(REPO, 'ls-files', '-z').split('\0').filter(Boolean);
-  for (const f of tracked.filter((t) => [...m.template, ...(m.optional ?? []), m.blockSource].some((e) => covers(e, t)))) {
+  // La skill Impeccable es de terceros y va sin tocar (su «D3» es la librería d3.js): se comprueba aparte, por versión y licencia.
+  const vendored = (t) => VENDORED_SKILLS.some((d) => t.startsWith(`${d}/`));
+  for (const f of tracked.filter((t) => !vendored(t) && [...m.template, ...(m.optional ?? []), m.blockSource].some((e) => covers(e, t)))) {
     const hit = /\bADR\b|\bD\d{1,2}\b/.exec(fs.readFileSync(path.join(REPO, f), 'utf8'));
     assert.equal(hit, null, `${f}: cita «${hit?.[0]}», que los derivados no tienen`);
   }
@@ -1230,3 +1235,82 @@ test('las plantillas de PR y de issue citan el generador y no dejan el issue opc
   assert.match(issue, /`revisit`/);
   assert.match(issue, /requiere el OK de la persona/);
 });
+
+// --- Impeccable: la skill de diseño se propaga y la versión, la licencia y la regla no se pierden ---
+
+const IMPECCABLE_AGENTS = ['asset-producer', 'documenter', 'finish-reviewer', 'manual-edit-applier', 'motion-reviewer']
+  .map((n) => `.claude/agents/impeccable-${n}.md`);
+
+test('Impeccable: el manifiesto real propaga las dos copias de la skill, sus subagentes, la puerta y su workflow', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const covers = (e, f) => (e.endsWith('/') ? f.startsWith(e) : f === e);
+  const tracked = git(REPO, 'ls-files', '-z').split('\0').filter(Boolean);
+  const want = [...VENDORED_SKILLS.flatMap((d) => tracked.filter((t) => t.startsWith(`${d}/`))), ...IMPECCABLE_AGENTS,
+    '.github/workflows/impeccable.yml', '.harness/impeccable-gate.mjs', 'docs/impeccable.md'];
+  assert.ok(want.length > 100, `pocas rutas de la skill rastreadas (${want.length})`);
+  for (const f of want) {
+    assert.ok(tracked.includes(f), `${f} no está rastreado`);
+    assert.ok(m.template.some((e) => covers(e, f)), `${f} no es de plantilla`);
+  }
+  for (const d of VENDORED_SKILLS) assert.ok(m.executable.includes(`${d}/scripts/impeccable`), `${d}/scripts/impeccable no está en executable`);
+  assert.ok(!m.excluded.includes('.agents/skills/'), '.agents/skills/ entero sigue excluido');
+});
+
+test('Impeccable: un derivado sin la skill tiene deriva y --apply la trae con el lanzador ejecutable', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(REPO, 'harness.manifest.json'), 'utf8'));
+  const tracked = git(REPO, 'ls-files', '-z').split('\0').filter(Boolean);
+  const copy = (skip, tag) => {
+    const d = tmp();
+    for (const f of tracked.filter((t) => !skip(t))) {
+      fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true });
+      fs.copyFileSync(path.join(REPO, f), path.join(d, f));
+    }
+    git(d, 'init', '-q', '-b', 'main');
+    git(d, 'add', '-A');
+    for (const x of m.executable.filter((e) => fs.existsSync(path.join(d, e)))) git(d, 'update-index', '--chmod=+x', x);
+    git(d, 'commit', '-q', '-m', 't');
+    if (tag) git(d, 'tag', 'v1.0.0');
+    return d;
+  };
+  const isSkill = (t) => VENDORED_SKILLS.some((d) => t.startsWith(`${d}/`)) || IMPECCABLE_AGENTS.includes(t);
+  const template = copy(() => false, true);
+  const derived = copy(isSkill);
+  const check = run(template, derived);
+  assert.equal(check.code, 1, check.out);
+  for (const f of [`${VENDORED_SKILLS[0]}/SKILL.md`, `${VENDORED_SKILLS[1]}/SKILL.md`, IMPECCABLE_AGENTS[0]]) assert.match(check.out, new RegExp(`falta: ${f.replace(/\./g, '\\.')}`));
+  // --apply enseña el diff de unos 5 MB: más que el maxBuffer por defecto de spawnSync (1 MiB), que mataría el proceso.
+  const r = spawnSync(process.execPath, [SCRIPT, ...APPLY, '--repo', template], { cwd: derived, env: ENV, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(r.status, 0, r.stderr || r.stdout.slice(-2000));
+  for (const d of VENDORED_SKILLS) assert.match(git(derived, 'ls-files', '-s', `${d}/scripts/impeccable`), /^100755 /);
+  assert.equal(run(template, derived).code, 0);
+});
+
+test('Impeccable: las dos copias declaran la versión que fija la puerta y conservan LICENSE (Apache-2.0) y NOTICE.md', async () => {
+  const { VERSION, SKILL_DIRS, skillVersion } = await import(pathToFileURL(path.join(REPO, '.harness', 'impeccable-gate.mjs')).href);
+  assert.deepEqual(SKILL_DIRS, VENDORED_SKILLS);
+  for (const d of VENDORED_SKILLS) assert.equal(skillVersion(REPO, d), VERSION, `${d}/SKILL.md`);
+  const lic = VENDORED_SKILLS.map((d) => fs.readFileSync(path.join(REPO, d, 'LICENSE'), 'utf8'));
+  assert.equal(lic[0], lic[1]);
+  assert.match(lic[0], /Apache License\s+Version 2\.0, January 2004/);
+  const notice = VENDORED_SKILLS.map((d) => fs.readFileSync(path.join(REPO, d, 'NOTICE.md'), 'utf8'));
+  assert.equal(notice[0], notice[1]);
+  assert.match(notice[0], /platform-design-skills/);
+  const wf = fs.readFileSync(path.join(REPO, '.github', 'workflows', 'impeccable.yml'), 'utf8');
+  assert.match(wf, /node \.harness\/impeccable-gate\.mjs/);
+  assert.match(fs.readFileSync(path.join(REPO, 'docs', 'impeccable.md'), 'utf8'), new RegExp(`impeccable@${VERSION.replace(/\./g, '\\.')}`));
+});
+
+test('Impeccable: el bloque gestionado manda toda UI por la skill y retira Claude Design y frontend-design', () => {
+  const block = fs.readFileSync(path.join(REPO, '.harness', 'agents-block.md'), 'utf8');
+  assert.match(block, /Toda interfaz[^\n]*Impeccable/);
+  assert.match(block, /Claude Design y la skill `frontend-design` están retirados/);
+  assert.match(block, /`docs\/impeccable\.md`/);
+});
+
+test('Impeccable: ningún hook de la skill en los ajustes que se propagan ni en la plantilla', () => {
+  for (const f of ['.claude/settings.json', '.codex/hooks.json', '.github/hooks/impeccable.json']) {
+    const p = path.join(REPO, f);
+    if (fs.existsSync(p)) assert.doesNotMatch(fs.readFileSync(p, 'utf8'), /impeccable/i, f);
+  }
+});
+

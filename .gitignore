@@ -39,3 +39,6 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# Impeccable: ajustes personales (consentimiento de hooks, excepciones privadas)
+.impeccable/config.local.json
