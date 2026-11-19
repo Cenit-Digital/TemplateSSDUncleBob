@@ -50,7 +50,7 @@ const out = {
 export class GateError extends Error {}
 const safe = (p) => typeof p === 'string' && p !== '' && !p.startsWith('-') && !p.includes('\\')
   && !path.posix.isAbsolute(p) && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..');
-const route = (r) => typeof r === 'string' && /^\/[^\s?#]*(?:\?[^\s#]*)?$/.test(r) && !r.split('/').includes('..');
+const route = (r) => typeof r === 'string' && /^\/[^\s?#]*(?:\?[^\s#]*)?(?:#\S*)?$/.test(r) && !r.split('/').includes('..');
 
 /** `ui` de harness.config.json: {paths, routes}, listas validadas (vacías si no hay). */
 export function uiConfig(root) {
@@ -130,7 +130,7 @@ export function checkConfig(root) {
   if (d.designSystem?.enabled === false) problems.push('.impeccable/config.json: detector.designSystem.enabled: false apaga las reglas de DESIGN.md; no está permitido.');
   for (const v of d.ignoreValues ?? []) {
     if (typeof v?.reason !== 'string' || v.reason.trim() === '') problems.push(`.impeccable/config.json: la excepción ${v?.rule}=${v?.value} no tiene motivo (--reason).`);
-    if (v?.value === '*' || typeof v?.value !== 'string' || v.value.trim() === '') problems.push(`.impeccable/config.json: la excepción ${v?.rule}=${v?.value} no nombra un valor concreto; un comodín apaga la regla entera.`);
+    if (typeof v?.value !== 'string' || v.value.trim() === '' || v.value.trim() === '*') problems.push(`.impeccable/config.json: la excepción ${v?.rule}=${v?.value} no nombra un valor concreto; un comodín apaga la regla entera.`);
   }
   return problems;
 }
@@ -190,12 +190,32 @@ function sandboxless(browser) {
 /** Lanza el detector fijado con `args` = [...opciones, [destinos]] y devuelve {code, findings, stderr} (findings null si la salida no es JSON). */
 export function detect(root, args, env = process.env) {
   const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  // Sin el aviso de versión nueva de npm ni otros avisos suyos: fuera de la CI (sin CI=true) caerían en stderr.
+  const quiet = { ...env, npm_config_update_notifier: 'false', npm_config_loglevel: 'error', npm_config_fund: 'false', npm_config_audit: 'false' };
   const r = spawnSync(npx, ['--yes', `impeccable@${VERSION}`, 'detect', '--json', ...args.slice(0, -1), '--', ...args.at(-1)], {
-    cwd: root, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32',
+    cwd: root, encoding: 'utf8', env: quiet, maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32',
   });
   let findings = null;
   try { findings = JSON.parse(r.stdout); } catch { /* findings queda en null */ }
   return { code: r.status ?? -1, findings: Array.isArray(findings) ? findings : null, stderr: (r.stderr ?? '').trim(), error: r.error?.message };
+}
+
+/**
+ * Código HTTP de `url` sin seguir redirecciones (null si no responde). Una ruta que redirige (p. ej. a /login) haría
+ * que el detector analizara otra página. Síncrono: un node hijo con fetch.
+ */
+export function probe(url) {
+  const r = spawnSync(process.execPath, ['-e', 'fetch(process.argv[1], { redirect: "manual" }).then((r) => console.log(r.status), () => console.log(0))', url], { encoding: 'utf8', timeout: 60_000 });
+  const code = Number.parseInt(r.stdout, 10);
+  return code > 0 ? code : null;
+}
+
+/** ¿Algún workflow del proyecto ejecuta la puerta en modo renderizado? */
+export function renderedWired(root) {
+  const dir = path.join(root, '.github', 'workflows');
+  if (!fs.existsSync(dir)) return false;
+  return fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))
+    .some((f) => /impeccable-gate\.mjs\s+--rendered\s/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
 }
 
 /** Interpreta una ejecución del detector: 0 limpio, 1 con entradas, 2 si no pudo escanear o el escaneo fue incompleto. */
@@ -220,7 +240,7 @@ function judge(root, label, r) {
 }
 
 /** Ejecuta la puerta en `root`. `rendered` es la URL base del modo renderizado; `run` sustituye al detector en los tests. */
-export function gate(root, { rendered = null, run = detect, env = process.env } = {}) {
+export function gate(root, { rendered = null, run = detect, env = process.env, check = probe } = {}) {
   const { paths, routes } = uiConfig(root);
   const problems = checkInstall(root);
   if (paths.length === 0) {
@@ -232,6 +252,7 @@ export function gate(root, { rendered = null, run = detect, env = process.env } 
   }
   problems.push(...checkConfig(root));
   if (routes.length === 0) problems.push('harness.config.json: con web (ui.paths) hace falta "ui.routes": el análisis del código no aplica las reglas de página.');
+  if (!renderedWired(root)) problems.push('.github/workflows: con web, un job de la CI tiene que servir la app y ejecutar `node .harness/impeccable-gate.mjs --rendered <url>` (docs/impeccable.md).');
 
   if (rendered === null) {
     const files = [];
@@ -265,6 +286,12 @@ export function gate(root, { rendered = null, run = detect, env = process.env } 
   try {
     for (const r of routes) {
       const url = new URL(r.replace(/^\//, ''), base.href.endsWith('/') ? base.href : `${base.href}/`).href;
+      const status = check(url.split('#')[0]);
+      if (status === null || status < 200 || status >= 300) {
+        out.fail(`${url}: responde ${status ?? 'nada'}, no 2xx; una redirección (p. ej. a /login) haría analizar otra página.`);
+        worst = Math.max(worst, status !== null && status >= 300 && status < 400 ? 1 : 2);
+        continue;
+      }
       for (const vp of VIEWPORTS) {
         const code = judge(root, `${url} @${vp}`, run(root, ['--viewport', vp, [url]], { ...env, IMPECCABLE_BROWSER: wrapper }));
         worst = Math.max(worst, code);

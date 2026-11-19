@@ -54,6 +54,15 @@ npx impeccable@4.10.0 install -y --scope=project --providers=claude,codex --no-h
     arrancar el servidor. El navegador sale de `IMPECCABLE_BROWSER`, de Chrome o Chromium en el `PATH` o del Chromium de
     Playwright (`/ms-playwright` o `~/.cache/ms-playwright`); la puerta lo envuelve con `--no-sandbox`, porque en los
     contenedores de la CI no arranca con el sandbox. Sin navegador sale con 2: nunca se salta.
+  - **Cableado obligatorio:** con web, la puerta de código suspende si ningún workflow de `.github/workflows/` ejecuta
+    `impeccable-gate.mjs --rendered`.
+  - **Rutas:** empiezan por `/`; con enrutado por hash, `/#/reservar`. Antes de analizar, la puerta pide cada ruta sin
+    seguir redirecciones y suspende si no responde 2xx: un 302 a `/login` haría analizar otra página. Una redirección
+    que hace el enrutador de la app en el navegador no se ve así, de modo que las rutas con sesión se sirven en la CI
+    con las simulaciones de API y el usuario de prueba del e2e.
+  - **Límite medido:** el detector espera a que la red quede quieta. Lo que llega por `fetch` se analiza, pero lo que se
+    pinta más tarde con un temporizador (animaciones de entrada largas, cargas diferidas por tiempo) puede quedar
+    fuera. En esos casos el estado final tiene que verse en la ruta sin esperar.
 - **Qué exige**, en los dos modos: que no salga **ninguna** entrada y que el detector no escriba nada por stderr.
   - Cuentan los hallazgos y los avisos («advisory», que el detector deja salir con 0).
   - En código cuentan también los comentarios de excepción que ya no ignoran nada. `--report-unused-ignores` solo mira

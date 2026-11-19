@@ -30,6 +30,7 @@ function project({ ui, files = {}, version = VERSION } = {}) {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-'));
   dirs.push(d);
   const all = { 'harness.config.json': JSON.stringify({ project: 't', commands: {}, ...(ui === null ? {} : { ui: ui ?? { paths: [], routes: [] } }) }), ...files };
+  if (ui && ui.paths?.length && !('.github/workflows/e2e.yml' in all)) all['.github/workflows/e2e.yml'] = 'jobs:\n  e2e:\n    steps:\n      - run: node .harness/impeccable-gate.mjs --rendered http://127.0.0.1:4173/\n';
   for (const s of SKILL_DIRS) {
     const meta = s.startsWith('.claude') ? `version: ${version}` : `metadata:\n  version: ${version}`;
     if (!(`${s}/SKILL.md` in all)) all[`${s}/SKILL.md`] = `---\nname: impeccable\n${meta}\n---\n`;
@@ -53,7 +54,7 @@ function withFake(root, result, opts = {}) {
   const log = console.log;
   console.log = (s) => lines.push(String(s));
   try {
-    const code = gate(root, { ...opts, run: (r, args, env) => { calls.push({ args, browser: env.IMPECCABLE_BROWSER }); return { stderr: '', ...result }; } });
+    const code = gate(root, { check: () => 200, ...opts, run: (r, args, env) => { calls.push({ args, browser: env.IMPECCABLE_BROWSER }); return { stderr: '', ...result }; } });
     return { code, calls, out: lines.join('\n') };
   } finally { console.log = log; }
 }
@@ -187,6 +188,7 @@ test('excepciones en config: ignoreRules e ignoreFiles no; ignoreValues solo con
   assert.match(checkConfig(cfg({ ignoreValues: [{ rule: 'overused-font', value: 'inter' }] })).join(), /sin motivo|no tiene motivo/);
   assert.deepEqual(checkConfig(cfg({ ignoreValues: [{ rule: 'overused-font', value: 'inter', reason: 'Marca del cliente: su tipografía corporativa' }] })), []);
   assert.match(checkConfig(cfg({ ignoreValues: [{ rule: 'overused-font', value: '*', files: ['**'], reason: 'marca' }] })).join(), /comodín/);
+  assert.match(checkConfig(cfg({ ignoreValues: [{ rule: 'overused-font', value: ' * ', reason: 'marca' }] })).join(), /comodín/);
   assert.match(checkConfig(cfg({ designSystem: { enabled: false } })).join(), /designSystem/);
   const local = project({ files: { '.impeccable/config.local.json': '{"detector":{"ignoreRules":["overused-font"]}}' } });
   assert.match(checkConfig(local).join(), /config\.local\.json/);
@@ -262,5 +264,24 @@ test(`detector real renderizado (impeccable@${VERSION}): página limpia → 0; g
     assert.equal(dirty.status, 1, dirty.stdout);
     assert.match(dirty.stdout, /\[gradient-text\]/);
   } finally { server.close(); }
+});
+
+test('con web, la CI tiene que cablear --rendered', () => {
+  const r = withFake(project({ ui: WEB, files: { 'web/index.html': CLEAN_HTML, '.github/workflows/e2e.yml': 'jobs: {}\n' } }), { code: 0, findings: [] });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /--rendered/);
+});
+
+test('--rendered: una ruta que redirige (302 a /login) o no responde no se analiza y suspende', () => {
+  const browser = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-b-')), 'chrome');
+  dirs.push(path.dirname(browser));
+  fs.writeFileSync(browser, '#!/bin/sh\n', { mode: 0o755 });
+  const root = project({ ui: { paths: ['web'], routes: ['/panel', '/#/reservar'] }, files: { 'web/index.html': CLEAN_HTML } });
+  const env = { ...process.env, IMPECCABLE_BROWSER: browser };
+  const redirect = withFake(root, { code: 0, findings: [] }, { rendered: 'http://localhost:4310/', env, check: (u) => (u.endsWith('/panel') ? 302 : 200) });
+  assert.equal(redirect.code, 1, redirect.out);
+  assert.match(redirect.out, /panel: responde 302/);
+  assert.deepEqual(redirect.calls.map((c) => c.args[2]), [['http://localhost:4310/#/reservar'], ['http://localhost:4310/#/reservar']]);
+  assert.equal(withFake(root, { code: 0, findings: [] }, { rendered: 'http://localhost:4310/', env, check: () => null }).code, 2);
 });
 
