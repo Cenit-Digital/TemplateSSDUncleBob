@@ -15,7 +15,8 @@
     "tests": "tests"
   },
   "ui": {
-    "paths": []
+    "paths": [],
+    "routes": []
   },
   "mutation": {
     "threshold": 0.8,
