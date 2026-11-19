@@ -43,6 +43,18 @@
         "tests": { "type": "string", "default": "tests" }
       }
     },
+    "ui": {
+      "type": "object",
+      "description": "Web del proyecto para la puerta de diseño (.harness/impeccable-gate.mjs, workflow «Diseño (Impeccable)»). Ver docs/impeccable.md.",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "Rutas relativas (ficheros o carpetas) con la web: HTML, CSS, JSX, TSX, Vue, Svelte o Astro. Vacía: el proyecto no tiene web y la puerta no ejecuta el detector. Cada ruta debe existir y tener algo que analizar."
+        }
+      }
+    },
     "mutation": {
       "type": "object",
       "properties": {

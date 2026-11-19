@@ -20,6 +20,7 @@ Plantilla de **desarrollo guiado por especificaciones (SSD)**, agnóstica al len
 | `CHECKPOINTS.md` | Criterios objetivos de «estado final correcto», para autoevaluarte |
 | `.claude/agents/` | Agentes de nivel (`worker_fast`, `worker_balanced`, `reviewer_frontier`) y especialistas opt-in de solo lectura |
 | `.github/agents/` · `.codex/agents/` · `.opencode/agents/` | Los tres agentes de nivel para Copilot, Codex y OpenCode, con el mismo cuerpo que los de `.claude/agents/`; el modelo de cada herramienta, en `docs/modelos.md` |
+| `.claude/skills/impeccable/` · `.agents/skills/impeccable/` | Skill de diseño Impeccable (toda UI); `.harness/impeccable-gate.mjs` y el workflow «Diseño (Impeccable)» pasan su detector por `ui.paths` (`docs/impeccable.md`) |
 | `.github/` | Plantillas de issue de tarea y de PR, y el check «Cuerpo del PR» (`node .harness/pr-body.mjs`) |
 | `harness.manifest.json` · `scripts/harness-upgrade.mjs` | Qué es de la plantilla y qué del proyecto; `--check` y `--diff` miran la deriva, `--apply` la reemplaza |
 | `.harness/impacto-tareas.mjs` | Candidatos de «Impacto en tareas anteriores»: PR e issues previos que tocaron los mismos ficheros (sin LLM, con tope fijo) |
@@ -82,6 +83,8 @@ Una tarea está hecha cuando se cumple todo esto:
 **Delegación.** Por capacidad, no por proveedor: `frontier` (planificar, revisar, lo crítico), `balanced` (implementar), `fast` (tareas mecánicas y exploración). Salvo en trivial, el plan lleva una tabla «Delegación»: ejecutor, nivel, esfuerzo, motivo, «escalar si…» y verificación automática. Qué modelo es cada nivel en cada herramienta: `docs/modelos.md`.
 
 **Issues y PR.** Plantillas en `.github/`. Toda tarea tiene su issue (objetivo, nivel, criterios Given/When/Then, plan en casillas, tareas relacionadas, resultados); en trivial es mínimo: objetivo y plan de 1-2 líneas con el nivel y el motivo. El PR lo enlaza con `Closes #N`, lleva siempre cuatro bloques (qué, por qué, cómo se probó, pendiente), «Impacto en tareas anteriores» y la casilla de revisión local; el workflow «Plantilla del PR» comprueba esas secciones y la casilla (`node .harness/pr-body.mjs`).
+
+**Diseño (toda UI).** Toda interfaz (web, componentes, pantallas nativas) se diseña y se revisa con la skill Impeccable (`.claude/skills/impeccable/`, `.agents/skills/impeccable/`): `/impeccable init` deja `PRODUCT.md` y `DESIGN.md`; `shape` antes de construir; `critique` y `audit` al revisar; `polish` antes de entregar. Claude Design y la skill `frontend-design` están retirados: no se usan. El workflow «Diseño (Impeccable)» pasa el detector por `ui.paths` de `harness.config.json` y exige 0 hallazgos y 0 avisos; una excepción solo con su motivo escrito (la marca de un cliente). Detalle: `docs/impeccable.md`.
 
 **Bucle de aprendizaje (fase de cierre).** Una tarea nueva puede dejar obsoletas otras anteriores; el nivel trivial no ejecuta esta fase.
 - Al planificar, anota en «Tareas relacionadas» del issue las anteriores que tocan lo mismo: `node .harness/impacto-tareas.mjs --files <rutas del plan>` da los candidatos.
