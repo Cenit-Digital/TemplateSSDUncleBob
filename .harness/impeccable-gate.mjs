@@ -73,8 +73,8 @@ export function uiConfig(root) {
   const routes = cfg.ui.routes ?? [];
   if (!Array.isArray(paths) || !paths.every(safe)) throw new GateError('harness.config.json: "ui.paths" debe ser una lista de rutas relativas seguras.');
   if (!Array.isArray(routes) || !routes.every(route)) throw new GateError('harness.config.json: "ui.routes" debe ser una lista de rutas de la web que empiezan por "/" (p. ej. "/", "/reservar").');
-  const themes = cfg.ui.themes ?? ['light'];
-  if (!Array.isArray(themes) || themes.length === 0 || !themes.every((t) => Object.hasOwn(THEMES, t)) || new Set(themes).size !== themes.length) {
+  const themes = 'themes' in cfg.ui ? cfg.ui.themes : ['light'];
+  if (!Array.isArray(themes) || themes.length === 0 || !themes.every((t) => typeof t === 'string' && Object.hasOwn(THEMES, t)) || new Set(themes).size !== themes.length) {
     throw new GateError(`harness.config.json: "ui.themes" debe ser una lista sin repetir de ${Object.keys(THEMES).map((t) => `"${t}"`).join(' y ')} (por defecto ["light"]).`);
   }
   return { paths, routes, themes };

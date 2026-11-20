@@ -54,7 +54,7 @@ function withFake(root, result, opts = {}) {
   const log = console.log;
   console.log = (s) => lines.push(String(s));
   try {
-    const code = gate(root, { check: () => 200, ...opts, run: (r, args, env) => { calls.push({ args, browser: env.IMPECCABLE_BROWSER }); return { stderr: '', ...result }; } });
+    const code = gate(root, { check: () => 200, ...opts, run: (r, args, env) => { const b = env.IMPECCABLE_BROWSER; calls.push({ args, browser: b, wrapper: b && fs.existsSync(b) ? fs.readFileSync(b, 'utf8') : null }); return { stderr: '', ...result }; } });
     return { code, calls, out: lines.join('\n') };
   } finally { console.log = log; }
 }
@@ -287,11 +287,14 @@ test('--rendered: una ruta que redirige (302 a /login) o no responde no se anali
 
 test('ui.themes: por defecto solo claro; con ["light","dark"] cada ruta y tamaño en los dos, con un envoltorio por tema', () => {
   assert.deepEqual(uiConfig(project({ ui: WEB })).themes, ['light']);
-  for (const bad of [[], ['oscuro'], ['dark', 'dark'], 'dark']) {
+  for (const bad of [[], null, ['oscuro'], ['dark', 'dark'], ['dark', ['dark']], 'dark']) {
     assert.throws(() => uiConfig(project({ ui: { ...WEB, themes: bad } })), /ui\.themes/);
   }
-  const browser = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-b-')), 'chrome');
-  dirs.push(path.dirname(browser));
+  // Navegador en una ruta con comilla simple y espacio: el envoltorio tiene que citarla bien para sh.
+  const odd = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-b-')), "Chrome d'prueba");
+  dirs.push(path.dirname(odd));
+  fs.mkdirSync(odd);
+  const browser = path.join(odd, 'chrome');
   fs.writeFileSync(browser, '#!/bin/sh\n', { mode: 0o755 });
   const root = project({ ui: { ...WEB, themes: ['light', 'dark'] }, files: { 'web/index.html': CLEAN_HTML } });
   const r = withFake(root, { code: 0, findings: [] }, { rendered: 'http://localhost:4310/', env: { ...process.env, IMPECCABLE_BROWSER: browser } });
@@ -299,6 +302,17 @@ test('ui.themes: por defecto solo claro; con ["light","dark"] cada ruta y tamañ
   assert.equal(r.calls.length, 2 * VIEWPORTS.length);
   const wrappers = [...new Set(r.calls.map((c) => path.basename(c.browser)))].sort();
   assert.deepEqual(wrappers, ['chrome-dark', 'chrome-light']);
+  const quoted = `'${browser.replace(/'/g, `'\\''`)}'`;
+  for (const c of r.calls) {
+    const scheme = path.basename(c.browser) === 'chrome-dark' ? 0 : 1;
+    assert.equal(c.wrapper, `#!/bin/sh\nexec ${quoted} --no-sandbox --blink-settings=preferredColorScheme=${scheme} "$@"\n`);
+  }
+  // Y sh lo ejecuta de verdad: el envoltorio de un navegador que imprime sus argumentos los recibe intactos.
+  fs.writeFileSync(browser, '#!/bin/sh\nprintf "%s|" "$@"\n', { mode: 0o755 });
+  const wrapperFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-w-')), 'w');
+  dirs.push(path.dirname(wrapperFile));
+  fs.writeFileSync(wrapperFile, r.calls[0].wrapper, { mode: 0o755 });
+  assert.equal(spawnSync(wrapperFile, ['--headless', 'a b'], { encoding: 'utf8' }).stdout, `--no-sandbox|--blink-settings=preferredColorScheme=1|--headless|a b|`);
   assert.match(r.out, /2 tema\(s\) \(light, dark\)/);
 });
 
