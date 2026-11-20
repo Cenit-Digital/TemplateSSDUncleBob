@@ -21,7 +21,8 @@
 //   6. `impeccable detect --json` sin ninguna entrada y sin nada en stderr. Cuentan los avisos («advisory», que el
 //      detector deja salir con 0), los ignorados en línea que ya no ignoran nada (`--report-unused-ignores`, solo en
 //      código) y cualquier diagnóstico de análisis incompleto (p. ej. una hoja de estilos que no pudo leer).
-//      Renderizado: cada ruta en escritorio (1280x800) y en móvil (390x844).
+//      Renderizado: cada ruta en escritorio (1280x800) y en móvil (390x844), en cada tema de `ui.themes` (por defecto
+//      ["light"]; con "dark" el navegador sirve `prefers-color-scheme: dark`).
 // Códigos del detector (comprobados a mano con la 4.10.0): 0 sin hallazgos, 2 con hallazgos, 1 si no pudo escanear.
 // En una URL no cuentan los comentarios en línea ni las excepciones acotadas a un fichero: solo las de valor del config.
 // Salida: 0 limpio o sin web · 1 hallazgos o una comprobación falla · 2 error de uso, configuración, navegador o escaneo.
@@ -37,6 +38,12 @@ export const SKILL_DIRS = ['.claude/skills/impeccable', '.agents/skills/impeccab
 /** Extensiones que analiza el detector: las de la lista de reference/hooks.md de la skill y también .js/.ts/.mjs/.cjs (comprobado con la 4.10.0). */
 export const UI_EXT = ['.html', '.htm', '.css', '.scss', '.sass', '.less', '.jsx', '.tsx', '.vue', '.svelte', '.astro', '.js', '.ts', '.mjs', '.cjs'];
 export const VIEWPORTS = ['1280x800', '390x844'];
+/**
+ * Esquema de color de cada tema, forzado en Chromium con la preferencia de Blink `preferredColorScheme` (0 oscuro,
+ * 1 claro): así `prefers-color-scheme` responde lo mismo en local y en la CI (comprobado con Chromium 1248 y el
+ * detector 4.10.0: una página con colores distintos en `@media (prefers-color-scheme: dark)` da hallazgos distintos).
+ */
+export const THEMES = { light: 1, dark: 0 };
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 const INLINE = /impeccable-disable(?:-next-line|-line)?(?![\w-])(.*)$/;
 const USAGE = 'Uso: node .harness/impeccable-gate.mjs [--rendered <url base>]';
@@ -52,7 +59,7 @@ const safe = (p) => typeof p === 'string' && p !== '' && !p.startsWith('-') && !
   && !path.posix.isAbsolute(p) && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..');
 const route = (r) => typeof r === 'string' && /^\/[^\s?#]*(?:\?[^\s#]*)?(?:#\S*)?$/.test(r) && !r.split('/').includes('..');
 
-/** `ui` de harness.config.json: {paths, routes}, listas validadas (vacías si no hay). */
+/** `ui` de harness.config.json: {paths, routes, themes}, listas validadas (paths y routes vacías si no hay; themes, ["light"]). */
 export function uiConfig(root) {
   let cfg;
   try { cfg = JSON.parse(fs.readFileSync(path.join(root, 'harness.config.json'), 'utf8')); } catch (e) {
@@ -66,7 +73,11 @@ export function uiConfig(root) {
   const routes = cfg.ui.routes ?? [];
   if (!Array.isArray(paths) || !paths.every(safe)) throw new GateError('harness.config.json: "ui.paths" debe ser una lista de rutas relativas seguras.');
   if (!Array.isArray(routes) || !routes.every(route)) throw new GateError('harness.config.json: "ui.routes" debe ser una lista de rutas de la web que empiezan por "/" (p. ej. "/", "/reservar").');
-  return { paths, routes };
+  const themes = 'themes' in cfg.ui ? cfg.ui.themes : ['light'];
+  if (!Array.isArray(themes) || themes.length === 0 || !themes.every((t) => typeof t === 'string' && Object.hasOwn(THEMES, t)) || new Set(themes).size !== themes.length) {
+    throw new GateError(`harness.config.json: "ui.themes" debe ser una lista sin repetir de ${Object.keys(THEMES).map((t) => `"${t}"`).join(' y ')} (por defecto ["light"]).`);
+  }
+  return { paths, routes, themes };
 }
 
 /** Ficheros que el detector analiza bajo `rel` (un fichero o una carpeta), sin node_modules ni .git. */
@@ -180,11 +191,15 @@ export function findBrowser(env = process.env) {
  * Envoltorio que añade --no-sandbox: en los contenedores de la CI (root o sin espacios de nombres de usuario) Chromium
  * no arranca con el sandbox. Solo abre la app del propio proyecto servida en local.
  */
-function sandboxless(browser) {
+function sandboxless(browser, themes) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-'));
-  const wrapper = path.join(dir, 'chrome');
-  fs.writeFileSync(wrapper, `#!/bin/sh\nexec '${browser.replace(/'/g, `'\\''`)}' --no-sandbox "$@"\n`, { mode: 0o755 });
-  return { wrapper, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const wrappers = {};
+  for (const t of themes) {
+    wrappers[t] = path.join(dir, `chrome-${t}`);
+    const flags = `--no-sandbox --blink-settings=preferredColorScheme=${THEMES[t]}`;
+    fs.writeFileSync(wrappers[t], `#!/bin/sh\nexec '${browser.replace(/'/g, `'\\''`)}' ${flags} "$@"\n`, { mode: 0o755 });
+  }
+  return { wrappers, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 /** Lanza el detector fijado con `args` = [...opciones, [destinos]] y devuelve {code, findings, stderr} (findings null si la salida no es JSON). */
@@ -241,7 +256,7 @@ function judge(root, label, r) {
 
 /** Ejecuta la puerta en `root`. `rendered` es la URL base del modo renderizado; `run` sustituye al detector en los tests. */
 export function gate(root, { rendered = null, run = detect, env = process.env, check = probe } = {}) {
-  const { paths, routes } = uiConfig(root);
+  const { paths, routes, themes } = uiConfig(root);
   const problems = checkInstall(root);
   if (paths.length === 0) {
     problems.forEach(out.fail);
@@ -281,7 +296,7 @@ export function gate(root, { rendered = null, run = detect, env = process.env, c
     out.fail('--rendered: no hay navegador (IMPECCABLE_BROWSER, Chrome o Chromium en el PATH, o el Chromium de Playwright).');
     return 2;
   }
-  const { wrapper, cleanup } = sandboxless(browser);
+  const { wrappers, cleanup } = sandboxless(browser, themes);
   let worst = 0;
   try {
     for (const r of routes) {
@@ -292,13 +307,15 @@ export function gate(root, { rendered = null, run = detect, env = process.env, c
         worst = Math.max(worst, status !== null && status >= 300 && status < 400 ? 1 : 2);
         continue;
       }
-      for (const vp of VIEWPORTS) {
-        const code = judge(root, `${url} @${vp}`, run(root, ['--viewport', vp, [url]], { ...env, IMPECCABLE_BROWSER: wrapper }));
-        worst = Math.max(worst, code);
+      for (const t of themes) {
+        for (const vp of VIEWPORTS) {
+          const code = judge(root, `${url} @${vp} ${t}`, run(root, ['--viewport', vp, [url]], { ...env, IMPECCABLE_BROWSER: wrappers[t] }));
+          worst = Math.max(worst, code);
+        }
       }
     }
   } finally { cleanup(); }
-  if (worst === 0) out.ok(`Impeccable ${VERSION}, renderizado: 0 hallazgos y 0 avisos en ${routes.length} ruta(s) × ${VIEWPORTS.length} tamaños (${VIEWPORTS.join(', ')}).`);
+  if (worst === 0) out.ok(`Impeccable ${VERSION}, renderizado: 0 hallazgos y 0 avisos en ${routes.length} ruta(s) × ${VIEWPORTS.length} tamaños (${VIEWPORTS.join(', ')}) × ${themes.length} tema(s) (${themes.join(', ')}).`);
   else if (worst === 1) out.fail(`Impeccable ${VERSION}, renderizado: hay hallazgos. Corrígelos (/impeccable audit, polish); una excepción solo de valor y con motivo.`);
   return worst;
 }

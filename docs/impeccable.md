@@ -35,7 +35,7 @@ npx impeccable@4.10.0 install -y --scope=project --providers=claude,codex --no-h
 `.harness/impeccable-gate.mjs` lee `ui` de `harness.config.json`:
 
 ```json
-"ui": { "paths": ["web/src"], "routes": ["/", "/reservar"] }
+"ui": { "paths": ["web/src"], "routes": ["/", "/reservar"], "themes": ["light", "dark"] }
 ```
 
 - **`ui` es obligatorio.** Sin la clave la puerta sale con 2: no se sabe si hay web.
@@ -48,7 +48,13 @@ npx impeccable@4.10.0 install -y --scope=project --providers=claude,codex --no-h
     y otras. Sobre el código solo corren las reglas por patrón; el propio detector avisa de que el resultado se queda
     corto.
   - **Renderizado** (`node .harness/impeccable-gate.mjs --rendered <url base>`): analiza cada ruta de `ui.routes` con un
-    navegador, en escritorio (1280x800) y en móvil (390x844). Aquí corren las reglas de página: contraste, tamaño del
+    navegador, en escritorio (1280x800) y en móvil (390x844), y en cada tema de `ui.themes` (por defecto `["light"]`;
+    con `["light", "dark"]` también el oscuro). El tema se fuerza en Chromium con `--blink-settings=preferredColorScheme`
+    (0 oscuro, 1 claro), así que `prefers-color-scheme` responde igual en local y en la CI. Una web con tema oscuro lo
+    declara, porque si no la CI solo mide el claro. **Límite:** solo se mide el oscuro que la web activa con
+    `prefers-color-scheme` (o `light-dark()`); un tema oscuro que solo se enciende con una clase, un `data-theme` o
+    `localStorage` sin mirar la preferencia del sistema no se ve, y esa web tiene que seguir la preferencia del sistema
+    por defecto para que la puerta lo mida. Aquí corren las reglas de página: contraste, tamaño del
     texto, jerarquía tipográfica, tarjetas anidadas, etiquetas sobre los títulos… Lo cablea **cada proyecto en su CI**,
     en el job que ya construye y sirve la app (normalmente el de e2e, con la imagen oficial de Playwright), después de
     arrancar el servidor. El navegador sale de `IMPECCABLE_BROWSER`, de Chrome o Chromium en el `PATH` o del Chromium de

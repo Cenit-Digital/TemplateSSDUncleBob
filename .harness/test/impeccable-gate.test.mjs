@@ -15,7 +15,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
-import { gate, checkInline, checkConfig, findBrowser, VERSION, SKILL_DIRS, VIEWPORTS } from '../impeccable-gate.mjs';
+import { gate, checkInline, checkConfig, findBrowser, uiConfig, VERSION, SKILL_DIRS, VIEWPORTS } from '../impeccable-gate.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const GATE = path.join(REPO, '.harness', 'impeccable-gate.mjs');
@@ -54,7 +54,7 @@ function withFake(root, result, opts = {}) {
   const log = console.log;
   console.log = (s) => lines.push(String(s));
   try {
-    const code = gate(root, { check: () => 200, ...opts, run: (r, args, env) => { calls.push({ args, browser: env.IMPECCABLE_BROWSER }); return { stderr: '', ...result }; } });
+    const code = gate(root, { check: () => 200, ...opts, run: (r, args, env) => { const b = env.IMPECCABLE_BROWSER; calls.push({ args, browser: b, wrapper: b && fs.existsSync(b) ? fs.readFileSync(b, 'utf8') : null }); return { stderr: '', ...result }; } });
     return { code, calls, out: lines.join('\n') };
   } finally { console.log = log; }
 }
@@ -283,5 +283,61 @@ test('--rendered: una ruta que redirige (302 a /login) o no responde no se anali
   assert.match(redirect.out, /panel: responde 302/);
   assert.deepEqual(redirect.calls.map((c) => c.args[2]), [['http://localhost:4310/#/reservar'], ['http://localhost:4310/#/reservar']]);
   assert.equal(withFake(root, { code: 0, findings: [] }, { rendered: 'http://localhost:4310/', env, check: () => null }).code, 2);
+});
+
+test('ui.themes: por defecto solo claro; con ["light","dark"] cada ruta y tamaño en los dos, con un envoltorio por tema', () => {
+  assert.deepEqual(uiConfig(project({ ui: WEB })).themes, ['light']);
+  for (const bad of [[], null, ['oscuro'], ['dark', 'dark'], ['dark', ['dark']], 'dark']) {
+    assert.throws(() => uiConfig(project({ ui: { ...WEB, themes: bad } })), /ui\.themes/);
+  }
+  // Navegador en una ruta con comilla simple y espacio: el envoltorio tiene que citarla bien para sh.
+  const odd = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-b-')), "Chrome d'prueba");
+  dirs.push(path.dirname(odd));
+  fs.mkdirSync(odd);
+  const browser = path.join(odd, 'chrome');
+  fs.writeFileSync(browser, '#!/bin/sh\n', { mode: 0o755 });
+  const root = project({ ui: { ...WEB, themes: ['light', 'dark'] }, files: { 'web/index.html': CLEAN_HTML } });
+  const r = withFake(root, { code: 0, findings: [] }, { rendered: 'http://localhost:4310/', env: { ...process.env, IMPECCABLE_BROWSER: browser } });
+  assert.equal(r.code, 0, r.out);
+  assert.equal(r.calls.length, 2 * VIEWPORTS.length);
+  const wrappers = [...new Set(r.calls.map((c) => path.basename(c.browser)))].sort();
+  assert.deepEqual(wrappers, ['chrome-dark', 'chrome-light']);
+  const quoted = `'${browser.replace(/'/g, `'\\''`)}'`;
+  for (const c of r.calls) {
+    const scheme = path.basename(c.browser) === 'chrome-dark' ? 0 : 1;
+    assert.equal(c.wrapper, `#!/bin/sh\nexec ${quoted} --no-sandbox --blink-settings=preferredColorScheme=${scheme} "$@"\n`);
+  }
+  // Y sh lo ejecuta de verdad: el envoltorio de un navegador que imprime sus argumentos los recibe intactos.
+  fs.writeFileSync(browser, '#!/bin/sh\nprintf "%s|" "$@"\n', { mode: 0o755 });
+  const wrapperFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-gate-w-')), 'w');
+  dirs.push(path.dirname(wrapperFile));
+  fs.writeFileSync(wrapperFile, r.calls[0].wrapper, { mode: 0o755 });
+  assert.equal(spawnSync(wrapperFile, ['--headless', 'a b'], { encoding: 'utf8' }).stdout, `--no-sandbox|--blink-settings=preferredColorScheme=1|--headless|a b|`);
+  assert.match(r.out, /2 tema\(s\) \(light, dark\)/);
+});
+
+test(`detector real renderizado con tema oscuro: solo el oscuro tiene poco contraste → claro 0, claro+oscuro 1`, { skip: BROWSER ? false : 'sin navegador en esta máquina (en ubuntu-latest hay Chrome)' }, async () => {
+  const html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Tema</title><style>body{background:#fafaf7;color:#1a1a1a;font-family:Georgia,serif}main{max-width:40rem;margin:0 auto;padding:0 1.5rem}@media (prefers-color-scheme: dark){body{background:#111;color:#3a3a3a}}</style></head><body><main><h1>Hola</h1><p>Un párrafo con texto de prueba suficiente para medir el contraste en el tema que toque.</p></main></body></html>\n';
+  const server = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const cli = (themes) => new Promise((resolve) => {
+    const root = project({ ui: { ...WEB, themes }, files: { 'web/index.html': CLEAN_HTML } });
+    import('node:child_process').then(({ spawn }) => {
+      const p = spawn(process.execPath, [GATE, '--rendered', url], { cwd: root, env: { ...process.env, NO_COLOR: '1' } });
+      let stdout = '';
+      p.stdout.on('data', (d) => { stdout += d; });
+      p.stderr.on('data', (d) => { stdout += d; });
+      p.on('close', (status) => resolve({ status, stdout }));
+    });
+  });
+  try {
+    const claro = await cli(['light']);
+    assert.equal(claro.status, 0, claro.stdout);
+    const ambos = await cli(['light', 'dark']);
+    assert.equal(ambos.status, 1, ambos.stdout);
+    assert.match(ambos.stdout, / dark .*\[/);
+    assert.doesNotMatch(ambos.stdout, / light .*\[/);
+  } finally { server.close(); }
 });
 
