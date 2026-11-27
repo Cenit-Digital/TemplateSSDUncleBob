@@ -70,9 +70,9 @@ function scenario(files) {
 }
 
 /** Lanza el motor en `cwd` con `args`; devuelve { status, out }. */
-function runEngine(cwd, args = []) {
+function runEngine(cwd, args = [], env = {}) {
   const r = spawnSync(process.execPath, [ENGINE, ...args], {
-    cwd, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' },
+    cwd, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env },
   });
   return { status: r.status, out: `${r.stdout || ''}${r.stderr || ''}` };
 }
@@ -745,4 +745,124 @@ test('un harness.config.json mal formado termina en [FAIL] con exit 2 y sin traz
   assert.equal(status, 2);
   assert.match(out, /\[FAIL\]\s+Error inesperado: .*harness\.config\.json mal formado/);
   assert.doesNotMatch(out, /\n\s+at /); // sin traza de pila
+});
+
+// ── MCP-first (docs/mcp-first.md): un repo con API publica también su servidor MCP ──
+
+/** Proyecto con `api:true` y, si se pide, un MCP completo en mcp/ (servidor, catálogo y test que lo usa). */
+function mcpScenario({ cfg = {}, catalogo, server = true, test = true } = {}) {
+  const files = { 'harness.config.json': { project: 't', standalone: false, commands: {}, api: true, ...cfg } };
+  if (server) files['mcp/servidor.py'] = '# servidor MCP (Streamable HTTP)\n';
+  if (catalogo !== undefined) files['mcp/catalogo.json'] = catalogo;
+  if (test) files['tests/test_mcp.py'] = 'CATALOGO = "mcp/catalogo.json"  # tools/list debe coincidir\n';
+  return scenario(files);
+}
+
+test('mcp-first: sin "api" (por defecto false) no se comprueba nada ni sale la sección', () => {
+  const { status, out } = runEngine(scenario(GREEN_FILES), ['init']);
+  assert.equal(status, 0, out);
+  assert.doesNotMatch(out, /MCP-first/);
+});
+
+test('mcp-first: api:true con servidor, catálogo válido y test que lo usa pasa en verde', () => {
+  const dir = mcpScenario({ catalogo: { listar: 'L', crear: 'E', borrar: '⚠', exec: '✕' } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /MCP-first/);
+  assert.match(out, /4 herramientas en mcp\/catalogo\.json/);
+});
+
+test('mcp-first: el catálogo admite también la forma { "capa": … } de la centralita', () => {
+  const dir = mcpScenario({ catalogo: { listar: { capa: 'L', motivo: 'solo lee' } } });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+});
+
+test('mcp-first: api:true sin carpeta mcp/ falla, dice qué falta y enlaza docs/mcp-first.md', () => {
+  const dir = mcpScenario({ server: false, test: false });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /\[FAIL\].*mcp\//);
+  assert.match(out, /docs\/mcp-first\.md/);
+});
+
+test('mcp-first: mcp.dir cambia la carpeta del servidor', () => {
+  const dir = scenario({
+    'harness.config.json': { project: 't', standalone: false, commands: {}, api: true, mcp: { dir: 'src/mcp' } },
+    'src/mcp/server.ts': '// servidor\n', 'src/mcp/catalogo.json': json({ leer: 'L' }),
+    'src/mcp/server.test.ts': "import catalogo from './catalogo.json'\n",
+  });
+  const { status, out } = runEngine(dir, ['init']);
+  assert.equal(status, 0, out);
+  assert.match(out, /src\/mcp\/catalogo\.json/);
+});
+
+test('mcp-first: falta catalogo.json → FAIL con la ruta exacta', () => {
+  const { status, out } = runEngine(mcpScenario({}), ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Falta mcp\/catalogo\.json/);
+});
+
+test('mcp-first: solo el catálogo, sin el servidor, falla', () => {
+  const { status, out } = runEngine(mcpScenario({ catalogo: { leer: 'L' }, server: false }), ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /Falta el servidor MCP en mcp\//);
+});
+
+test('mcp-first: una capa que no es L, E, ⚠ ni ✕ falla nombrando la herramienta', () => {
+  const { status, out } = runEngine(mcpScenario({ catalogo: { leer: 'L', raro: 'X', otro: { capa: 'lectura' } } }), ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /raro/);
+  assert.match(out, /otro/);
+  assert.doesNotMatch(out, /\bleer\b.*capa/);
+});
+
+test('mcp-first: catálogo vacío, que no es un objeto o con JSON roto falla con mensaje claro (sin traza)', () => {
+  for (const catalogo of [{}, '["leer"]', '{ "leer": ']) {
+    const { status, out } = runEngine(mcpScenario({ catalogo }), ['init']);
+    assert.equal(status, 1, `${catalogo}: ${out}`);
+    assert.match(out, /catalogo\.json/);
+    assert.doesNotMatch(out, /\n\s+at /);
+  }
+});
+
+test('mcp-first: sin ningún test que use catalogo.json falla', () => {
+  const { status, out } = runEngine(mcpScenario({ catalogo: { leer: 'L' }, test: false }), ['init']);
+  assert.equal(status, 1);
+  assert.match(out, /test que compare tools\/list con mcp\/catalogo\.json/);
+});
+
+test('mcp-first: un "test" fuera de tests/, src/ y del directorio MCP, o en node_modules, no cuenta', () => {
+  const dir = mcpScenario({ catalogo: { leer: 'L' }, test: false });
+  write(dir, 'node_modules/x/test.js', 'require("./catalogo.json")\n');
+  write(dir, 'docs/test-ejemplo.md', 'catalogo.json\n');
+  const { status } = runEngine(dir, ['init']);
+  assert.equal(status, 1);
+});
+
+test('mcp-first: una excepción vigente deja pasar (sin MCP) y lo dice con su fecha, motivo e issue', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {}, api: true,
+    mcp: { exception: { until: '2026-12-31', reason: 'el MCP llega con la centralita', issue: 'Org/Repo#7' } } } });
+  const { status, out } = runEngine(dir, ['init'], { HARNESS_TODAY: '2026-12-31' });
+  assert.equal(status, 0, out);
+  assert.match(out, /Excepción MCP-first vigente hasta 2026-12-31/);
+  assert.match(out, /Org\/Repo#7/);
+});
+
+test('mcp-first: una excepción caducada falla con la fecha', () => {
+  const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {}, api: true,
+    mcp: { exception: { until: '2026-12-31', reason: 'x', issue: 'Org/Repo#7' } } } });
+  const { status, out } = runEngine(dir, ['init'], { HARNESS_TODAY: '2027-01-01' });
+  assert.equal(status, 1);
+  assert.match(out, /La excepción MCP-first caducó el 2026-12-31/);
+});
+
+test('mcp-first: una excepción sin fecha válida falla (no cuela «para siempre»)', () => {
+  for (const until of ['', '31-12-2026', '2026-13-01', null]) {
+    const dir = scenario({ 'harness.config.json': { project: 't', standalone: false, commands: {}, api: true,
+      mcp: { exception: { until, reason: 'x', issue: 'Org/Repo#7' } } } });
+    const { status, out } = runEngine(dir, ['init']);
+    assert.equal(status, 1, `${until}: ${out}`);
+    assert.match(out, /until/);
+  }
 });

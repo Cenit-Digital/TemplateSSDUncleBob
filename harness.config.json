@@ -22,6 +22,7 @@
     "threshold": 0.8,
     "targets": []
   },
+  "api": false,
   "rules": {
     "require_tests_to_close": false,
     "require_mutation_to_close": false
